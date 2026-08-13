@@ -1,0 +1,206 @@
+package com.projectui.view.admin;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Compatibility facade named `AdminDataStore` to match existing references.
+ * This class mirrors the in-memory data used by the application.
+ */
+public class AdminDataStore {
+
+    private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm");
+    private static final AdminDataStore INSTANCE = new AdminDataStore();
+
+    public final List<Port> ports = new ArrayList<>();
+    public final List<UserAccount> users = new ArrayList<>();
+    public final List<ReportRow> reports = new ArrayList<>();
+
+    public String adminName = "Dock Tech Admin";
+    public String adminEmail = "admin@docktech.com";
+    public String language = "English";
+    public String dateFormat = "DD/MM/YYYY";
+    public boolean notifications = true;
+    public String authToken = "";
+    public String settingsMessage = "";
+    public String reportMessage = "";
+    public String lastExportPath = "";
+
+    private AdminDataStore() {
+        ports.add(new Port("Port of Mumbai", "Mumbai", 18, 12, "Operational", "Mixed cargo, containers", "82%", "Clear", now()));
+        ports.add(new Port("Port of Chennai", "Chennai", 14, 8, "Operational", "Automobiles, containers", "76%", "Clear", now()));
+        ports.add(new Port("Port of Vizag", "Visakhapatnam", 12, 5, "Maintenance", "Bulk cargo, minerals", "58%", "Crane service in progress", now()));
+        ports.add(new Port("Port of Kolkata", "Kolkata", 10, 9, "Busy", "River cargo, containers", "91%", "High congestion watch", now()));
+
+        users.add(new UserAccount("Aarav Mehta", "aarav@docktech.com", "Admin", "Active", "01 Jan 2026", now()));
+        users.add(new UserAccount("John Smith", "john@docktech.com", "Port Authority", "Active", "18 Feb 2026", now()));
+        users.add(new UserAccount("Rahul Patil", "rahul@docktech.com", "Ship Captain", "Active", "04 Mar 2026", "11 Aug 2026, 20:10"));
+        users.add(new UserAccount("Alex Kumar", "alex@docktech.com", "Customs Officer", "Pending", "25 Jul 2026", "Pending approval"));
+        users.add(new UserAccount("Meera Rao", "meera@docktech.com", "Exporter", "Active", "09 May 2026", now()));
+        users.add(new UserAccount("Nisha Shah", "nisha@docktech.com", "Importer", "Deactivated", "16 Jun 2026", "05 Aug 2026, 17:35"));
+
+        generateReports("Today", "All Status");
+    }
+
+    public static AdminDataStore getInstance() {
+        return INSTANCE;
+    }
+
+    public void clearSession() {
+        adminName = "Dock Tech Admin";
+        adminEmail = "admin@docktech.com";
+        language = "English";
+        dateFormat = "DD/MM/YYYY";
+        notifications = true;
+        authToken = "";
+        settingsMessage = "";
+        reportMessage = "";
+        lastExportPath = "";
+    }
+
+    public int activePorts() {
+        int count = 0;
+        for (Port port : ports) {
+            if ("Operational".equals(port.status)) count++;
+        }
+        return count;
+    }
+
+    public int maintenancePorts() {
+        int count = 0;
+        for (Port port : ports) {
+            if ("Maintenance".equals(port.status)) count++;
+        }
+        return count;
+    }
+
+    public int activeVessels() {
+        int count = 0;
+        for (Port port : ports) {
+            count += port.vessels;
+        }
+        return count;
+    }
+
+    public int cargoHandled() {
+        return activeVessels() * 285;
+    }
+
+    public int activeUsers() {
+        int count = 0;
+        for (UserAccount user : users) {
+            if ("Active".equals(user.status)) count++;
+        }
+        return count;
+    }
+
+    public int pendingUsers() {
+        int count = 0;
+        for (UserAccount user : users) {
+            if ("Pending".equals(user.status)) count++;
+        }
+        return count;
+    }
+
+    public int[] weeklyOperations() {
+        int base = ports.size() * 8;
+        return new int[]{base + 6, base + 18, base + 13, base + 30, base + 24, base + activeVessels(), base + 10};
+    }
+
+    public String now() {
+        return LocalDateTime.now().format(DATE_TIME);
+    }
+
+    public void generateReports(String filter, String statusFilter) {
+        reports.clear();
+        reports.add(new ReportRow("Port Operations Report", filter, "Ready"));
+        reports.add(new ReportRow("Vessel Activity Report", filter, "Ready"));
+        reports.add(new ReportRow("Cargo Handling Report", filter, "Processing"));
+        reports.add(new ReportRow("User Activity Report", filter, "Ready"));
+
+        if (!"All Status".equals(statusFilter)) {
+            reports.removeIf(report -> !statusFilter.equals(report.status));
+        }
+        reportMessage = "Reports updated for " + filter;
+    }
+
+    public String exportReport(ReportRow report) throws IOException {
+        Path exportDir = Path.of("exports");
+        Files.createDirectories(exportDir);
+        String fileName = report.name.toLowerCase().replace(" ", "-") + ".csv";
+        Path file = exportDir.resolve(fileName);
+        String content = "Report,Period,Status,Generated At\n"
+                + report.name + "," + report.period + "," + report.status + "," + now() + "\n";
+        Files.writeString(file, content);
+        lastExportPath = file.toAbsolutePath().toString();
+        reportMessage = "Exported " + report.name;
+        return lastExportPath;
+    }
+
+    public static class Port {
+        public String name;
+        public String location;
+        public int berths;
+        public int vessels;
+        public String status;
+        public String cargo;
+        public String capacity;
+        public String maintenance;
+        public String lastUpdated;
+
+        public Port(String name, String location, int berths, int vessels, String status, String cargo, String capacity, String maintenance, String lastUpdated) {
+            this.name = name;
+            this.location = location;
+            this.berths = berths;
+            this.vessels = vessels;
+            this.status = status;
+            this.cargo = cargo;
+            this.capacity = capacity;
+            this.maintenance = maintenance;
+            this.lastUpdated = lastUpdated;
+        }
+
+        public int occupiedBerths() {
+            return Math.min(berths, vessels);
+        }
+
+        public int availableBerths() {
+            return Math.max(0, berths - occupiedBerths());
+        }
+    }
+
+    public static class UserAccount {
+        public String name;
+        public String email;
+        public String role;
+        public String status;
+        public String created;
+        public String lastLogin;
+
+        public UserAccount(String name, String email, String role, String status, String created, String lastLogin) {
+            this.name = name;
+            this.email = email;
+            this.role = role;
+            this.status = status;
+            this.created = created;
+            this.lastLogin = lastLogin;
+        }
+    }
+
+    public static class ReportRow {
+        public final String name;
+        public final String period;
+        public final String status;
+
+        public ReportRow(String name, String period, String status) {
+            this.name = name;
+            this.period = period;
+            this.status = status;
+        }
+    }
+}
