@@ -1,9 +1,8 @@
 package com.projectui.view.admin;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
+
+import com.projectui.view.admin.AdminDataStore.Port;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -11,36 +10,56 @@ import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.Arc;
+import javafx.scene.shape.ArcType;
+import javafx.scene.shape.Circle;
+import javafx.scene.shape.Rectangle;
 
 public class PortManagementPage extends AdminTheme {
 
-    private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm");
-    private final List<Port> ports = new ArrayList<>();
+    private final AdminDataStore store = AdminDataStore.getInstance();
+    private final List<Port> ports = store.ports;
     private final GridPane table = new GridPane();
 
+    // Summary Metric Labels
     private Label totalValue;
     private Label activeValue;
     private Label maintenanceValue;
+    private Label congestionValue;
+    private Label vesselsValue;
+    private Label berthValue;
+
+    // Filter & Search Controls
     private TextField search;
+    private ComboBox<String> statusFilter;
+
+    // Add / Edit Form Controls
     private TextField portName;
     private TextField location;
+    private TextField portCodeField;
     private TextField berthCount;
     private TextField portCapacity;
-    private TextField maintenanceInfo;
+    private TextArea maintenanceInfo;
     private ComboBox<String> status;
-    private Button save;
+    private Button saveBtn;
+    private Button clearBtn;
+    private Button addTabBtn;
+    private Button editTabBtn;
     private Label formTitle;
     private Label formSubtitle;
-    private VBox detailsBox;
-    private GridPane berthTable;
-    private int editingIndex = -1;
+    private Label formModeBadge;
 
+    private int editingIndex = -1;
     private final boolean startAddOnOpen;
 
     public PortManagementPage() {
@@ -49,26 +68,69 @@ public class PortManagementPage extends AdminTheme {
 
     public PortManagementPage(boolean startAddOnOpen) {
         this.startAddOnOpen = startAddOnOpen;
-        ports.add(new Port("Port of Mumbai", "Mumbai", 18, 12, "Operational", "Mixed cargo, containers", "82%", "Clear", now()));
-        ports.add(new Port("Port of Chennai", "Chennai", 14, 8, "Operational", "Automobiles, containers", "76%", "Clear", now()));
-        ports.add(new Port("Port of Vizag", "Visakhapatnam", 12, 5, "Maintenance", "Bulk cargo, minerals", "58%", "Crane service in progress", now()));
-        ports.add(new Port("Port of Kolkata", "Kolkata", 10, 9, "Busy", "River cargo, containers", "91%", "High congestion watch", now()));
     }
 
     public Parent getRoot() {
-        Button add = primaryButton("+  Add Port");
-        add.setOnAction(event -> startAdd());
+        // Page Header Buttons
+        Button addQuickBtn = primaryButton("+  Add Port");
+        addQuickBtn.setOnAction(event -> startAdd());
+        addQuickBtn.setStyle("-fx-background-color:" + BLUE + "; -fx-text-fill:white; -fx-font-size:14; -fx-font-weight:bold; -fx-padding:10 22; -fx-background-radius:8; -fx-cursor:hand;");
+
+        Button editQuickBtn = new Button("✎  Edit Port");
+        editQuickBtn.setStyle("-fx-background-color:#0aa05f; -fx-text-fill:white; -fx-font-size:14; -fx-font-weight:bold; -fx-padding:10 22; -fx-background-radius:8; -fx-cursor:hand;");
+        editQuickBtn.setOnAction(event -> {
+            if (editingIndex >= 0 && editingIndex < ports.size()) {
+                startEdit(editingIndex);
+            } else if (!ports.isEmpty()) {
+                startEdit(0);
+            }
+        });
+
+        Label title = new Label("Port Management");
+        title.setStyle("-fx-text-fill:#05070c; -fx-font-size:26; -fx-font-weight:bold;");
+        Label subtitle = new Label("Monitor and manage port operations, capacity, vessel traffic, berths and operational conditions.");
+        subtitle.setStyle("-fx-text-fill:#64748b; -fx-font-size:14;");
+        VBox titleCopy = new VBox(2, title, subtitle);
+        Region titleSpace = new Region();
+        HBox.setHgrow(titleSpace, Priority.ALWAYS);
+        HBox titleRow = new HBox(12, titleCopy, titleSpace, addQuickBtn, editQuickBtn);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
 
         VBox page = pageContent();
-        page.getChildren().addAll(
-                pageHeader("Port Management", "Manage registered ports", add),
-                new HBox(16,
-                        statBox("Total Ports", "0", TEXT, label -> totalValue = label),
-                        statBox("Active Ports", "0", "#0aa072", label -> activeValue = label),
-                        statBox("Maintenance", "0", "#f97316", label -> maintenanceValue = label)
-                ),
-                new HBox(18, portListCard(), portFormCard())
+        page.setSpacing(14);
+        page.setPadding(new Insets(16, 20, 20, 20));
+
+        // 1. Top Summary Cards (6 KPIs)
+        HBox stats = new HBox(12,
+                statBox("Total Ports", "0", "All Registered", "⚓", BLUE, "#eff6ff", label -> totalValue = label),
+                statBox("Active Ports", "0", "Operational", "✓", "#16a34a", "#ecfdf5", label -> activeValue = label),
+                statBox("Maintenance", "0", "Under Repair", "⌁", BLUE, "#eff6ff", label -> maintenanceValue = label),
+                statBox("High Congestion", "0", "Requires Attention", "!", "#ef4444", "#fef2f2", label -> congestionValue = label),
+                statBox("Vessels in Port", "0", "Currently Docked", "▣", "#0b63ff", "#f5f3ff", label -> vesselsValue = label),
+                statBox("Berth Usage", "0 / 0", "Total Berths Occupied", "▤", "#f97316", "#fff7ed", label -> berthValue = label)
         );
+        stats.getChildren().forEach(node -> {
+            HBox.setHgrow(node, Priority.ALWAYS);
+            if (node instanceof VBox) ((VBox) node).setMaxWidth(Double.MAX_VALUE);
+        });
+
+        // 2. Main Section: Left Control Center Table (52%) + Right Add/Edit Panel (48%)
+        Region listCard = portListCard();
+        Region formCard = portFormCard();
+        HBox main = new HBox(14, listCard, formCard);
+        listCard.prefWidthProperty().bind(main.widthProperty().multiply(0.52));
+        formCard.prefWidthProperty().bind(main.widthProperty().multiply(0.48));
+        HBox.setHgrow(listCard, Priority.ALWAYS);
+        HBox.setHgrow(formCard, Priority.ALWAYS);
+
+        // 3. Supporting Bottom Cards
+        HBox bottom = new HBox(12, operationalSummaryCard(), recentPortActivityCard(), capacityOverviewCard());
+        bottom.getChildren().forEach(node -> {
+            HBox.setHgrow(node, Priority.ALWAYS);
+            if (node instanceof VBox) ((VBox) node).setMaxWidth(Double.MAX_VALUE);
+        });
+
+        page.getChildren().addAll(titleRow, stats, main, bottom);
 
         refreshTable();
         refreshStats();
@@ -77,87 +139,269 @@ public class PortManagementPage extends AdminTheme {
         } else if (!ports.isEmpty()) {
             startEdit(0);
         }
-        return page;
+
+        // Smooth ScrollPane wrapper
+        ScrollPane scroller = new ScrollPane(page);
+        scroller.setFitToWidth(true);
+        scroller.setPannable(true);
+        scroller.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroller.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroller.setStyle("-fx-background:transparent; -fx-background-color:transparent; -fx-padding:0;");
+
+        return scroller;
     }
 
+    // ==========================================
+    // PORT OPERATIONS CONTROL CENTER TABLE (LEFT)
+    // ==========================================
     private VBox portListCard() {
         search = new TextField();
-        search.setPromptText("⌕  Search ports");
-        search.setPrefWidth(155);
-        styleField(search);
-        search.setStyle(search.getStyle() + "-fx-background-color:#f2f2f5; -fx-border-color:transparent;");
+        search.setPromptText("⌕  Search ports by name, location, code...");
+        search.setPrefWidth(260);
+        styleCustomField(search);
         search.textProperty().addListener((obs, oldValue, newValue) -> refreshTable());
 
-        Label title = new Label("Port List");
-        title.setStyle("-fx-text-fill:#05070c; -fx-font-size:17; -fx-font-weight:bold;");
+        statusFilter = combo("Filter", "All Status", "Operational", "Busy", "High Congestion", "Maintenance", "Closed", "Restricted");
+        statusFilter.setPrefWidth(140);
+        statusFilter.valueProperty().addListener((obs, oldValue, newValue) -> refreshTable());
 
-        Label subtitle = new Label("View and edit registered ports");
-        subtitle.setStyle("-fx-text-fill:#747884; -fx-font-size:12;");
+        Button refresh = new Button("↻  Refresh");
+        refresh.setStyle(
+                "-fx-background-color:#f1f5f9;" +
+                "-fx-text-fill:#475569;" +
+                "-fx-font-size:13;" +
+                "-fx-font-weight:bold;" +
+                "-fx-padding:8 14;" +
+                "-fx-background-radius:6;" +
+                "-fx-cursor:hand;"
+        );
+        refresh.setOnAction(event -> {
+            refreshTable();
+            refreshStats();
+        });
+
+        Label title = new Label("Port Operations Control Center");
+        title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:18; -fx-font-weight:bold;");
+
+        Label subtitle = new Label("Capacity, vessel traffic, berth usage and operating conditions");
+        subtitle.setStyle("-fx-text-fill:#64748b; -fx-font-size:13;");
 
         Region space = new Region();
         HBox.setHgrow(space, Priority.ALWAYS);
 
-        HBox top = new HBox(14, new VBox(8, title, subtitle), space, search);
+        HBox filters = new HBox(10, search, statusFilter, refresh);
+        filters.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(search, Priority.ALWAYS);
+
+        HBox top = new HBox(14, new VBox(2, title, subtitle), space);
         top.setAlignment(Pos.CENTER_LEFT);
 
-        styleTable();
+        // 7-column table layout using ColumnConstraints
+        table.setHgap(0);
+        table.setVgap(0);
+        table.setMaxWidth(Double.MAX_VALUE);
+        table.setStyle("-fx-background-color:white; -fx-border-color:#e2e8f0; -fx-border-radius:8; -fx-background-radius:8;");
 
-        VBox card = new VBox(20, top, horizontalScroll(table));
-        card.setPrefWidth(650);
-        card.setPadding(new Insets(22));
-        card.setStyle(CARD_STYLE);
+        ColumnConstraints c1 = new ColumnConstraints(); c1.setPercentWidth(22); // Port
+        ColumnConstraints c2 = new ColumnConstraints(); c2.setPercentWidth(15); // Location
+        ColumnConstraints c3 = new ColumnConstraints(); c3.setPercentWidth(16); // Status
+        ColumnConstraints c4 = new ColumnConstraints(); c4.setPercentWidth(10); // Vessels
+        ColumnConstraints c5 = new ColumnConstraints(); c5.setPercentWidth(17); // Berth Usage
+        ColumnConstraints c6 = new ColumnConstraints(); c6.setPercentWidth(10); // Capacity
+        ColumnConstraints c7 = new ColumnConstraints(); c7.setPercentWidth(10); // Action
+        table.getColumnConstraints().setAll(c1, c2, c3, c4, c5, c6, c7);
+
+        Label showing = new Label("Showing " + ports.size() + " of " + ports.size() + " registered ports");
+        showing.setStyle("-fx-text-fill:#64748b; -fx-font-size:13;");
+        Region pagerSpace = new Region();
+        HBox.setHgrow(pagerSpace, Priority.ALWAYS);
+        Label pager = new Label("‹    1    ›");
+        pager.setStyle("-fx-text-fill:" + BLUE + "; -fx-font-size:15; -fx-font-weight:bold;");
+        HBox footer = new HBox(8, showing, pagerSpace, pager);
+        footer.setAlignment(Pos.CENTER_LEFT);
+
+        VBox card = new VBox(14, top, filters, table, footer);
+        card.setPadding(new Insets(18));
+        card.setStyle(cardStyle());
         return card;
     }
 
+    // ==========================================
+    // ADD / EDIT PORT FORM PANEL (RIGHT ⭐⭐⭐)
+    // ==========================================
     private VBox portFormCard() {
-        formTitle = new Label("Add / Edit Port");
-        formTitle.setStyle("-fx-text-fill:#05070c; -fx-font-size:21; -fx-font-weight:bold;");
+        // Tab Controls
+        addTabBtn = new Button("➕  Add New Port");
+        editTabBtn = new Button("✎  Edit Port");
 
-        formSubtitle = new Label("Update port details");
-        formSubtitle.setStyle("-fx-text-fill:#747884; -fx-font-size:14;");
+        addTabBtn.setOnAction(e -> startAdd());
+        editTabBtn.setOnAction(e -> {
+            if (editingIndex >= 0 && editingIndex < ports.size()) {
+                startEdit(editingIndex);
+            } else if (!ports.isEmpty()) {
+                startEdit(0);
+            }
+        });
 
+        HBox tabs = new HBox(8, addTabBtn, editTabBtn);
+        tabs.setAlignment(Pos.CENTER_LEFT);
+
+        formTitle = new Label("Add New Port");
+        formTitle.setStyle("-fx-text-fill:#0f172a; -fx-font-size:18; -fx-font-weight:bold;");
+
+        formSubtitle = new Label("Create a new registered maritime port facility.");
+        formSubtitle.setStyle("-fx-text-fill:#64748b; -fx-font-size:13;");
+
+        formModeBadge = new Label("MODE: ADD");
+        formModeBadge.setStyle(
+                "-fx-background-color:#eff6ff;" +
+                "-fx-text-fill:" + BLUE + ";" +
+                "-fx-font-size:12;" +
+                "-fx-font-weight:bold;" +
+                "-fx-padding:4 10;" +
+                "-fx-background-radius:6;"
+        );
+
+        Region space = new Region();
+        HBox.setHgrow(space, Priority.ALWAYS);
+        HBox formHeaderRow = new HBox(8, new VBox(2, formTitle, formSubtitle), space, formModeBadge);
+        formHeaderRow.setAlignment(Pos.CENTER_LEFT);
+
+        // Form Fields
         portName = new TextField();
         location = new TextField();
+        portCodeField = new TextField();
         berthCount = new TextField();
         portCapacity = new TextField();
-        maintenanceInfo = new TextField();
-        status = combo("Status", "Operational", "Busy", "Maintenance", "Restricted");
-        styleField(portName);
-        styleField(location);
-        styleField(berthCount);
-        styleField(portCapacity);
-        styleField(maintenanceInfo);
+        maintenanceInfo = new TextArea();
+        status = combo("Status", "Operational", "Busy", "High Congestion", "Maintenance", "Closed", "Restricted");
 
-        save = primaryButton("Save");
-        save.setMaxWidth(Double.MAX_VALUE);
-        save.setOnAction(event -> savePort());
+        portName.setPromptText("e.g. Port of JNPT");
+        location.setPromptText("e.g. Navi Mumbai, MH");
+        portCodeField.setPromptText("e.g. IN-BOM-01");
+        berthCount.setPromptText("e.g. 18");
+        portCapacity.setPromptText("e.g. 85%");
+        maintenanceInfo.setPromptText("Enter current maintenance schedule or operational notices...");
+        maintenanceInfo.setPrefRowCount(4);
+        maintenanceInfo.setWrapText(true);
 
-        detailsBox = new VBox(8);
-        berthTable = new GridPane();
+        styleCustomField(portName);
+        styleCustomField(location);
+        styleCustomField(portCodeField);
+        styleCustomField(berthCount);
+        styleCustomField(portCapacity);
+        styleCustomField(maintenanceInfo);
 
-        VBox card = new VBox(10, formTitle, formSubtitle);
-        card.setPrefWidth(330);
-        card.setPadding(new Insets(22));
-        card.setStyle(CARD_STYLE);
-        card.getChildren().addAll(
-                labeledControl("Port Name", portName),
-                labeledControl("Location", location),
-                labeledControl("Number of Berths", berthCount),
-                labeledControl("Port Capacity", portCapacity),
-                labeledControl("Status", status),
-                labeledControl("Maintenance Information", maintenanceInfo),
-                detailsBox,
-                berthTable,
-                save
+        // Action Buttons
+        saveBtn = primaryButton("💾  Save Changes");
+        saveBtn.setStyle(
+                "-fx-background-color:" + BLUE + ";" +
+                "-fx-text-fill:white;" +
+                "-fx-font-size:14;" +
+                "-fx-font-weight:bold;" +
+                "-fx-padding:10 20;" +
+                "-fx-background-radius:6;" +
+                "-fx-cursor:hand;"
         );
+        saveBtn.setOnAction(event -> savePort());
+
+        clearBtn = new Button("🧹  Clear Form");
+        clearBtn.setStyle(
+                "-fx-background-color:#f1f5f9;" +
+                "-fx-text-fill:#475569;" +
+                "-fx-font-size:14;" +
+                "-fx-font-weight:bold;" +
+                "-fx-padding:10 16;" +
+                "-fx-background-radius:6;" +
+                "-fx-cursor:hand;"
+        );
+        clearBtn.setOnAction(event -> clearFormFields());
+
+        HBox buttonRow = new HBox(10, clearBtn, saveBtn);
+        buttonRow.setAlignment(Pos.CENTER_RIGHT);
+
+        VBox gridFields = new VBox(10,
+                new HBox(10, labeledControl("Port Name *", portName), labeledControl("Location *", location)),
+                new HBox(10, labeledControl("Port Code *", portCodeField), labeledControl("Port Status *", status)),
+                new HBox(10, labeledControl("Port Capacity (%) *", portCapacity), labeledControl("Number of Berths *", berthCount)),
+                labeledControl("Maintenance Information & Notices", maintenanceInfo)
+        );
+
+        // Allow HBox children in form grid to grow equally
+        gridFields.getChildren().forEach(node -> {
+            if (node instanceof HBox) {
+                HBox row = (HBox) node;
+                for (var child : row.getChildren()) {
+                    HBox.setHgrow(child, Priority.ALWAYS);
+                    if (child instanceof VBox) ((VBox) child).setMaxWidth(Double.MAX_VALUE);
+                }
+            }
+        });
+
+        VBox card = new VBox(12,
+                tabs,
+                formHeaderRow,
+                gridFields,
+                buttonRow
+        );
+        card.setPadding(new Insets(18));
+        card.setStyle(cardStyle());
+
+        updateTabStyles();
         return card;
     }
 
+    private void updateTabStyles() {
+        boolean isEditing = editingIndex >= 0 && editingIndex < ports.size();
+        if (isEditing) {
+            addTabBtn.setStyle(
+                    "-fx-background-color:#f1f5f9;" +
+                    "-fx-text-fill:#475569;" +
+                    "-fx-font-size:13;" +
+                    "-fx-font-weight:bold;" +
+                    "-fx-padding:7 16;" +
+                    "-fx-background-radius:6;" +
+                    "-fx-cursor:hand;"
+            );
+            editTabBtn.setStyle(
+                    "-fx-background-color:" + BLUE + ";" +
+                    "-fx-text-fill:white;" +
+                    "-fx-font-size:13;" +
+                    "-fx-font-weight:bold;" +
+                    "-fx-padding:7 16;" +
+                    "-fx-background-radius:6;" +
+                    "-fx-cursor:hand;"
+            );
+        } else {
+            addTabBtn.setStyle(
+                    "-fx-background-color:" + BLUE + ";" +
+                    "-fx-text-fill:white;" +
+                    "-fx-font-size:13;" +
+                    "-fx-font-weight:bold;" +
+                    "-fx-padding:7 16;" +
+                    "-fx-background-radius:6;" +
+                    "-fx-cursor:hand;"
+            );
+            editTabBtn.setStyle(
+                    "-fx-background-color:#f1f5f9;" +
+                    "-fx-text-fill:#475569;" +
+                    "-fx-font-size:13;" +
+                    "-fx-font-weight:bold;" +
+                    "-fx-padding:7 16;" +
+                    "-fx-background-radius:6;" +
+                    "-fx-cursor:hand;"
+            );
+        }
+    }
+
+    // ==========================================
+    // REFRESH TABLE & DATA
+    // ==========================================
     private void refreshTable() {
         table.getChildren().clear();
-        styleTable();
 
-        String[] headers = {"Port Name", "Location", "Berths", "Vessels", "Status", "Action"};
+        // 7 Columns: Port, Location, Status, Vessels, Berth Usage, Capacity, Action
+        String[] headers = {"Port", "Location", "Status", "Vessels", "Berth Usage", "Capacity", "Action"};
         for (int col = 0; col < headers.length; col++) {
             table.add(headerCell(headers[col]), col, 0);
         }
@@ -170,25 +414,43 @@ public class PortManagementPage extends AdminTheme {
                 continue;
             }
 
-            table.add(bodyCell(port.name), 0, displayRow);
-            table.add(bodyCell(port.location), 1, displayRow);
-            table.add(bodyCell(String.valueOf(port.berths)), 2, displayRow);
-            table.add(bodyCell(String.valueOf(port.vessels)), 3, displayRow);
-            table.add(statusBadge(port.status), 4, displayRow);
-            table.add(actionCell(i), 5, displayRow);
+            HBox portCell = portNameCell(port);
+            Label locationCell = bodyCell(port.location);
+            HBox statusCell = statusBadge(port.status);
+            Label vesselCell = bodyCell(String.valueOf(port.vessels));
+            HBox berthCell = berthUsageCell(port);
+            Label capacityCell = bodyCell(port.capacity);
+
+            final int rowIndex = i;
+            HBox actionCell = createEditActionCell(rowIndex);
+
+            portCell.setOnMouseClicked(event -> startEdit(rowIndex));
+            locationCell.setOnMouseClicked(event -> startEdit(rowIndex));
+
+            table.add(portCell, 0, displayRow);
+            table.add(locationCell, 1, displayRow);
+            table.add(statusCell, 2, displayRow);
+            table.add(vesselCell, 3, displayRow);
+            table.add(berthCell, 4, displayRow);
+            table.add(capacityCell, 5, displayRow);
+            table.add(actionCell, 6, displayRow);
             displayRow++;
         }
 
         if (displayRow == 1) {
-            Label empty = bodyCell("No ports found");
-            empty.setMinWidth(768);
-            table.add(empty, 0, 1, 6, 1);
+            Label empty = bodyCell("No ports found matching filter criteria.");
+            empty.setMaxWidth(Double.MAX_VALUE);
+            table.add(empty, 0, 1, 7, 1);
         }
     }
 
     private void refreshStats() {
         int active = 0;
         int maintenance = 0;
+        int highCongestion = 0;
+        int vessels = 0;
+        int berths = 0;
+        int occupied = 0;
         for (Port port : ports) {
             if ("Operational".equals(port.status)) {
                 active++;
@@ -196,63 +458,63 @@ public class PortManagementPage extends AdminTheme {
             if ("Maintenance".equals(port.status)) {
                 maintenance++;
             }
+            if ("High Congestion".equals(port.status) || "Busy".equals(port.status) || port.vessels >= port.berths * 0.85) {
+                highCongestion++;
+            }
+            vessels += port.vessels;
+            berths += port.berths;
+            occupied += port.occupiedBerths();
         }
 
-        totalValue.setText(String.valueOf(ports.size()));
-        activeValue.setText(String.valueOf(active));
-        maintenanceValue.setText(String.valueOf(maintenance));
+        if (totalValue != null) totalValue.setText(String.valueOf(ports.size()));
+        if (activeValue != null) activeValue.setText(String.valueOf(active));
+        if (maintenanceValue != null) maintenanceValue.setText(String.valueOf(maintenance));
+        if (congestionValue != null) congestionValue.setText(String.valueOf(highCongestion));
+        if (vesselsValue != null) vesselsValue.setText(String.valueOf(vessels));
+        if (berthValue != null) berthValue.setText(occupied + " / " + berths);
     }
 
     private void startAdd() {
         editingIndex = -1;
-        formTitle.setText("Add Port");
-        formSubtitle.setText("Create a new registered port");
-        portName.clear();
-        location.clear();
-        berthCount.clear();
-        portCapacity.clear();
-        maintenanceInfo.clear();
-        status.setValue("Operational");
-        detailsBox.getChildren().clear();
-        berthTable.getChildren().clear();
-        setFormEditable(true);
-        save.setText("Save");
-        portName.requestFocus();
-    }
+        formTitle.setText("Add New Port");
+        formSubtitle.setText("Create a new registered maritime port facility.");
+        formModeBadge.setText("MODE: ADD");
+        formModeBadge.setStyle("-fx-background-color:#eff6ff; -fx-text-fill:" + BLUE + "; -fx-font-size:12; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:6;");
 
-    private void startView(int index) {
-        editingIndex = index;
-        Port port = ports.get(index);
-        formTitle.setText("View Port");
-        formSubtitle.setText("Port details");
-        portName.setText(port.name);
-        location.setText(port.location);
-        berthCount.setText(String.valueOf(port.berths));
-        portCapacity.setText(port.capacity);
-        maintenanceInfo.setText(port.maintenance);
-        status.setValue(port.status);
-        showPortDetails(port);
-        setFormEditable(false);
-        save.setText("Edit");
-        save.setOnAction(event -> startEdit(index));
+        clearFormFields();
+        updateTabStyles();
+        if (portName != null) portName.requestFocus();
     }
 
     private void startEdit(int index) {
+        if (index < 0 || index >= ports.size()) return;
         editingIndex = index;
         Port port = ports.get(index);
-        formTitle.setText("Add / Edit Port");
-        formSubtitle.setText("Update port details");
+
+        formTitle.setText("Edit Port");
+        formSubtitle.setText("Modifying details for: " + port.name);
+        formModeBadge.setText("MODE: EDITING #" + (index + 1));
+        formModeBadge.setStyle("-fx-background-color:#ecfdf5; -fx-text-fill:#047857; -fx-font-size:12; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:6;");
+
         portName.setText(port.name);
         location.setText(port.location);
+        portCodeField.setText("IN-" + port.name.replaceAll("[^A-Za-z]", "").toUpperCase().substring(0, Math.min(3, port.name.length())) + "-0" + (index + 1));
         berthCount.setText(String.valueOf(port.berths));
         portCapacity.setText(port.capacity);
         maintenanceInfo.setText(port.maintenance);
         status.setValue(port.status);
-        detailsBox.getChildren().clear();
-        berthTable.getChildren().clear();
-        setFormEditable(true);
-        save.setText("Save");
-        save.setOnAction(event -> savePort());
+
+        updateTabStyles();
+    }
+
+    private void clearFormFields() {
+        if (portName != null) portName.clear();
+        if (location != null) location.clear();
+        if (portCodeField != null) portCodeField.clear();
+        if (berthCount != null) berthCount.clear();
+        if (portCapacity != null) portCapacity.clear();
+        if (maintenanceInfo != null) maintenanceInfo.clear();
+        if (status != null) status.setValue("Operational");
     }
 
     private void savePort() {
@@ -264,34 +526,35 @@ public class PortManagementPage extends AdminTheme {
         String statusValue = status.getValue();
 
         if (nameValue.isEmpty()) {
-            formSubtitle.setText("Please enter a port name.");
+            formSubtitle.setText("⚠️ Please enter a port name.");
             return;
         }
         if (locationValue.isEmpty()) {
-            formSubtitle.setText("Please enter a location.");
+            formSubtitle.setText("⚠️ Please enter a location.");
             return;
         }
         if (berthsValue.isEmpty()) {
-            formSubtitle.setText("Please enter number of berths.");
+            formSubtitle.setText("⚠️ Please enter number of berths.");
             return;
         }
         if (capacityValue.isEmpty()) {
-            formSubtitle.setText("Please enter port capacity.");
+            formSubtitle.setText("⚠️ Please enter port capacity.");
             return;
         }
         if (statusValue == null || statusValue.isBlank()) {
-            formSubtitle.setText("Please select a status.");
+            formSubtitle.setText("⚠️ Please select a status.");
             return;
         }
+
         int berths;
         try {
             berths = Integer.parseInt(berthsValue);
             if (berths <= 0) {
-                formSubtitle.setText("Number of berths must be greater than zero.");
+                formSubtitle.setText("⚠️ Number of berths must be greater than zero.");
                 return;
             }
         } catch (NumberFormatException ex) {
-            formSubtitle.setText("Number of berths must be numeric.");
+            formSubtitle.setText("⚠️ Number of berths must be numeric.");
             return;
         }
 
@@ -304,11 +567,11 @@ public class PortManagementPage extends AdminTheme {
             old.capacity = capacityValue;
             old.maintenance = maintenanceValue.isEmpty() ? "Clear" : maintenanceValue;
             old.lastUpdated = now();
-            formSubtitle.setText("Port updated successfully");
+            formSubtitle.setText("✓ Port updated successfully!");
         } else {
             ports.add(new Port(nameValue, locationValue, berths, 0, statusValue, "Containers", capacityValue, maintenanceValue.isEmpty() ? "Clear" : maintenanceValue, now()));
             editingIndex = ports.size() - 1;
-            formSubtitle.setText("Port added successfully");
+            formSubtitle.setText("✓ New port added successfully!");
         }
 
         refreshTable();
@@ -316,207 +579,431 @@ public class PortManagementPage extends AdminTheme {
         startEdit(editingIndex);
     }
 
-    private void setFormEditable(boolean editable) {
-        portName.setEditable(editable);
-        location.setEditable(editable);
-        berthCount.setEditable(editable);
-        portCapacity.setEditable(editable);
-        maintenanceInfo.setEditable(editable);
-        status.setDisable(!editable);
-        portName.setOpacity(1);
-        location.setOpacity(1);
-        berthCount.setOpacity(1);
-        portCapacity.setOpacity(1);
-        maintenanceInfo.setOpacity(1);
-        status.setOpacity(1);
-    }
-
-    private boolean matches(Port port, String query) {
-        return query.isEmpty()
-                || port.name.toLowerCase().contains(query)
-                || port.location.toLowerCase().contains(query)
-                || port.status.toLowerCase().contains(query);
-    }
-
-    private void showPortDetails(Port port) {
-        detailsBox.getChildren().clear();
-        berthTable.getChildren().clear();
-
-        detailsBox.getChildren().addAll(
-                detailRow("Total Berths", String.valueOf(port.berths)),
-                detailRow("Occupied Berths", String.valueOf(port.occupiedBerths())),
-                detailRow("Available Berths", String.valueOf(port.availableBerths())),
-                detailRow("Active Vessels", String.valueOf(port.vessels)),
-                detailRow("Cargo Being Handled", port.cargo),
-                detailRow("Port Capacity", port.capacity),
-                detailRow("Maintenance Status", port.maintenance),
-                detailRow("Last Updated", port.lastUpdated)
+    // ==========================================
+    // SUPPORTING BOTTOM CARDS
+    // ==========================================
+    private VBox operationalSummaryCard() {
+        VBox card = new VBox(14);
+        card.setPadding(new Insets(16));
+        card.setStyle(cardStyle());
+        Label title = new Label("Operational Summary");
+        title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:18; -fx-font-weight:bold;");
+        HBox tiles = new HBox(12,
+                summaryTile("✓", "Operational", countOperational(), "#16a34a", "#ecfdf5"),
+                summaryTile("⌁", "Maintenance", countMaintenance(), BLUE, "#eff6ff"),
+                summaryTile("!", "High Congestion", countHighCongestion(), "#ef4444", "#fef2f2"),
+                summaryTile("⊘", "Inactive", countInactive(), "#64748b", "#f8fafc")
         );
-
-        berthTable.setHgap(0);
-        berthTable.setVgap(0);
-        berthTable.setStyle("-fx-background-color:white; -fx-border-color:#dfe3ea; -fx-border-radius:12; -fx-background-radius:12;");
-        String[] headers = {"Berth", "Vessel", "Status", "ETA"};
-        for (int col = 0; col < headers.length; col++) {
-            berthTable.add(smallCell(headers[col], true), col, 0);
-        }
-
-        String[][] rows = {
-                {"B01", "Oceanic Star", "Occupied", "10:30"},
-                {"B02", "-", "Available", "-"},
-                {"B03", "Sea Voyager", "Occupied", "14:20"},
-                {"B04", "-", "Maintenance", "-"}
-        };
-        for (int row = 0; row < rows.length; row++) {
-            for (int col = 0; col < headers.length; col++) {
-                berthTable.add(smallCell(rows[row][col], false), col, row + 1);
-            }
-        }
+        tiles.getChildren().forEach(node -> HBox.setHgrow(node, Priority.ALWAYS));
+        card.getChildren().addAll(title, tiles);
+        return card;
     }
 
-    private void styleTable() {
-        table.setHgap(0);
-        table.setVgap(0);
-        table.setPadding(new Insets(0));
-        table.setStyle("-fx-background-color:white; -fx-border-color:#dfe3ea; -fx-border-radius:16; -fx-background-radius:16;");
+    private VBox recentPortActivityCard() {
+        VBox card = new VBox(12);
+        card.setPadding(new Insets(16));
+        card.setStyle(cardStyle());
+        Label title = new Label("Recent Port Activity");
+        title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:18; -fx-font-weight:bold;");
+        Label link = new Label("View all activity →");
+        link.setStyle("-fx-text-fill:" + BLUE + "; -fx-font-size:13; -fx-font-weight:bold; -fx-cursor:hand;");
+        Region space = new Region();
+        HBox.setHgrow(space, Priority.ALWAYS);
+        HBox header = new HBox(8, title, space, link);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        VBox rows = new VBox(8);
+        int limit = Math.min(4, ports.size());
+        for (int i = 0; i < limit; i++) {
+            Port port = ports.get(i);
+            rows.getChildren().add(activityRow(port));
+        }
+        card.getChildren().addAll(header, rows);
+        return card;
+    }
+
+    private VBox capacityOverviewCard() {
+        VBox card = new VBox(12);
+        card.setPadding(new Insets(16));
+        card.setStyle(cardStyle());
+        Label title = new Label("Port Capacity Overview");
+        title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:18; -fx-font-weight:bold;");
+        Label link = new Label("View full report →");
+        link.setStyle("-fx-text-fill:" + BLUE + "; -fx-font-size:13; -fx-font-weight:bold; -fx-cursor:hand;");
+        Region space = new Region();
+        HBox.setHgrow(space, Priority.ALWAYS);
+        HBox header = new HBox(8, title, space, link);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        int average = averageCapacity();
+        StackPane donut = capacityDonut(average);
+        VBox legend = new VBox(8,
+                capacityLegend("Operational Ports", countOperational(), ports.size(), "#16a34a"),
+                capacityLegend("Maintenance Ports", countMaintenance(), ports.size(), BLUE),
+                capacityLegend("High Congestion Ports", countHighCongestion(), ports.size(), "#ef4444"),
+                capacityLegend("Inactive Ports", countInactive(), ports.size(), "#94a3b8")
+        );
+        HBox middle = new HBox(16, donut, legend);
+        middle.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(legend, Priority.ALWAYS);
+
+        HBox footer = new HBox(12, new Label("▣"), new VBox(2, boldLabel("Total Berths"), mutedLabel(totalOccupiedBerths() + " / " + totalBerths() + " Used")), new Region(), new VBox(2, boldLabel(average + "%"), mutedLabel("Average Usage")));
+        HBox.setHgrow(footer.getChildren().get(2), Priority.ALWAYS);
+        footer.setPadding(new Insets(10, 12, 10, 12));
+        footer.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#e5edf6; -fx-border-radius:8; -fx-background-radius:8;");
+        footer.setAlignment(Pos.CENTER_LEFT);
+
+        card.getChildren().addAll(header, middle, footer);
+        return card;
+    }
+
+    // ==========================================
+    // TABLE CELL HELPERS
+    // ==========================================
+    private HBox portNameCell(Port port) {
+        Label icon = new Label("⚓");
+        icon.setStyle("-fx-text-fill:" + statusColor(port.status) + "; -fx-font-size:15; -fx-font-weight:bold;");
+        Label name = bodyCell(port.name);
+        HBox cell = new HBox(8, icon, name);
+        cell.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(cell, Priority.ALWAYS);
+        cell.setMinHeight(52);
+        cell.setAlignment(Pos.CENTER_LEFT);
+        cell.setPadding(new Insets(0, 12, 0, 12));
+        cell.setStyle("-fx-background-color:white; -fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0; -fx-cursor:hand;");
+        return cell;
+    }
+
+    private HBox berthUsageCell(Port port) {
+        Label value = new Label(port.occupiedBerths() + " / " + port.berths);
+        value.setStyle("-fx-text-fill:#0f172a; -fx-font-size:13; -fx-font-weight:bold;");
+        double pct = port.berths == 0 ? 0 : (double) port.occupiedBerths() / port.berths;
+        Region bar = new Region();
+        bar.setPrefWidth(60);
+        bar.setMinHeight(6);
+        bar.setMaxHeight(6);
+        bar.setStyle("-fx-background-color:#e5e7eb; -fx-background-radius:999;");
+        Region fill = new Region();
+        fill.setPrefWidth(Math.max(6, 60 * pct));
+        fill.setMinHeight(6);
+        fill.setMaxHeight(6);
+        fill.setStyle("-fx-background-color:" + usageColor(pct) + "; -fx-background-radius:999;");
+        StackPane progress = new StackPane(bar, fill);
+        progress.setAlignment(Pos.CENTER_LEFT);
+        HBox cell = new HBox(8, value, progress);
+        cell.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(cell, Priority.ALWAYS);
+        cell.setMinHeight(52);
+        cell.setAlignment(Pos.CENTER_LEFT);
+        cell.setPadding(new Insets(0, 12, 0, 12));
+        cell.setStyle("-fx-background-color:white; -fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0;");
+        return cell;
+    }
+
+    private HBox createEditActionCell(int index) {
+        Button editBtn = new Button("✎ Edit");
+        editBtn.setStyle(
+                "-fx-background-color:#eff6ff;" +
+                "-fx-text-fill:" + BLUE + ";" +
+                "-fx-font-size:13;" +
+                "-fx-font-weight:bold;" +
+                "-fx-padding:4 10;" +
+                "-fx-background-radius:6;" +
+                "-fx-cursor:hand;"
+        );
+        editBtn.setOnAction(e -> startEdit(index));
+
+        HBox cell = new HBox(editBtn);
+        cell.setAlignment(Pos.CENTER_LEFT);
+        cell.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(cell, Priority.ALWAYS);
+        cell.setMinHeight(52);
+        cell.setPadding(new Insets(0, 12, 0, 12));
+        cell.setStyle("-fx-background-color:white; -fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0;");
+        return cell;
     }
 
     private Label headerCell(String text) {
         Label cell = new Label(text);
-        cell.setMinWidth(105);
-        cell.setMinHeight(48);
+        cell.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(cell, Priority.ALWAYS);
+        cell.setMinHeight(46);
         cell.setAlignment(Pos.CENTER_LEFT);
-        cell.setPadding(new Insets(0, 18, 0, 18));
-        cell.setStyle("-fx-background-color:#f7f9fc; -fx-text-fill:#1c1d22; -fx-font-size:12; -fx-font-weight:bold; -fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0;");
+        cell.setPadding(new Insets(0, 12, 0, 12));
+        cell.setStyle("-fx-background-color:#f8fafc; -fx-text-fill:#0f172a; -fx-font-size:14; -fx-font-weight:bold; -fx-border-color:#e2e8f0; -fx-border-width:0 0 1 0;");
         return cell;
     }
 
     private Label bodyCell(String text) {
         Label cell = new Label(text);
-        cell.setMinWidth(105);
-        cell.setMinHeight(54);
+        cell.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(cell, Priority.ALWAYS);
+        cell.setMinHeight(52);
         cell.setAlignment(Pos.CENTER_LEFT);
-        cell.setPadding(new Insets(0, 18, 0, 18));
-        cell.setStyle("-fx-background-color:white; -fx-text-fill:#111827; -fx-font-size:12; -fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0;");
+        cell.setPadding(new Insets(0, 12, 0, 12));
+        cell.setStyle("-fx-background-color:white; -fx-text-fill:#111827; -fx-font-size:14; -fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0;");
         return cell;
     }
 
     private HBox statusBadge(String text) {
         Label badge = new Label(text);
-        badge.setPadding(new Insets(5, 12, 5, 12));
-        badge.setStyle("-fx-background-color:" + statusBackground(text) + "; -fx-background-radius:12; -fx-text-fill:" + statusColor(text) + "; -fx-font-size:11; -fx-font-weight:bold;");
+        badge.setPadding(new Insets(4, 10, 4, 10));
+        badge.setStyle("-fx-background-color:" + statusBackground(text) + "; -fx-background-radius:12; -fx-text-fill:" + statusColor(text) + "; -fx-font-size:12; -fx-font-weight:bold;");
 
         HBox cell = new HBox(badge);
-        cell.setMinWidth(105);
-        cell.setMinHeight(54);
+        cell.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(cell, Priority.ALWAYS);
+        cell.setMinHeight(52);
         cell.setAlignment(Pos.CENTER_LEFT);
         cell.setPadding(new Insets(0, 12, 0, 12));
         cell.setStyle("-fx-background-color:white; -fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0;");
         return cell;
     }
 
-    private HBox actionCell(int index) {
-        Button view = linkButton("View");
-        Button edit = linkButton("Edit");
-        Label divider = new Label("|");
-        divider.setStyle("-fx-text-fill:#d1d5db; -fx-font-size:16;");
-
-        view.setOnAction(event -> startView(index));
-        edit.setOnAction(event -> startEdit(index));
-
-        HBox cell = new HBox(10, view, divider, edit);
-        cell.setMinWidth(105);
-        cell.setMinHeight(54);
-        cell.setAlignment(Pos.CENTER_LEFT);
-        cell.setPadding(new Insets(0, 12, 0, 12));
-        cell.setStyle("-fx-background-color:white; -fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0;");
-        return cell;
+    private VBox summaryTile(String iconText, String title, int value, String color, String bg) {
+        Label icon = new Label(iconText);
+        icon.setAlignment(Pos.CENTER);
+        icon.setStyle("-fx-background-color:" + bg + "; -fx-text-fill:" + color + "; -fx-font-size:18; -fx-font-weight:bold; -fx-background-radius:8; -fx-min-width:42; -fx-min-height:42;");
+        Label number = new Label(String.valueOf(value));
+        number.setStyle("-fx-text-fill:" + color + "; -fx-font-size:26; -fx-font-weight:800;");
+        Label label = new Label(title);
+        label.setStyle("-fx-text-fill:" + color + "; -fx-font-size:12; -fx-font-weight:bold;");
+        VBox tile = new VBox(6, icon, number, label);
+        tile.setAlignment(Pos.CENTER);
+        tile.setPadding(new Insets(12, 10, 12, 10));
+        tile.setMaxWidth(Double.MAX_VALUE);
+        tile.setStyle("-fx-background-color:" + bg + "; -fx-border-color:" + color + "22; -fx-border-radius:8; -fx-background-radius:8;");
+        return tile;
     }
 
-    private Button linkButton(String text) {
-        Button button = new Button(text);
-        button.setStyle("-fx-background-color:transparent; -fx-text-fill:" + BLUE + "; -fx-font-size:11; -fx-font-weight:bold; -fx-cursor:hand; -fx-padding:0;");
-        return button;
-    }
-
-    private VBox statBox(String title, String value, String color, LabelSetter setter) {
-        Label titleLabel = new Label(title);
-        titleLabel.setStyle("-fx-text-fill:#475467; -fx-font-size:12; -fx-font-weight:bold;");
-
-        Label valueLabel = new Label(value);
-        valueLabel.setStyle("-fx-text-fill:" + color + "; -fx-font-size:28; -fx-font-weight:bold;");
-        setter.set(valueLabel);
-
-        VBox card = new VBox(6, titleLabel, valueLabel);
-        card.setPrefWidth(210);
-        card.setMinHeight(112);
-        card.setPadding(new Insets(18, 20, 16, 20));
-        card.setStyle(CARD_STYLE);
-        return card;
-    }
-
-    private HBox detailRow(String labelText, String value) {
-        Label label = new Label(labelText);
-        label.setStyle("-fx-text-fill:#747884; -fx-font-size:13; -fx-font-weight:bold;");
-
-        Label valueLabel = new Label(value);
-        valueLabel.setWrapText(true);
-        valueLabel.setStyle("-fx-text-fill:#111827; -fx-font-size:13; -fx-font-weight:bold;");
-
+    private HBox activityRow(Port port) {
+        String color = statusColor(port.status);
+        Label icon = new Label("⚓");
+        icon.setAlignment(Pos.CENTER);
+        icon.setStyle("-fx-background-color:" + statusBackground(port.status) + "; -fx-text-fill:" + color + "; -fx-font-size:14; -fx-font-weight:bold; -fx-background-radius:999; -fx-min-width:32; -fx-min-height:32;");
+        Label title = new Label(port.name);
+        title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:13; -fx-font-weight:bold;");
+        Label detail = new Label(alertSummary(port));
+        detail.setStyle("-fx-text-fill:#64748b; -fx-font-size:12;");
         Region space = new Region();
         HBox.setHgrow(space, Priority.ALWAYS);
-
-        HBox row = new HBox(10, label, space, valueLabel);
+        Label time = new Label(lastUpdatedShort(port.lastUpdated));
+        time.setStyle("-fx-text-fill:#334155; -fx-font-size:12;");
+        HBox row = new HBox(10, icon, new VBox(2, title, detail), space, time);
         row.setAlignment(Pos.CENTER_LEFT);
-        row.setPadding(new Insets(6, 0, 6, 0));
-        row.setStyle("-fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0;");
         return row;
     }
 
-    private Label smallCell(String text, boolean header) {
-        Label cell = new Label(text);
-        cell.setMinWidth(80);
-        cell.setMinHeight(header ? 38 : 42);
-        cell.setAlignment(Pos.CENTER_LEFT);
-        cell.setPadding(new Insets(0, 8, 0, 8));
-        cell.setStyle(
-                "-fx-background-color:" + (header ? "#f7f7fa" : "white") + ";" +
-                "-fx-text-fill:" + (header ? TEXT : smallCellColor(text)) + ";" +
-                "-fx-font-size:12;" +
-                "-fx-font-weight:" + (header || isBerthStatus(text) ? "bold" : "normal") + ";" +
-                "-fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0;"
-        );
-        return cell;
+    private StackPane capacityDonut(int average) {
+        Arc used = new Arc(60, 60, 45, 45, 90, -(360 * average / 100.0));
+        used.setType(ArcType.OPEN);
+        used.setStyle("-fx-fill:transparent; -fx-stroke:#16a34a; -fx-stroke-width:18;");
+        Arc warn = new Arc(60, 60, 45, 45, 90 - (360 * average / 100.0), -72);
+        warn.setType(ArcType.OPEN);
+        warn.setStyle("-fx-fill:transparent; -fx-stroke:" + BLUE + "; -fx-stroke-width:18;");
+        Arc risk = new Arc(60, 60, 45, 45, 18, -62);
+        risk.setType(ArcType.OPEN);
+        risk.setStyle("-fx-fill:transparent; -fx-stroke:#ef4444; -fx-stroke-width:18;");
+        Circle hole = new Circle(32);
+        hole.setStyle("-fx-fill:white;");
+        Label center = new Label(average + "%\nAvg Capacity");
+        center.setAlignment(Pos.CENTER);
+        center.setStyle("-fx-text-fill:#0f172a; -fx-font-size:13; -fx-font-weight:bold;");
+        StackPane chart = new StackPane(used, warn, risk, hole, center);
+        chart.setPrefSize(120, 120);
+        chart.setMinSize(120, 120);
+        return chart;
+    }
+
+    private HBox capacityLegend(String title, int count, int total, String color) {
+        Circle dot = new Circle(4);
+        dot.setStyle("-fx-fill:" + color + ";");
+        Label label = new Label(title);
+        label.setStyle("-fx-text-fill:#0f172a; -fx-font-size:13;");
+        Region space = new Region();
+        HBox.setHgrow(space, Priority.ALWAYS);
+        int pct = total == 0 ? 0 : (int) Math.round(count * 100.0 / total);
+        Label value = new Label(pct + "%");
+        value.setStyle("-fx-text-fill:#334155; -fx-font-size:13; -fx-font-weight:bold;");
+        HBox row = new HBox(8, dot, label, space, value);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    private Label boldLabel(String text) {
+        Label label = new Label(text);
+        label.setStyle("-fx-text-fill:#0f172a; -fx-font-size:13; -fx-font-weight:bold;");
+        return label;
+    }
+
+    private Label mutedLabel(String text) {
+        Label label = new Label(text);
+        label.setStyle("-fx-text-fill:#64748b; -fx-font-size:12;");
+        return label;
+    }
+
+    private VBox statBox(String title, String value, String detail, String iconText, String color, String bg, LabelSetter setter) {
+        Label titleLabel = new Label(title);
+        titleLabel.setStyle("-fx-text-fill:#0f172a; -fx-font-size:14; -fx-font-weight:bold;");
+
+        Label valueLabel = new Label(value);
+        valueLabel.setStyle("-fx-text-fill:" + color + "; -fx-font-size:28; -fx-font-weight:800;");
+        setter.set(valueLabel);
+
+        Label detailLabel = new Label(detail);
+        detailLabel.setStyle("-fx-text-fill:#64748b; -fx-font-size:12;");
+
+        Label icon = new Label(iconText);
+        icon.setAlignment(Pos.CENTER);
+        icon.setStyle("-fx-background-color:" + bg + "; -fx-text-fill:" + color + "; -fx-font-size:22; -fx-font-weight:bold; -fx-background-radius:999; -fx-min-width:52; -fx-min-height:52;");
+
+        Region space = new Region();
+        HBox.setHgrow(space, Priority.ALWAYS);
+        HBox row = new HBox(10, new VBox(6, titleLabel, valueLabel, detailLabel), space, icon);
+        row.setAlignment(Pos.CENTER_LEFT);
+
+        VBox card = new VBox(row);
+        card.setMinHeight(96);
+        card.setPadding(new Insets(15));
+        card.setStyle(cardStyle());
+        return card;
     }
 
     private VBox labeledControl(String labelText, Parent field) {
         Label label = new Label(labelText);
-        label.setStyle("-fx-text-fill:#111827; -fx-font-size:14; -fx-font-weight:bold;");
-        return new VBox(8, label, field);
+        label.setStyle("-fx-text-fill:#334155; -fx-font-size:14; -fx-font-weight:bold;");
+        VBox controlBox = new VBox(6, label, field);
+        HBox.setHgrow(controlBox, Priority.ALWAYS);
+        controlBox.setMaxWidth(Double.MAX_VALUE);
+        return controlBox;
+    }
+
+    private String cardStyle() {
+        return "-fx-background-color:white; -fx-background-radius:10; -fx-border-color:#dfe7f1; -fx-border-radius:10; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.07), 13, 0, 0, 3);";
+    }
+
+    private void styleCustomField(javafx.scene.control.Control f) {
+        f.setStyle(
+                "-fx-background-color:#f8fafc;" +
+                "-fx-border-color:#e2e8f0;" +
+                "-fx-border-radius:6;" +
+                "-fx-background-radius:6;" +
+                "-fx-padding:8 12 8 12;" +
+                "-fx-font-size:14;" +
+                "-fx-text-fill:#0f172a;"
+        );
+    }
+
+    private String usageColor(double pct) {
+        if (pct >= 0.85) return "#ef4444";
+        if (pct >= 0.7) return "#f97316";
+        if (pct >= 0.5) return "#0b63ff";
+        return "#16a34a";
+    }
+
+    private int countOperational() {
+        int count = 0;
+        for (Port port : ports) {
+            if ("Operational".equals(port.status)) count++;
+        }
+        return count;
+    }
+
+    private int countMaintenance() {
+        int count = 0;
+        for (Port port : ports) {
+            if ("Maintenance".equals(port.status)) count++;
+        }
+        return count;
+    }
+
+    private int countHighCongestion() {
+        int count = 0;
+        for (Port port : ports) {
+            if ("High Congestion".equals(port.status) || "Busy".equals(port.status) || port.vessels >= port.berths * 0.85) count++;
+        }
+        return count;
+    }
+
+    private int countInactive() {
+        int count = 0;
+        for (Port port : ports) {
+            if ("Closed".equals(port.status) || "Restricted".equals(port.status) || "Inactive".equals(port.status) || "Deactivated".equals(port.status)) count++;
+        }
+        return count;
+    }
+
+    private int totalBerths() {
+        int total = 0;
+        for (Port port : ports) total += port.berths;
+        return total;
+    }
+
+    private int totalOccupiedBerths() {
+        int total = 0;
+        for (Port port : ports) total += port.occupiedBerths();
+        return total;
+    }
+
+    private int averageCapacity() {
+        if (ports.isEmpty()) return 0;
+        int total = 0;
+        for (Port port : ports) total += capacityPercent(port.capacity);
+        return Math.round(total / (float) ports.size());
+    }
+
+    private int capacityPercent(String value) {
+        if (value == null) return 0;
+        String digits = value.replaceAll("[^0-9]", "");
+        if (digits.isBlank()) return 0;
+        try {
+            return Math.max(0, Math.min(100, Integer.parseInt(digits)));
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
+    }
+
+    private String lastUpdatedShort(String value) {
+        if (value == null || value.isBlank()) return "Now";
+        int comma = value.indexOf(',');
+        return comma >= 0 && comma + 2 < value.length() ? value.substring(comma + 2) : value;
+    }
+
+    private String alertSummary(Port port) {
+        if (!"Clear".equalsIgnoreCase(port.maintenance)) return port.maintenance;
+        if (port.vessels >= port.berths * 0.85) return "High congestion";
+        if ("Busy".equals(port.status)) return "Traffic watch";
+        return "No active alerts";
+    }
+
+    private boolean matches(Port port, String query) {
+        String selectedStatus = statusFilter == null || statusFilter.getValue() == null ? "All Status" : statusFilter.getValue();
+        boolean statusMatches = "All Status".equals(selectedStatus) || selectedStatus.equals(port.status);
+        boolean queryMatches = query.isEmpty()
+                || port.name.toLowerCase().contains(query)
+                || port.location.toLowerCase().contains(query)
+                || port.status.toLowerCase().contains(query)
+                || port.cargo.toLowerCase().contains(query);
+
+        return queryMatches && statusMatches;
     }
 
     private String statusColor(String value) {
-        if ("Operational".equals(value)) return "#0aa072";
-        if ("Available".equals(value)) return "#0aa072";
+        if ("Operational".equals(value)) return "#16a34a";
+        if ("High Congestion".equals(value) || "Busy".equals(value)) return "#ef4444";
+        if ("Available".equals(value)) return "#16a34a";
         if ("Maintenance".equals(value)) return BLUE;
         if ("Occupied".equals(value)) return "#d97706";
-        if ("Restricted".equals(value)) return "#ef4444";
+        if ("Restricted".equals(value) || "Closed".equals(value)) return "#64748b";
         return "#d97706";
     }
 
     private String statusBackground(String value) {
-        if ("Operational".equals(value)) return "#c8f5df";
-        if ("Maintenance".equals(value)) return "#dbeafe";
-        if ("Restricted".equals(value)) return "#fee2e2";
-        return "#fff3cf";
-    }
-
-    private boolean isBerthStatus(String value) {
-        return "Available".equals(value) || "Occupied".equals(value) || "Maintenance".equals(value);
-    }
-
-    private String smallCellColor(String value) {
-        return isBerthStatus(value) ? statusColor(value) : "#747884";
+        if ("Operational".equals(value)) return "#ecfdf5";
+        if ("High Congestion".equals(value) || "Busy".equals(value)) return "#fee2e2";
+        if ("Maintenance".equals(value)) return "#eff6ff";
+        if ("Restricted".equals(value) || "Closed".equals(value)) return "#f1f5f9";
+        return "#fff7ed";
     }
 
     private interface LabelSetter {
@@ -524,39 +1011,6 @@ public class PortManagementPage extends AdminTheme {
     }
 
     private String now() {
-        return LocalDateTime.now().format(DATE_TIME);
+        return store.now();
     }
-
-    private static class Port {
-        private String name;
-        private String location;
-        private int berths;
-        private int vessels;
-        private String status;
-        private String cargo;
-        private String capacity;
-        private String maintenance;
-        private String lastUpdated;
-
-        private Port(String name, String location, int berths, int vessels, String status, String cargo, String capacity, String maintenance, String lastUpdated) {
-            this.name = name;
-            this.location = location;
-            this.berths = berths;
-            this.vessels = vessels;
-            this.status = status;
-            this.cargo = cargo;
-            this.capacity = capacity;
-            this.maintenance = maintenance;
-            this.lastUpdated = lastUpdated;
-        }
-
-        private int occupiedBerths() {
-            return Math.min(berths, vessels);
-        }
-
-        private int availableBerths() {
-            return Math.max(0, berths - occupiedBerths());
-        }
-    }
-
 }
