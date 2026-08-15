@@ -6,6 +6,12 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.util.Duration;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 public class DashBoard extends Application {
 
@@ -100,17 +106,17 @@ public class DashBoard extends Application {
         // UPLOAD DOCUMENT
         document.setOnAction(e -> {
             active(document);
-
-           
-            root.setCenter(new UploadDocuments()
-                .getUploadContent()
+            root.setCenter(
+                new UploadDocuments().getUploadContent()
             );
         });
 
         // SOS
         sos.setOnAction(e -> {
             active(sos);
-            root.setCenter(new SendSOS().getSOSScene().getRoot());
+            root.setCenter(
+                new SendSOS().getSOSScene().getRoot()
+            );
         });
 
         side.getChildren().addAll(
@@ -208,6 +214,70 @@ public class DashBoard extends Application {
             "-fx-padding:6 10;"
         );
 
+        // ================= DATE & TIME =================
+
+        Label date = new Label();
+        Label time = new Label();
+
+        date.setStyle(
+            "-fx-font-size:12;" +
+            "-fx-text-fill:#596579;" +
+            "-fx-font-weight:bold;"
+        );
+
+        time.setStyle(
+            "-fx-font-size:12;" +
+            "-fx-text-fill:#172033;" +
+            "-fx-font-weight:bold;"
+        );
+
+        VBox dateTime = new VBox(2, date, time);
+        dateTime.setAlignment(Pos.CENTER_RIGHT);
+
+        DateTimeFormatter dateFormat =
+            DateTimeFormatter.ofPattern("dd MMM yyyy");
+
+        DateTimeFormatter timeFormat =
+            DateTimeFormatter.ofPattern("hh:mm:ss a");
+
+        Timeline clock = new Timeline(
+            new KeyFrame(
+                Duration.ZERO,
+                e -> {
+
+                    LocalDateTime now =
+                        LocalDateTime.now();
+
+                    date.setText(
+                        now.format(dateFormat)
+                    );
+
+                    time.setText(
+                        now.format(timeFormat)
+                    );
+                }
+            ),
+            new KeyFrame(
+                Duration.seconds(1)
+            )
+        );
+
+        clock.setCycleCount(
+            Timeline.INDEFINITE
+        );
+
+        clock.play();
+
+        // ================= NOTIFICATION =================
+
+        Label notification = new Label("🔔");
+
+        notification.setStyle(
+            "-fx-font-size:18;"
+        );
+
+        // ================= AVATAR =================
+
         Label avatar = new Label("A");
 
         avatar.setMinSize(32,32);
@@ -216,7 +286,8 @@ public class DashBoard extends Application {
         avatar.setStyle(
             "-fx-background-color:#dbeafe;" +
             "-fx-background-radius:50;" +
-            "-fx-text-fill:#0f5fff;"
+            "-fx-text-fill:#0f5fff;" +
+            "-fx-font-weight:bold;"
         );
 
         Label captain = new Label("Ship Captain");
@@ -231,7 +302,8 @@ public class DashBoard extends Application {
             space,
             search,
             system,
-            new Label("🔔"),
+            dateTime,
+            notification,
             avatar,
             captain
         );
@@ -247,7 +319,7 @@ public class DashBoard extends Application {
         main.setPadding(new Insets(18,20,20,20));
 
         Label title =
-                new Label("Ship Captain Dashboard");
+            new Label("Ship Captain Dashboard");
 
         title.setStyle(
             "-fx-font-size:22;" +
@@ -255,9 +327,9 @@ public class DashBoard extends Application {
         );
 
         Label sub =
-                new Label(
-                    "Monitor your assigned vessel and current voyage operations"
-                );
+            new Label(
+                "Monitor your assigned vessel and current voyage operations"
+            );
 
         sub.setStyle(
             "-fx-font-size:13;" +
@@ -281,10 +353,20 @@ public class DashBoard extends Application {
 
         styleStatus(status);
 
-        row1.getChildren().addAll(ship,status);
+        row1.getChildren().addAll(
+            ship,
+            status
+        );
 
-        HBox.setHgrow(ship,Priority.ALWAYS);
-        HBox.setHgrow(status,Priority.ALWAYS);
+        HBox.setHgrow(
+            ship,
+            Priority.ALWAYS
+        );
+
+        HBox.setHgrow(
+            status,
+            Priority.ALWAYS
+        );
 
         HBox row2 = new HBox(14);
 
@@ -298,10 +380,10 @@ public class DashBoard extends Application {
         styleOperation(operation);
 
         ProgressBar progress =
-                new ProgressBar(0.72);
+            new ProgressBar(0.72);
 
         progress.setMaxWidth(
-                Double.MAX_VALUE
+            Double.MAX_VALUE
         );
 
         VBox loading = new VBox(
@@ -332,9 +414,15 @@ public class DashBoard extends Application {
         VBox activity = new VBox(
             10,
             new Label("Recent Activity"),
-            new Label("✓ Vessel berthed at B04 - Today 10:20 AM"),
-            new Label("✓ Status updated to At Berth - Today 10:24 AM"),
-            new Label("✓ Cargo loading started - Today 10:30 AM")
+            new Label(
+                "✓ Vessel berthed at B04 - Today 10:20 AM"
+            ),
+            new Label(
+                "✓ Status updated to At Berth - Today 10:24 AM"
+            ),
+            new Label(
+                "✓ Cargo loading started - Today 10:30 AM"
+            )
         );
 
         activity.setPadding(
@@ -347,11 +435,11 @@ public class DashBoard extends Application {
         );
 
         activity.getChildren()
-                .get(0)
-                .setStyle(
-                    "-fx-font-size:14;" +
-                    "-fx-font-weight:bold;"
-                );
+            .get(0)
+            .setStyle(
+                "-fx-font-size:14;" +
+                "-fx-font-weight:bold;"
+            );
 
         main.getChildren().addAll(
             title,
@@ -367,9 +455,9 @@ public class DashBoard extends Application {
     // ================= CARD =================
 
     private VBox card(
-            String small,
-            String big,
-            String details
+        String small,
+        String big,
+        String details
     ) {
 
         VBox box = new VBox(15);
@@ -396,7 +484,11 @@ public class DashBoard extends Application {
             "-fx-text-fill:#596579;"
         );
 
-        box.getChildren().addAll(s,b,d);
+        box.getChildren().addAll(
+            s,
+            b,
+            d
+        );
 
         box.setPadding(
             new Insets(20)
@@ -412,9 +504,14 @@ public class DashBoard extends Application {
         return box;
     }
 
+    // ================= STATUS STYLE =================
+
     private void styleStatus(VBox box) {
 
-        box.setPadding(new Insets(22));
+        box.setPadding(
+            new Insets(22)
+        );
+
         box.setMinHeight(165);
 
         box.setStyle(
@@ -422,27 +519,38 @@ public class DashBoard extends Application {
             "-fx-background-radius:10;"
         );
 
-        box.getChildren().get(0).setStyle(
-            "-fx-font-size:12;" +
-            "-fx-font-weight:bold;" +
-            "-fx-text-fill:#697386;"
-        );
+        box.getChildren()
+            .get(0)
+            .setStyle(
+                "-fx-font-size:12;" +
+                "-fx-font-weight:bold;" +
+                "-fx-text-fill:#697386;"
+            );
 
-        box.getChildren().get(1).setStyle(
-            "-fx-font-size:18;" +
-            "-fx-font-weight:bold;" +
-            "-fx-text-fill:#168548;"
-        );
+        box.getChildren()
+            .get(1)
+            .setStyle(
+                "-fx-font-size:18;" +
+                "-fx-font-weight:bold;" +
+                "-fx-text-fill:#168548;"
+            );
 
-        box.getChildren().get(2).setStyle(
-            "-fx-font-size:14;" +
-            "-fx-text-fill:#596579;"
-        );
+        box.getChildren()
+            .get(2)
+            .setStyle(
+                "-fx-font-size:14;" +
+                "-fx-text-fill:#596579;"
+            );
     }
+
+    // ================= OPERATION STYLE =================
 
     private void styleOperation(VBox box) {
 
-        box.setPadding(new Insets(20));
+        box.setPadding(
+            new Insets(20)
+        );
+
         box.setMinHeight(150);
 
         box.setStyle(
@@ -450,26 +558,37 @@ public class DashBoard extends Application {
             "-fx-background-radius:10;"
         );
 
-        box.getChildren().get(0).setStyle(
-            "-fx-font-size:12;" +
-            "-fx-font-weight:bold;" +
-            "-fx-text-fill:#697386;"
-        );
+        box.getChildren()
+            .get(0)
+            .setStyle(
+                "-fx-font-size:12;" +
+                "-fx-font-weight:bold;" +
+                "-fx-text-fill:#697386;"
+            );
 
-        box.getChildren().get(1).setStyle(
-            "-fx-font-size:18;" +
-            "-fx-font-weight:bold;"
-        );
+        box.getChildren()
+            .get(1)
+            .setStyle(
+                "-fx-font-size:18;" +
+                "-fx-font-weight:bold;"
+            );
 
-        box.getChildren().get(2).setStyle(
-            "-fx-font-size:13;" +
-            "-fx-text-fill:#1684c5;"
-        );
+        box.getChildren()
+            .get(2)
+            .setStyle(
+                "-fx-font-size:13;" +
+                "-fx-text-fill:#1684c5;"
+            );
     }
+
+    // ================= LOADING STYLE =================
 
     private void styleLoading(VBox box) {
 
-        box.setPadding(new Insets(20));
+        box.setPadding(
+            new Insets(20)
+        );
+
         box.setMinHeight(150);
 
         box.setStyle(
@@ -477,16 +596,20 @@ public class DashBoard extends Application {
             "-fx-background-radius:10;"
         );
 
-        box.getChildren().get(0).setStyle(
-            "-fx-font-size:12;" +
-            "-fx-font-weight:bold;" +
-            "-fx-text-fill:#697386;"
-        );
+        box.getChildren()
+            .get(0)
+            .setStyle(
+                "-fx-font-size:12;" +
+                "-fx-font-weight:bold;" +
+                "-fx-text-fill:#697386;"
+            );
 
-        box.getChildren().get(1).setStyle(
-            "-fx-font-size:18;" +
-            "-fx-font-weight:bold;"
-        );
+        box.getChildren()
+            .get(1)
+            .setStyle(
+                "-fx-font-size:18;" +
+                "-fx-font-weight:bold;"
+            );
     }
 
     // ================= OTHER PAGE =================
@@ -499,7 +622,8 @@ public class DashBoard extends Application {
             new Insets(25)
         );
 
-        Label title = new Label(name);
+        Label title =
+            new Label(name);
 
         title.setStyle(
             "-fx-font-size:22;" +
@@ -507,9 +631,9 @@ public class DashBoard extends Application {
         );
 
         VBox card =
-                new VBox(
-                    new Label(name + " Page")
-                );
+            new VBox(
+                new Label(name + " Page")
+            );
 
         card.setPadding(
             new Insets(25)

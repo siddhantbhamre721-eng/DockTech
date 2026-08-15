@@ -1,29 +1,22 @@
 package com.projectui.ShipCaptain;
 
-import javafx.geometry.Insets;
-import javafx.geometry.Pos;
+import javafx.geometry.*;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
-import javafx.scene.control.ComboBox;
-import javafx.scene.control.Label;
-import javafx.scene.control.TextField;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
-import javafx.scene.layout.StackPane;
-import javafx.scene.layout.VBox;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
+import javafx.scene.text.*;
 
 public class UpdateShipStatus {
+
+    // ================= SCENE =================
+
     public Scene getShipScene() {
 
         VBox main = new VBox(25);
 
         main.setPadding(
-            new Insets(20,35,30,35)
+            new Insets(20, 35, 30, 35)
         );
 
         main.setStyle(
@@ -39,7 +32,7 @@ public class UpdateShipStatus {
         );
 
         title.setFont(
-            Font.font("Arial",FontWeight.BOLD,26)
+            Font.font("Arial", FontWeight.BOLD, 26)
         );
 
         Label desc = new Label(
@@ -59,10 +52,10 @@ public class UpdateShipStatus {
 
         // ================= MAIN CARD =================
 
-        VBox card = new VBox(20);
+        VBox card = new VBox(18);
 
-        card.setPrefWidth(760);
-        card.setPadding(new Insets(35));
+        card.setPrefWidth(650);
+        card.setPadding(new Insets(30));
 
         card.setStyle(
             "-fx-background-color:white;" +
@@ -74,14 +67,27 @@ public class UpdateShipStatus {
         // ================= SHIP =================
 
         HBox shipHeader = new HBox(15);
-        shipHeader.setAlignment(Pos.CENTER_LEFT);
+
+        shipHeader.setAlignment(
+            Pos.CENTER_LEFT
+        );
 
         Label shipIcon = new Label("⚓");
-        shipIcon.setFont(Font.font(25));
-        shipIcon.setTextFill(Color.web("#1677ff"));
 
-        StackPane iconBox = new StackPane(shipIcon);
-        iconBox.setPrefSize(52,52);
+        shipIcon.setFont(
+            Font.font(25)
+        );
+
+        shipIcon.setTextFill(
+            Color.web("#1677ff")
+        );
+
+        StackPane iconBox = new StackPane(
+            shipIcon
+        );
+
+        iconBox.setPrefSize(52, 52);
+
         iconBox.setStyle(
             "-fx-background-color:#edf7ff;" +
             "-fx-background-radius:10;"
@@ -89,12 +95,24 @@ public class UpdateShipStatus {
 
         VBox shipText = new VBox(2);
 
-        Label current = new Label("CURRENT SHIP");
-        current.setTextFill(Color.web("#8b929d"));
+        Label current = new Label(
+            "CURRENT SHIP"
+        );
 
-        Label shipName = new Label("Oceanic Star");
+        current.setTextFill(
+            Color.web("#8b929d")
+        );
+
+        Label shipName = new Label(
+            "Oceanic Star"
+        );
+
         shipName.setFont(
-            Font.font("Arial",FontWeight.BOLD,20)
+            Font.font(
+                "Arial",
+                FontWeight.BOLD,
+                20
+            )
         );
 
         shipText.getChildren().addAll(
@@ -114,7 +132,11 @@ public class UpdateShipStatus {
         );
 
         currentLabel.setFont(
-            Font.font("Arial",FontWeight.BOLD,14)
+            Font.font(
+                "Arial",
+                FontWeight.BOLD,
+                14
+            )
         );
 
         Label currentStatus = new Label(
@@ -130,7 +152,11 @@ public class UpdateShipStatus {
         );
 
         Region space = new Region();
-        HBox.setHgrow(space,Priority.ALWAYS);
+
+        HBox.setHgrow(
+            space,
+            Priority.ALWAYS
+        );
 
         HBox currentBox = new HBox(
             currentLabel,
@@ -138,17 +164,108 @@ public class UpdateShipStatus {
             currentStatus
         );
 
-        currentBox.setAlignment(Pos.CENTER_LEFT);
-        currentBox.setPadding(new Insets(15));
+        currentBox.setAlignment(
+            Pos.CENTER_LEFT
+        );
+
+        currentBox.setPadding(
+            new Insets(15)
+        );
+
+        currentBox.setStyle(
+            "-fx-background-color:#f8fafc;" +
+            "-fx-background-radius:8;"
+        );
+
+        // ================= VESSEL INFORMATION =================
+
+        Label vesselInfo = new Label(
+            "Vessel Information"
+        );
+
+        vesselInfo.setFont(
+            Font.font(
+                "Arial",
+                FontWeight.BOLD,
+                15
+            )
+        );
+
+        GridPane infoGrid = new GridPane();
+
+        infoGrid.setHgap(30);
+        infoGrid.setVgap(12);
+
+        infoGrid.add(
+            infoItem(
+                "Current Port",
+                "Mumbai Port"
+            ),
+            0,
+            0
+        );
+
+        infoGrid.add(
+            infoItem(
+                "Destination",
+                "Dubai Port"
+            ),
+            1,
+            0
+        );
+
+        infoGrid.add(
+            infoItem(
+                "ETA",
+                "18 Aug 2026, 08:30 AM"
+            ),
+            0,
+            1
+        );
+
+        infoGrid.add(
+            infoItem(
+                "Speed",
+                "12.5 Knots"
+            ),
+            1,
+            1
+        );
+
+        infoGrid.add(
+            infoItem(
+                "Crew Onboard",
+                "24 Members"
+            ),
+            0,
+            2
+        );
+
+        infoGrid.add(
+            infoItem(
+                "Last Updated",
+                "15 Aug 2026, 02:25 PM"
+            ),
+            1,
+            2
+        );
 
         // ================= NEW STATUS =================
 
-        Label newStatus = new Label("New Status");
-        newStatus.setFont(
-            Font.font("Arial",FontWeight.BOLD,14)
+        Label newStatus = new Label(
+            "New Status"
         );
 
-        ComboBox<String> combo = new ComboBox<>();
+        newStatus.setFont(
+            Font.font(
+                "Arial",
+                FontWeight.BOLD,
+                14
+            )
+        );
+
+        ComboBox<String> combo =
+            new ComboBox<>();
 
         combo.getItems().addAll(
             "At Berth",
@@ -160,9 +277,15 @@ public class UpdateShipStatus {
             "Arrived"
         );
 
-        combo.setPromptText("Select Status");
+        combo.setPromptText(
+            "Select Status"
+        );
+
         combo.setPrefHeight(46);
-        combo.setMaxWidth(Double.MAX_VALUE);
+
+        combo.setMaxWidth(
+            Double.MAX_VALUE
+        );
 
         // ================= REMARKS =================
 
@@ -171,13 +294,20 @@ public class UpdateShipStatus {
         );
 
         remarksLabel.setFont(
-            Font.font("Arial",FontWeight.BOLD,14)
+            Font.font(
+                "Arial",
+                FontWeight.BOLD,
+                14
+            )
         );
 
-        TextField remarks = new TextField();
+        TextField remarks =
+            new TextField();
+
         remarks.setPromptText(
             "Enter short remarks..."
         );
+
         remarks.setPrefHeight(46);
 
         // ================= BUTTON =================
@@ -187,7 +317,10 @@ public class UpdateShipStatus {
         );
 
         update.setPrefHeight(48);
-        update.setMaxWidth(Double.MAX_VALUE);
+
+        update.setMaxWidth(
+            Double.MAX_VALUE
+        );
 
         update.setStyle(
             "-fx-background-color:#1677ff;" +
@@ -236,6 +369,8 @@ public class UpdateShipStatus {
         card.getChildren().addAll(
             shipHeader,
             currentBox,
+            vesselInfo,
+            infoGrid,
             newStatus,
             combo,
             remarksLabel,
@@ -243,12 +378,15 @@ public class UpdateShipStatus {
             update
         );
 
-        // ================= HISTORY =================
+        // ================= STATUS HISTORY =================
 
-        VBox history = new VBox(25);
+        VBox history = new VBox(22);
 
-        history.setPrefWidth(350);
-        history.setPadding(new Insets(25));
+        history.setPrefWidth(300);
+
+        history.setPadding(
+            new Insets(25)
+        );
 
         history.setStyle(
             "-fx-background-color:white;" +
@@ -262,23 +400,122 @@ public class UpdateShipStatus {
         );
 
         historyTitle.setFont(
-            Font.font("Arial",FontWeight.BOLD,19)
+            Font.font(
+                "Arial",
+                FontWeight.BOLD,
+                19
+            )
         );
 
         history.getChildren().addAll(
+
             historyTitle,
-            historyRow("●","At Berth","Today, 10:20 AM","#36c878"),
+
+            historyRow(
+                "●",
+                "At Berth",
+                "Today, 10:20 AM",
+                "#36c878"
+            ),
+
             historyLine(),
-            historyRow("●","Arrived","Today, 09:45 AM","#287be0"),
+
+            historyRow(
+                "●",
+                "Arrived",
+                "Today, 09:45 AM",
+                "#287be0"
+            ),
+
             historyLine(),
-            historyRow("●","In Transit","Yesterday, 08:30 PM","#287be0"),
+
+            historyRow(
+                "●",
+                "In Transit",
+                "Yesterday, 08:30 PM",
+                "#287be0"
+            ),
+
             historyLine(),
-            historyRow("●","Departed","Yesterday, 06:00 PM","#8993a3")
+
+            historyRow(
+                "●",
+                "Departed",
+                "Yesterday, 06:00 PM",
+                "#8993a3"
+            )
         );
+
+        // ================= VOYAGE OVERVIEW =================
+
+        VBox voyage = new VBox(18);
+
+        voyage.setPrefWidth(280);
+
+        voyage.setPadding(
+            new Insets(25)
+        );
+
+        voyage.setStyle(
+            "-fx-background-color:white;" +
+            "-fx-background-radius:12;" +
+            "-fx-border-color:#e1e6ed;" +
+            "-fx-border-radius:12;"
+        );
+
+        Label voyageTitle = new Label(
+            "Voyage Overview"
+        );
+
+        voyageTitle.setFont(
+            Font.font(
+                "Arial",
+                FontWeight.BOLD,
+                19
+            )
+        );
+
+        voyage.getChildren().addAll(
+
+            voyageTitle,
+
+            voyageItem(
+                "⚓",
+                "Current Port",
+                "Mumbai Port"
+            ),
+
+            voyageItem(
+                "➜",
+                "Destination",
+                "Dubai Port"
+            ),
+
+            voyageItem(
+                "↔",
+                "Distance Remaining",
+                "842 Nautical Miles"
+            ),
+
+            voyageItem(
+                "◷",
+                "Estimated Arrival",
+                "18 Aug, 08:30 AM"
+            ),
+
+            voyageItem(
+                "≈",
+                "Sea Condition",
+                "Calm • 1.2 m Waves"
+            )
+        );
+
+        // ================= ADD CONTENT =================
 
         contentRow.getChildren().addAll(
             card,
-            history
+            history,
+            voyage
         );
 
         main.getChildren().addAll(
@@ -286,7 +523,112 @@ public class UpdateShipStatus {
             contentRow
         );
 
-        return new Scene(main,1060,760);
+        return new Scene(
+            main,
+            1260,
+            760
+        );
+    }
+
+    // ================= INFO ITEM =================
+
+    VBox infoItem(
+        String title,
+        String value
+    ) {
+
+        Label t = new Label(title);
+
+        t.setTextFill(
+            Color.web("#8993a3")
+        );
+
+        t.setFont(
+            Font.font("Arial", 12)
+        );
+
+        Label v = new Label(value);
+
+        v.setFont(
+            Font.font(
+                "Arial",
+                FontWeight.BOLD,
+                13
+            )
+        );
+
+        VBox box = new VBox(
+            3,
+            t,
+            v
+        );
+
+        box.setPrefWidth(260);
+
+        return box;
+    }
+
+    // ================= VOYAGE ITEM =================
+
+    VBox voyageItem(
+        String icon,
+        String title,
+        String value
+    ) {
+
+        Label iconLabel = new Label(
+            icon
+        );
+
+        iconLabel.setFont(
+            Font.font("Arial", 16)
+        );
+
+        iconLabel.setTextFill(
+            Color.web("#1677ff")
+        );
+
+        Label titleLabel = new Label(
+            title
+        );
+
+        titleLabel.setTextFill(
+            Color.web("#8993a3")
+        );
+
+        titleLabel.setFont(
+            Font.font("Arial", 12)
+        );
+
+        Label valueLabel = new Label(
+            value
+        );
+
+        valueLabel.setFont(
+            Font.font(
+                "Arial",
+                FontWeight.BOLD,
+                13
+            )
+        );
+
+        VBox text = new VBox(
+            3,
+            titleLabel,
+            valueLabel
+        );
+
+        HBox row = new HBox(
+            12,
+            iconLabel,
+            text
+        );
+
+        row.setAlignment(
+            Pos.CENTER_LEFT
+        );
+
+        return new VBox(row);
     }
 
     // ================= HISTORY ROW =================
@@ -298,26 +640,54 @@ public class UpdateShipStatus {
         String color
     ) {
 
-        Label dot = new Label(icon);
-        dot.setTextFill(Color.web(color));
-
-        Label s = new Label(status);
-        s.setFont(
-            Font.font("Arial",FontWeight.BOLD,13)
+        Label dot = new Label(
+            icon
         );
 
-        Label t = new Label(time);
-        t.setTextFill(Color.web("#8993a3"));
+        dot.setTextFill(
+            Color.web(color)
+        );
 
-        VBox text = new VBox(3,s,t);
+        Label s = new Label(
+            status
+        );
 
-        HBox row = new HBox(10,dot,text);
-        row.setAlignment(Pos.CENTER_LEFT);
+        s.setFont(
+            Font.font(
+                "Arial",
+                FontWeight.BOLD,
+                13
+            )
+        );
+
+        Label t = new Label(
+            time
+        );
+
+        t.setTextFill(
+            Color.web("#8993a3")
+        );
+
+        VBox text = new VBox(
+            3,
+            s,
+            t
+        );
+
+        HBox row = new HBox(
+            10,
+            dot,
+            text
+        );
+
+        row.setAlignment(
+            Pos.CENTER_LEFT
+        );
 
         return row;
     }
 
-    // ================= LINE =================
+    // ================= HISTORY LINE =================
 
     Region historyLine() {
 
@@ -332,5 +702,3 @@ public class UpdateShipStatus {
         return line;
     }
 }
-    
-

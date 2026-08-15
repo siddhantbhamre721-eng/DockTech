@@ -75,10 +75,7 @@ public class DocumentVerification {
             statCard("Today's Submissions","14","▤","#DDEEFF")
         );
 
-        // FILTER
-        TextField ds = new TextField();
-        ds.setPromptText("⌕  Document search...");
-        ds.setPrefSize(160,40);
+       
 
         ComboBox<String> type = combo("Document Type",
                 "Bill of Lading","Customs Declaration","Commercial Invoice",115);
@@ -98,7 +95,7 @@ public class DocumentVerification {
         filter.setFont(Font.font("Arial",FontWeight.BOLD,10));
         filter.setStyle("-fx-background-color:#1683F7;-fx-background-radius:10;");
 
-        HBox filterBox = new HBox(8,ds,type,status,date,exporter,filter);
+        HBox filterBox = new HBox(8,type,status,date,exporter,filter);
         filterBox.setAlignment(Pos.CENTER_LEFT);
         filterBox.setPadding(new Insets(10));
         filterBox.setStyle("-fx-background-color:white;-fx-background-radius:12;-fx-border-color:#E4EAF0;-fx-border-radius:12;");

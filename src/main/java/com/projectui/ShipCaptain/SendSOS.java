@@ -1,24 +1,12 @@
 package com.projectui.ShipCaptain;
 
-import javafx.geometry.Insets;
-import javafx.geometry.Pos;
+import javafx.geometry.*;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
-import javafx.scene.control.ButtonBar;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.ComboBox;
-import javafx.scene.control.Dialog;
-import javafx.scene.control.Label;
-import javafx.scene.control.TextArea;
-import javafx.scene.control.TextField;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
-import javafx.scene.layout.VBox;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
 
 public class SendSOS {
+
     private final BorderPane root = new BorderPane();
 
     public Scene getSOSScene() {
@@ -38,66 +26,50 @@ public class SendSOS {
         HBox h = new HBox(15);
 
         h.setAlignment(Pos.CENTER_LEFT);
-        h.setPadding(new Insets(12, 22, 12, 25));
+        h.setPadding(new Insets(12,22,12,25));
         h.setPrefHeight(65);
         h.setStyle("-fx-background-color:white;");
 
-        Label title = new Label("Emergency SOS");
+        Label title =
+                new Label("Emergency SOS");
 
         title.setStyle(
-                "-fx-font-size:22;" +
-                        "-fx-font-weight:bold;" +
-                        "-fx-text-fill:#172033;");
+            "-fx-font-size:22;" +
+            "-fx-font-weight:bold;" +
+            "-fx-text-fill:#172033;"
+        );
 
-        Label sub = new Label(
-                "Send an emergency alert to the Port Authority.");
+        Label sub =
+                new Label(
+                    "Send an emergency alert to the Port Authority."
+                );
 
         sub.setStyle(
-                "-fx-font-size:13;" +
-                        "-fx-text-fill:#687386;");
+            "-fx-font-size:13;" +
+            "-fx-text-fill:#687386;"
+        );
 
-        VBox titleBox = new VBox(3, title, sub);
+        VBox titleBox =
+                new VBox(3, title, sub);
 
         Region space = new Region();
 
         HBox.setHgrow(
-                space,
-                Priority.ALWAYS);
+            space,
+            Priority.ALWAYS
+        );
 
-        TextField search = new TextField();
+       
 
-        search.setPromptText("Search...");
-        search.setPrefWidth(230);
-        search.setPrefHeight(35);
+        
+       
 
-        Label notification = new Label("🔔");
-
-        notification.setStyle(
-                "-fx-font-size:18;");
-
-        Label avatar = new Label("A");
-
-        avatar.setMinSize(32, 32);
-        avatar.setAlignment(Pos.CENTER);
-
-        avatar.setStyle(
-                "-fx-background-color:#dbeafe;" +
-                        "-fx-background-radius:50;" +
-                        "-fx-text-fill:#0f5fff;");
-
-        Label captain = new Label("Ship Captain");
-
-        captain.setStyle(
-                "-fx-font-size:13;" +
-                        "-fx-font-weight:bold;");
-
+      
         h.getChildren().addAll(
-                titleBox,
-                space,
-                search,
-                notification,
-                avatar,
-                captain);
+            titleBox,
+            space
+            
+        );
 
         return h;
     }
@@ -106,184 +78,236 @@ public class SendSOS {
 
     private VBox emergencyPage() {
 
-        VBox main = new VBox(18);
+        VBox main =
+                new VBox(18);
 
         main.setPadding(
-                new Insets(30, 70, 25, 70));
+            new Insets(30,70,25,70)
+        );
 
         // ================= ALERT =================
 
-        HBox alert = new HBox(15);
+        HBox alert =
+                new HBox(15);
 
         alert.setAlignment(
-                Pos.CENTER_LEFT);
+            Pos.CENTER_LEFT
+        );
 
         alert.setPadding(
-                new Insets(17, 22, 17, 22));
+            new Insets(17,22,17,22)
+        );
 
         alert.setStyle(
-                "-fx-background-color:#fff5f5;" +
-                        "-fx-border-color:#f0baba;" +
-                        "-fx-border-radius:9;" +
-                        "-fx-background-radius:9;");
+            "-fx-background-color:#fff5f5;" +
+            "-fx-border-color:#f0baba;" +
+            "-fx-border-radius:9;" +
+            "-fx-background-radius:9;"
+        );
 
         // RED WARNING SYMBOL
-        Label alertIcon = new Label("⚠");
+        Label alertIcon =
+                new Label("⚠");
 
-        alertIcon.setMinSize(42, 42);
-        alertIcon.setPrefSize(42, 42);
+        alertIcon.setMinSize(42,42);
+        alertIcon.setPrefSize(42,42);
         alertIcon.setAlignment(Pos.CENTER);
 
         alertIcon.setStyle(
-                "-fx-font-size:20;" +
-                        "-fx-font-weight:bold;" +
-                        "-fx-text-fill:#dc3d3d;" +
-                        "-fx-background-color:#ffe8e8;" +
-                        "-fx-background-radius:50;");
+            "-fx-font-size:20;" +
+            "-fx-font-weight:bold;" +
+            "-fx-text-fill:#dc3d3d;" +
+            "-fx-background-color:#ffe8e8;" +
+            "-fx-background-radius:50;"
+        );
 
-        Label alertTitle = new Label(
-                "Emergency Alert Channel");
+        Label alertTitle =
+                new Label(
+                    "Emergency Alert Channel"
+                );
 
         alertTitle.setStyle(
-                "-fx-font-size:14;" +
-                        "-fx-font-weight:bold;" +
-                        "-fx-text-fill:#dc3d3d;");
+            "-fx-font-size:14;" +
+            "-fx-font-weight:bold;" +
+            "-fx-text-fill:#dc3d3d;"
+        );
 
-        Label alertSub = new Label(
-                "Only use this to notify the Port Authority of a real emergency.");
+        Label alertSub =
+                new Label(
+                    "Only use this to notify the Port Authority of a real emergency."
+                );
 
         alertSub.setStyle(
-                "-fx-font-size:12;" +
-                        "-fx-text-fill:#687386;");
+            "-fx-font-size:12;" +
+            "-fx-text-fill:#687386;"
+        );
 
-        VBox alertText = new VBox(
-                3,
-                alertTitle,
-                alertSub);
+        VBox alertText =
+                new VBox(
+                    3,
+                    alertTitle,
+                    alertSub
+                );
 
         alert.getChildren().addAll(
-                alertIcon,
-                alertText);
+            alertIcon,
+            alertText
+        );
 
         // ================= DETAILS CARD =================
 
-        VBox card = new VBox(17);
+        VBox card =
+                new VBox(17);
 
         card.setPadding(
-                new Insets(25));
+            new Insets(25)
+        );
 
         card.setStyle(
-                "-fx-background-color:white;" +
-                        "-fx-background-radius:10;" +
-                        "-fx-border-color:#e1e6ed;" +
-                        "-fx-border-radius:10;");
+            "-fx-background-color:white;" +
+            "-fx-background-radius:10;" +
+            "-fx-border-color:#e1e6ed;" +
+            "-fx-border-radius:10;"
+        );
 
-        Label details = new Label("Emergency Details");
+        Label details =
+                new Label("Emergency Details");
 
         details.setStyle(
-                "-fx-font-size:17;" +
-                        "-fx-font-weight:bold;");
+            "-fx-font-size:17;" +
+            "-fx-font-weight:bold;"
+        );
 
-        Label detailsSub = new Label(
-                "Confirm your vessel information and describe the situation.");
+        Label detailsSub =
+                new Label(
+                    "Confirm your vessel information and describe the situation."
+                );
 
         detailsSub.setStyle(
-                "-fx-font-size:12;" +
-                        "-fx-text-fill:#687386;");
+            "-fx-font-size:12;" +
+            "-fx-text-fill:#687386;"
+        );
 
         // ================= SHIP / LOCATION =================
 
-        HBox info = new HBox(15);
+        HBox info =
+                new HBox(15);
 
-        VBox ship = infoBox(
-                "⚓  Current Ship",
-                "Oceanic Star");
+        VBox ship =
+                infoBox(
+                    "⚓  Current Ship",
+                    "Oceanic Star"
+                );
 
-        VBox location = infoBox(
-                "⌖  Current Location",
-                "Port of Mumbai — Berth B04");
+        VBox location =
+                infoBox(
+                    "⌖  Current Location",
+                    "Port of Mumbai — Berth B04"
+                );
 
         HBox.setHgrow(
-                ship,
-                Priority.ALWAYS);
+            ship,
+            Priority.ALWAYS
+        );
 
         HBox.setHgrow(
-                location,
-                Priority.ALWAYS);
+            location,
+            Priority.ALWAYS
+        );
 
         info.getChildren().addAll(
-                ship,
-                location);
+            ship,
+            location
+        );
 
         // ================= EMERGENCY TYPE =================
 
-        Label typeLabel = new Label("Emergency Type");
+        Label typeLabel =
+                new Label("Emergency Type");
 
         typeLabel.setStyle(
-                "-fx-font-size:12;" +
-                        "-fx-font-weight:bold;");
+            "-fx-font-size:12;" +
+            "-fx-font-weight:bold;"
+        );
 
-        ComboBox<String> type = new ComboBox<>();
+        ComboBox<String> type =
+                new ComboBox<>();
 
         type.getItems().addAll(
-                "Medical Emergency",
-                "Fire",
-                "Collision",
-                "Engine Failure",
-                "Security Threat",
-                "Other");
+            "Medical Emergency",
+            "Fire",
+            "Collision",
+            "Engine Failure",
+            "Security Threat",
+            "Other"
+        );
 
         type.setPromptText(
-                "Select Emergency");
+            "Select Emergency"
+        );
 
         type.setMaxWidth(
-                Double.MAX_VALUE);
+            Double.MAX_VALUE
+        );
 
         type.setPrefHeight(40);
 
-        VBox typeBox = new VBox(
-                7,
-                typeLabel,
-                type);
+        VBox typeBox =
+                new VBox(
+                    7,
+                    typeLabel,
+                    type
+                );
 
         // ================= INFORMATION =================
 
-        Label infoLabel = new Label(
-                "Additional Information");
+        Label infoLabel =
+                new Label(
+                    "Additional Information"
+                );
 
         infoLabel.setStyle(
-                "-fx-font-size:12;" +
-                        "-fx-font-weight:bold;");
+            "-fx-font-size:12;" +
+            "-fx-font-weight:bold;"
+        );
 
-        TextArea description = new TextArea();
+        TextArea description =
+                new TextArea();
 
         description.setPromptText(
-                "Describe the emergency...");
+            "Describe the emergency..."
+        );
 
         description.setPrefRowCount(4);
         description.setWrapText(true);
 
-        VBox descriptionBox = new VBox(
-                7,
-                infoLabel,
-                description);
+        VBox descriptionBox =
+                new VBox(
+                    7,
+                    infoLabel,
+                    description
+                );
 
         // ================= SEND SOS =================
 
-        Button send = new Button(
-                "⚠   SEND SOS");
+        Button send =
+                new Button(
+                    "⚠   SEND SOS"
+                );
 
         send.setMaxWidth(
-                Double.MAX_VALUE);
+            Double.MAX_VALUE
+        );
 
         send.setPrefHeight(52);
 
         send.setStyle(
-                "-fx-background-color:#1769e8;" +
-                        "-fx-text-fill:white;" +
-                        "-fx-font-size:14;" +
-                        "-fx-font-weight:bold;" +
-                        "-fx-background-radius:6;");
+            "-fx-background-color:#1769e8;" +
+            "-fx-text-fill:white;" +
+            "-fx-font-size:14;" +
+            "-fx-font-weight:bold;" +
+            "-fx-background-radius:6;"
+        );
 
         // ================= SEND ACTION =================
 
@@ -291,16 +315,20 @@ public class SendSOS {
 
             if (type.getValue() == null) {
 
-                Alert alertBox = new Alert(
-                        Alert.AlertType.WARNING);
+                Alert alertBox =
+                        new Alert(
+                            Alert.AlertType.WARNING
+                        );
 
                 alertBox.setTitle(
-                        "Emergency Type Required");
+                    "Emergency Type Required"
+                );
 
                 alertBox.setHeaderText(null);
 
                 alertBox.setContentText(
-                        "Please select an emergency type.");
+                    "Please select an emergency type."
+                );
 
                 alertBox.showAndWait();
 
@@ -309,81 +337,104 @@ public class SendSOS {
 
             // ================= CUSTOM CONFIRMATION =================
 
-            Dialog<ButtonType> dialog = new Dialog<>();
+            Dialog<ButtonType> dialog =
+                    new Dialog<>();
 
             dialog.setTitle(
-                    "Emergency SOS");
+                "Emergency SOS"
+            );
 
-            ButtonType cancelButton = new ButtonType(
-                    "Cancel",
-                    ButtonBar.ButtonData.CANCEL_CLOSE);
+            ButtonType cancelButton =
+                    new ButtonType(
+                        "Cancel",
+                        ButtonBar.ButtonData.CANCEL_CLOSE
+                    );
 
-            ButtonType sosButton = new ButtonType(
-                    "⚠  Send SOS",
-                    ButtonBar.ButtonData.OK_DONE);
+            ButtonType sosButton =
+                    new ButtonType(
+                        "⚠  Send SOS",
+                        ButtonBar.ButtonData.OK_DONE
+                    );
 
             dialog.getDialogPane()
                     .getButtonTypes()
                     .addAll(
-                            cancelButton,
-                            sosButton);
+                        cancelButton,
+                        sosButton
+                    );
 
             // WARNING ICON
 
-            Label dialogIcon = new Label("⚠");
+            Label dialogIcon =
+                    new Label("⚠");
 
             dialogIcon.setMinSize(
-                    48,
-                    48);
+                48,
+                48
+            );
 
             dialogIcon.setPrefSize(
-                    48,
-                    48);
+                48,
+                48
+            );
 
             dialogIcon.setAlignment(
-                    Pos.CENTER);
+                Pos.CENTER
+            );
 
             dialogIcon.setStyle(
-                    "-fx-font-size:24;" +
-                            "-fx-font-weight:bold;" +
-                            "-fx-text-fill:#dc2626;" +
-                            "-fx-background-color:#ffe7e7;" +
-                            "-fx-background-radius:50;");
+                "-fx-font-size:24;" +
+                "-fx-font-weight:bold;" +
+                "-fx-text-fill:#dc2626;" +
+                "-fx-background-color:#ffe7e7;" +
+                "-fx-background-radius:50;"
+            );
 
             // TITLE
 
-            Label dialogTitle = new Label(
-                    "Confirm Emergency SOS");
+            Label dialogTitle =
+                    new Label(
+                        "Confirm Emergency SOS"
+                    );
 
             dialogTitle.setStyle(
-                    "-fx-font-size:16;" +
-                            "-fx-font-weight:bold;" +
-                            "-fx-text-fill:#172033;");
+                "-fx-font-size:16;" +
+                "-fx-font-weight:bold;" +
+                "-fx-text-fill:#172033;"
+            );
 
             // MESSAGE
 
-            Label dialogMessage = new Label(
-                    "Are you sure you want to send an emergency SOS?");
+            Label dialogMessage =
+                    new Label(
+                        "Are you sure you want to send an emergency SOS?"
+                    );
 
             dialogMessage.setStyle(
-                    "-fx-font-size:12;" +
-                            "-fx-text-fill:#687386;");
+                "-fx-font-size:12;" +
+                "-fx-text-fill:#687386;"
+            );
 
-            VBox dialogContent = new VBox(
-                    12,
-                    dialogIcon,
-                    dialogTitle,
-                    dialogMessage);
+            VBox dialogContent =
+                    new VBox(
+                        12,
+                        dialogIcon,
+                        dialogTitle,
+                        dialogMessage
+                    );
 
             dialogContent.setAlignment(
-                    Pos.CENTER);
+                Pos.CENTER
+            );
 
             dialogContent.setPadding(
-                    new Insets(15, 20, 10, 20));
+                new Insets(15,20,10,20)
+            );
 
             dialog.getDialogPane()
                     .setContent(
-                            dialogContent);
+                        dialogContent
+                    );
 
             dialog.getDialogPane()
                     .setPrefWidth(380);
@@ -394,33 +445,40 @@ public class SendSOS {
         // ================= CARD CONTENT =================
 
         card.getChildren().addAll(
-                details,
-                detailsSub,
-                info,
-                typeBox,
-                descriptionBox,
-                send);
+            details,
+            detailsSub,
+            info,
+            typeBox,
+            descriptionBox,
+            send
+        );
 
         // ================= BOTTOM =================
 
-        Label bottom = new Label(
-                "The Port Authority and nearby vessels will be notified immediately.");
+        Label bottom =
+                new Label(
+                    "The Port Authority and nearby vessels will be notified immediately."
+                );
 
         bottom.setStyle(
-                "-fx-font-size:12;" +
-                        "-fx-text-fill:#687386;");
+            "-fx-font-size:12;" +
+            "-fx-text-fill:#687386;"
+        );
 
-        HBox bottomBox = new HBox(bottom);
+        HBox bottomBox =
+                new HBox(bottom);
 
         bottomBox.setAlignment(
-                Pos.CENTER);
+            Pos.CENTER
+        );
 
         // ================= FINAL CONTENT =================
 
         main.getChildren().addAll(
-                alert,
-                card,
-                bottomBox);
+            alert,
+            card,
+            bottomBox
+        );
 
         return main;
     }
@@ -429,38 +487,46 @@ public class SendSOS {
 
     private VBox infoBox(
             String heading,
-            String value) {
+            String value
+    ) {
 
-        Label h = new Label(heading);
+        Label h =
+                new Label(heading);
 
         h.setStyle(
-                "-fx-font-size:11;" +
-                        "-fx-text-fill:#687386;");
+            "-fx-font-size:11;" +
+            "-fx-text-fill:#687386;"
+        );
 
-        Label v = new Label(value);
+        Label v =
+                new Label(value);
 
         v.setStyle(
-                "-fx-font-size:14;" +
-                        "-fx-font-weight:bold;" +
-                        "-fx-text-fill:#172033;");
+            "-fx-font-size:14;" +
+            "-fx-font-weight:bold;" +
+            "-fx-text-fill:#172033;"
+        );
 
-        VBox box = new VBox(
-                6,
-                h,
-                v);
+        VBox box =
+                new VBox(
+                    6,
+                    h,
+                    v
+                );
 
         box.setPadding(
-                new Insets(14));
+            new Insets(14)
+        );
 
         box.setMinHeight(72);
 
         box.setStyle(
-                "-fx-background-color:white;" +
-                        "-fx-border-color:#e1e6ed;" +
-                        "-fx-border-radius:7;" +
-                        "-fx-background-radius:7;");
+            "-fx-background-color:white;" +
+            "-fx-border-color:#e1e6ed;" +
+            "-fx-border-radius:7;" +
+            "-fx-background-radius:7;"
+        );
 
         return box;
     }
-
 }

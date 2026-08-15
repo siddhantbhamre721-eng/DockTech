@@ -45,20 +45,13 @@ public class CargoClearance {
 
         VBox titleBox = new VBox(2,title,sub);
 
-        TextField search = new TextField();
-        search.setPromptText("Search anything...");
-        search.setPrefWidth(330);
+       
 
-        HBox searchBox = new HBox(8,new Label("⌕"),search);
-        searchBox.setAlignment(Pos.CENTER_LEFT);
-        searchBox.setPrefHeight(45);
-        searchBox.setPadding(new Insets(0,12,0,12));
-        searchBox.setStyle(box());
-
+        
         Region gap = new Region();
         HBox.setHgrow(gap,Priority.ALWAYS);
 
-        HBox header = new HBox(15,titleBox,gap,searchBox);
+        HBox header = new HBox(15,titleBox,gap);
         header.setAlignment(Pos.CENTER_LEFT);
 
         HBox cards = new HBox(12,

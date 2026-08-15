@@ -1,25 +1,15 @@
 package com.projectui.ShipCaptain;
 
-import javafx.geometry.Insets;
-import javafx.geometry.Pos;
+import javafx.geometry.*;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.RadioButton;
-import javafx.scene.control.TextField;
-import javafx.scene.control.ToggleGroup;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.GridPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
-import javafx.scene.layout.VBox;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
 public class ConfirmLoading {
+
     private RadioButton progress, completed;
     private Button confirm;
     private Label success;
@@ -47,47 +37,10 @@ public class ConfirmLoading {
         Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
 
-        Label systemDot = label("●", 10, true);
-        systemDot.setTextFill(Color.web("#16a875"));
-
+      
        
-
-        HBox system = new HBox(7, systemDot);
-        system.setAlignment(Pos.CENTER);
-        system.setPadding(new Insets(9, 13, 9, 13));
-        system.setStyle(
-                "-fx-background-color:#f1fbf7;" +
-                "-fx-border-color:#ccefe1;" +
-                "-fx-border-radius:18;" +
-                "-fx-background-radius:18;"
-        );
-
-        Label avatar = label("JS", 10, true);
-        avatar.setTextFill(Color.WHITE);
-        avatar.setPrefSize(32, 32);
-        avatar.setAlignment(Pos.CENTER);
-        avatar.setStyle(
-                "-fx-background-color:#287cf5;" +
-                "-fx-background-radius:50;"
-        );
-
-        VBox captainText = new VBox(2,
-                label("Joan Smith", 11, true),
-                label("Ship Captain", 9, false)
-        );
-
-        HBox captain = new HBox(9, avatar, captainText);
-        captain.setAlignment(Pos.CENTER_LEFT);
-        captain.setPadding(new Insets(6, 13, 6, 7));
-        captain.setStyle(
-                "-fx-background-color:#f8fafc;" +
-                "-fx-border-color:#e1e7ee;" +
-                "-fx-border-radius:22;" +
-                "-fx-background-radius:22;"
-        );
-
         header.getChildren().addAll(
-                heading, gap, system, captain
+                heading, gap
         );
 
         root.setTop(header);
@@ -496,5 +449,4 @@ public class ConfirmLoading {
         a.setContentText(message);
         a.showAndWait();
     }
-    
 }

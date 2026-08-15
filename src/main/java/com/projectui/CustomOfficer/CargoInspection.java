@@ -38,20 +38,12 @@ public class CargoInspection {
 
         VBox heading = new VBox(5, title, subtitle);
 
-        TextField search = new TextField();
-        search.setPromptText("⌕  Search cargo...");
-        search.setPrefWidth(220);
-        search.setPrefHeight(38);
-        search.setStyle(
-                "-fx-background-color:white;" +
-                "-fx-background-radius:8;" +
-                "-fx-border-color:#dfe4ea;" +
-                "-fx-border-radius:8;");
+      
 
         Region space = new Region();
         HBox.setHgrow(space, Priority.ALWAYS);
 
-        HBox header = new HBox(heading, space, search);
+        HBox header = new HBox(heading, space);
         header.setAlignment(Pos.CENTER_LEFT);
 
         // CARDS
