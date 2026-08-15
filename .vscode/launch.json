@@ -6,6 +6,16 @@
     "configurations": [
         {
             "type": "java",
+<<<<<<< HEAD
+=======
+            "name": "DashBoard",
+            "request": "launch",
+            "mainClass": "com.projectui.CustomOfficer.DashBoard",
+            "projectName": "docktech"
+        },
+        {
+            "type": "java",
+>>>>>>> origin/development
             "name": "Current File",
             "request": "launch",
             "mainClass": "${file}"
