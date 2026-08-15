@@ -27,7 +27,7 @@ public class Logout {
         );
 
         stage.initOwner(
-                Dashboard.dashboardStage
+                ExporterDashboard.dashboardStage
         );
 
         VBox root =

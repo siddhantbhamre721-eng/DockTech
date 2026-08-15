@@ -483,12 +483,12 @@ public class TrackShipment {
             RegisterCargo p =
                     new RegisterCargo();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     p.getRegisterCargoScene(
                             this::back
                     )
             );
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         book.setOnAction(e -> {
@@ -496,12 +496,12 @@ public class TrackShipment {
             BookContainer p =
                     new BookContainer();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     p.getBookContainerScene(
                             this::back
                     )
             );
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         upload.setOnAction(e -> {
@@ -509,12 +509,12 @@ public class TrackShipment {
             UploadDocument p =
                     new UploadDocument();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     p.getUploadDocumentScene(
                             this::back
                     )
             );
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         payment.setOnAction(e -> {
@@ -522,12 +522,12 @@ public class TrackShipment {
             MakePayment p =
                     new MakePayment();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     p.getMakePaymentScene(
                             this::back
                     )
             );
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         logout.setOnAction(e ->
@@ -599,8 +599,8 @@ public class TrackShipment {
 
     private void back() {
 
-        new Dashboard().start(
-                Dashboard.dashboardStage
+        new ExporterDashboard().start(
+                ExporterDashboard.dashboardStage
         );
     }
 

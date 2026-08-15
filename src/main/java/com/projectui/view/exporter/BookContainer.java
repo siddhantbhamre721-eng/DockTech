@@ -350,12 +350,12 @@ public class BookContainer {
             RegisterCargo page =
                     new RegisterCargo();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     page.getRegisterCargoScene(
                             this::back
                     )
             );
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         upload.setOnAction(e -> {
@@ -363,12 +363,12 @@ public class BookContainer {
             UploadDocument page =
                     new UploadDocument();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     page.getUploadDocumentScene(
                             this::back
                     )
             );
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         payment.setOnAction(e -> {
@@ -376,12 +376,12 @@ public class BookContainer {
             MakePayment page =
                     new MakePayment();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     page.getMakePaymentScene(
                             this::back
                     )
             );
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         track.setOnAction(e -> {
@@ -389,12 +389,12 @@ public class BookContainer {
             TrackShipment page =
                     new TrackShipment();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     page.getTrackShipmentScene(
                             this::back
                     )
             );
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         logout.setOnAction(e ->
@@ -519,8 +519,8 @@ public class BookContainer {
 
     private void back() {
 
-        new Dashboard().start(
-                Dashboard.dashboardStage
+        new ExporterDashboard().start(
+                ExporterDashboard.dashboardStage
         );
     }
 

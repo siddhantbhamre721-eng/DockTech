@@ -240,7 +240,7 @@ public class UploadDocument {
 
             File file =
                     chooser.showOpenDialog(
-                            Dashboard.dashboardStage
+                            ExporterDashboard.dashboardStage
                     );
 
             if (file != null) {
@@ -462,12 +462,12 @@ public class UploadDocument {
             RegisterCargo page =
                     new RegisterCargo();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     page.getRegisterCargoScene(
                             this::back
                     )
             );
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         book.setOnAction(e -> {
@@ -475,12 +475,12 @@ public class UploadDocument {
             BookContainer page =
                     new BookContainer();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     page.getBookContainerScene(
                             this::back
                     )
             );
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         payment.setOnAction(e -> {
@@ -488,12 +488,12 @@ public class UploadDocument {
             MakePayment page =
                     new MakePayment();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     page.getMakePaymentScene(
                             this::back
                     )
             );
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         track.setOnAction(e -> {
@@ -501,12 +501,12 @@ public class UploadDocument {
             TrackShipment page =
                     new TrackShipment();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     page.getTrackShipmentScene(
                             this::back
                     )
             );
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         logout.setOnAction(e ->
@@ -578,8 +578,8 @@ public class UploadDocument {
 
     private void back() {
 
-        new Dashboard().start(
-                Dashboard.dashboardStage
+        new ExporterDashboard().start(
+                ExporterDashboard.dashboardStage
         );
     }
 

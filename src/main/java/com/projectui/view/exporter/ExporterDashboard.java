@@ -24,7 +24,7 @@ import javafx.stage.StageStyle;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-public class Dashboard extends Application {
+public class ExporterDashboard extends Application {
 
     public static Stage dashboardStage;
 
@@ -81,31 +81,31 @@ public class Dashboard extends Application {
         register.setOnAction(event -> {
             RegisterCargo page = new RegisterCargo();
             dashboardStage.setScene(page.getRegisterCargoScene(this::showDashboard));
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         book.setOnAction(event -> {
             BookContainer page = new BookContainer();
             dashboardStage.setScene(page.getBookContainerScene(this::showDashboard));
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         upload.setOnAction(event -> {
             UploadDocument page = new UploadDocument();
             dashboardStage.setScene(page.getUploadDocumentScene(this::showDashboard));
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         payment.setOnAction(event -> {
             MakePayment page = new MakePayment();
             dashboardStage.setScene(page.getMakePaymentScene(this::showDashboard));
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         track.setOnAction(event -> {
             TrackShipment page = new TrackShipment();
             dashboardStage.setScene(page.getTrackShipmentScene(this::showDashboard));
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         logout.setOnAction(event -> {

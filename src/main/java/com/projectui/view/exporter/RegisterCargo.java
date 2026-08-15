@@ -486,7 +486,7 @@ public class RegisterCargo {
             BookContainer page =
                     new BookContainer();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     page.getBookContainerScene(
                             this::back
                     )
@@ -499,7 +499,7 @@ public class RegisterCargo {
             UploadDocument page =
                     new UploadDocument();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     page.getUploadDocumentScene(
                             this::back
                     )
@@ -512,7 +512,7 @@ public class RegisterCargo {
             MakePayment page =
                     new MakePayment();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     page.getMakePaymentScene(
                             this::back
                     )
@@ -525,7 +525,7 @@ public class RegisterCargo {
             TrackShipment page =
                     new TrackShipment();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     page.getTrackShipmentScene(
                             this::back
                     )
@@ -664,15 +664,15 @@ public class RegisterCargo {
 
     private void openDashboard() {
 
-        new Dashboard().start(
-                Dashboard.dashboardStage
+        new ExporterDashboard().start(
+                ExporterDashboard.dashboardStage
         );
     }
 
     private void back() {
 
-        new Dashboard().start(
-                Dashboard.dashboardStage
+        new ExporterDashboard().start(
+                ExporterDashboard.dashboardStage
         );
     }
 

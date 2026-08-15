@@ -439,12 +439,12 @@ public class MakePayment {
             RegisterCargo p =
                     new RegisterCargo();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     p.getRegisterCargoScene(
                             this::back
                     )
             );
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         book.setOnAction(e -> {
@@ -452,12 +452,12 @@ public class MakePayment {
             BookContainer p =
                     new BookContainer();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     p.getBookContainerScene(
                             this::back
                     )
             );
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         upload.setOnAction(e -> {
@@ -465,12 +465,12 @@ public class MakePayment {
             UploadDocument p =
                     new UploadDocument();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     p.getUploadDocumentScene(
                             this::back
                     )
             );
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         track.setOnAction(e -> {
@@ -478,12 +478,12 @@ public class MakePayment {
             TrackShipment p =
                     new TrackShipment();
 
-            Dashboard.dashboardStage.setScene(
+            ExporterDashboard.dashboardStage.setScene(
                     p.getTrackShipmentScene(
                             this::back
                     )
             );
-            Dashboard.dashboardStage.setFullScreen(true);
+            ExporterDashboard.dashboardStage.setFullScreen(true);
         });
 
         logout.setOnAction(e ->
@@ -555,8 +555,8 @@ public class MakePayment {
 
     private void back() {
 
-        new Dashboard().start(
-                Dashboard.dashboardStage
+        new ExporterDashboard().start(
+                ExporterDashboard.dashboardStage
         );
     }
 
