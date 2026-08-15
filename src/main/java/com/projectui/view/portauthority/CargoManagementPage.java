@@ -165,6 +165,161 @@ public class CargoManagementPage {
 
         TableColumn<String[], String> status =
                 createColumn("Status", 130, 7);
+                
+        
+        TableColumn<String[], String> action =
+                new TableColumn<>("Action");
+
+        action.setPrefWidth(120);
+
+        action.setCellFactory(column -> new TableCell<>() {
+
+                private final Button viewButton = new Button("View");
+                private final Button editButton = new Button("Edit");
+
+                {
+                        viewButton.setOnAction(e -> {
+
+                        String[] cargo = getTableView().getItems().get(getIndex());
+
+                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+
+                        alert.setTitle("Cargo Details");
+                        alert.setHeaderText("Cargo Details");
+
+                        alert.setContentText(
+                                "Cargo ID: " + cargo[0] + "\n" +
+                                "Ship: " + cargo[1] + "\n" +
+                                "Cargo Type: " + cargo[2] + "\n" +
+                                "Weight: " + cargo[3] + "\n" +
+                                "Origin: " + cargo[4] + "\n" +
+                                "Destination: " + cargo[5] + "\n" +
+                                "Containers: " + cargo[6] + "\n" +
+                                "Status: " + cargo[7]
+                        );
+
+                        alert.showAndWait();
+                        });
+
+                        editButton.setOnAction(e -> {
+
+                                String[] cargo = getTableView().getItems().get(getIndex());
+
+                                Dialog<ButtonType> dialog = new Dialog<>();
+
+                                dialog.setTitle("Edit Cargo");
+                                dialog.setHeaderText("Edit Cargo Details");
+
+                                ButtonType okButton = new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
+                                ButtonType cancelButton = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+                                dialog.getDialogPane().getButtonTypes().addAll(
+                                        okButton,
+                                        cancelButton
+                                );
+
+                                GridPane grid = new GridPane();
+                                grid.setHgap(10);
+                                grid.setVgap(10);
+                                grid.setPadding(new Insets(20, 20, 10, 20));
+
+                                TextField shipField = new TextField(cargo[1]);
+                                ComboBox<String> cargoTypeBox = new ComboBox<>();
+
+                                cargoTypeBox.getItems().addAll(
+                                        "Container",
+                                        "Bulk",
+                                        "Refrigerated",
+                                        "Liquid"
+                                );
+
+                                cargoTypeBox.setValue(cargo[2]);
+
+                                TextField weightField = new TextField(cargo[3]);
+                                TextField originField = new TextField(cargo[4]);
+                                TextField destinationField = new TextField(cargo[5]);
+                                TextField containersField = new TextField(cargo[6]);
+
+                                ComboBox<String> statusBox = new ComboBox<>();
+
+                                statusBox.getItems().addAll(
+                                        "Received",
+                                        "Loading",
+                                        "Loaded",
+                                        "In Transit",
+                                        "Delivered",
+                                        "Pending Inspection"
+                                );
+
+                                statusBox.setValue(cargo[7]);
+
+                                grid.add(new Label("Ship:"), 0, 0);
+                                grid.add(shipField, 1, 0);
+
+                                grid.add(new Label("Cargo Type:"), 0, 1);
+                                grid.add(cargoTypeBox, 1, 1);
+
+                                grid.add(new Label("Weight:"), 0, 2);
+                                grid.add(weightField, 1, 2);
+
+                                grid.add(new Label("Origin:"), 0, 3);
+                                grid.add(originField, 1, 3);
+
+                                grid.add(new Label("Destination:"), 0, 4);
+                                grid.add(destinationField, 1, 4);
+
+                                grid.add(new Label("Containers:"), 0, 5);
+                                grid.add(containersField, 1, 5);
+
+                                grid.add(new Label("Status:"), 0, 6);
+                                grid.add(statusBox, 1, 6);
+
+                                dialog.getDialogPane().setContent(grid);
+
+                                dialog.setResultConverter(button -> {
+
+                                        if (button == okButton) {
+
+                                        cargo[1] = shipField.getText().trim();
+                                        cargo[2] = cargoTypeBox.getValue();
+                                        cargo[3] = weightField.getText().trim();
+                                        cargo[4] = originField.getText().trim();
+                                        cargo[5] = destinationField.getText().trim();
+                                        cargo[6] = containersField.getText().trim();
+                                        cargo[7] = statusBox.getValue();
+
+                                        table.refresh();
+                                        }
+
+                                        return button;
+                                });
+
+                                dialog.showAndWait();
+                        });
+                }
+
+                @Override
+                protected void updateItem(String item, boolean empty) {
+
+                        super.updateItem(item, empty);
+
+                        if (empty) {
+
+                                setGraphic(null);
+
+                        } else {
+
+                                HBox buttons = new HBox(8);
+
+                                buttons.getChildren().addAll(
+                                        viewButton,
+                                        editButton
+                                );
+
+                                setGraphic(buttons);
+                        }
+                }
+        });
 
         table.getColumns().addAll(
                 cargoId,
@@ -174,8 +329,10 @@ public class CargoManagementPage {
                 origin,
                 destination,
                 containers,
-                status
+                status,
+                action
         );
+
 
 
         // =====================================================
@@ -338,6 +495,185 @@ public class CargoManagementPage {
                 new FilteredList<>(cargoData);
 
         table.setItems(filteredData);
+
+        // =====================================================
+        // ADD CARGO BUTTON
+        // =====================================================
+
+        addCargoButton.setOnAction(event -> {
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+
+        dialog.setTitle("Add Cargo");
+        dialog.setHeaderText("Register New Cargo");
+
+        // -------------------------------------------------
+        // FORM FIELDS
+        // -------------------------------------------------
+
+        TextField shipField = new TextField();
+        shipField.setPromptText("Ship name");
+
+        ComboBox<String> cargoTypeField = new ComboBox<>();
+
+        cargoTypeField.getItems().addAll(
+                "Container",
+                "Bulk",
+                "Refrigerated",
+                "Liquid"
+        );
+
+        cargoTypeField.setPromptText("Cargo type");
+
+        TextField weightField = new TextField();
+        weightField.setPromptText("e.g. 1500 T");
+
+        TextField originField = new TextField();
+        originField.setPromptText("Origin");
+
+        TextField destinationField = new TextField();
+        destinationField.setPromptText("Destination");
+
+        TextField containersField = new TextField();
+        containersField.setPromptText("Number of containers");
+
+        ComboBox<String> statusField = new ComboBox<>();
+
+        statusField.getItems().addAll(
+                "Received",
+                "Loading",
+                "Loaded",
+                "In Transit",
+                "Delivered",
+                "Pending Inspection"
+        );
+
+        statusField.setPromptText("Status");
+
+
+        // -------------------------------------------------
+        // FORM LAYOUT
+        // -------------------------------------------------
+
+        GridPane form = new GridPane();
+
+        form.setHgap(10);
+        form.setVgap(10);
+        form.setPadding(new Insets(15));
+
+        form.add(new Label("Ship:"), 0, 0);
+        form.add(shipField, 1, 0);
+
+        form.add(new Label("Cargo Type:"), 0, 1);
+        form.add(cargoTypeField, 1, 1);
+
+        form.add(new Label("Weight:"), 0, 2);
+        form.add(weightField, 1, 2);
+
+        form.add(new Label("Origin:"), 0, 3);
+        form.add(originField, 1, 3);
+
+        form.add(new Label("Destination:"), 0, 4);
+        form.add(destinationField, 1, 4);
+
+        form.add(new Label("Containers:"), 0, 5);
+        form.add(containersField, 1, 5);
+
+        form.add(new Label("Status:"), 0, 6);
+        form.add(statusField, 1, 6);
+
+
+        dialog.getDialogPane().setContent(form);
+
+        dialog.getDialogPane().getButtonTypes().addAll(
+                ButtonType.OK,
+                ButtonType.CANCEL
+        );
+
+
+        // -------------------------------------------------
+        // HANDLE ADD
+        // -------------------------------------------------
+
+        dialog.setResultConverter(button -> {
+
+                if (button == ButtonType.OK) {
+
+                        String newShip =
+                                shipField.getText().trim();
+
+                        String newCargoType =
+                                cargoTypeField.getValue();
+
+                        String newWeight =
+                                weightField.getText().trim();
+
+                        String newOrigin =
+                                originField.getText().trim();
+
+                        String newDestination =
+                                destinationField.getText().trim();
+
+                        String newContainers =
+                                containersField.getText().trim();
+
+                        String newStatus =
+                                statusField.getValue();
+
+
+                        // Basic validation
+                        if (newShip.isEmpty()
+                                        || newCargoType == null
+                                        || newWeight.isEmpty()
+                                        || newOrigin.isEmpty()
+                                        || newDestination.isEmpty()
+                                        || newContainers.isEmpty()
+                                        || newStatus == null) {
+
+                                Alert alert = new Alert(
+                                        Alert.AlertType.WARNING
+                                );
+
+                                alert.setTitle("Missing Information");
+                                alert.setHeaderText(null);
+                                alert.setContentText(
+                                        "Please fill in all cargo details."
+                                );
+
+                                alert.showAndWait();
+
+                                return null;
+                        }
+
+
+                        // Generate next Cargo ID
+                        int nextId =
+                                1295 + cargoData.size() - 8;
+
+                        String cargoIdValue =
+                                "CGO-" + nextId;
+
+
+                        // Add new cargo to the original list
+                        cargoData.add(
+                                new String[]{
+                                        cargoIdValue,
+                                        newShip,
+                                        newCargoType,
+                                        newWeight,
+                                        newOrigin,
+                                        newDestination,
+                                        newContainers,
+                                        newStatus
+                                }
+                        );
+                }
+
+                return button;
+        });
+
+        dialog.showAndWait();
+        });
 
         searchField.textProperty().addListener(
                 (observable, oldValue, newValue) -> {

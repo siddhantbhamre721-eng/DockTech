@@ -5,6 +5,8 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.MenuItem;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -59,7 +61,7 @@ public class PortAuthorityLayout {
         );
 
         scrollPane.setStyle(
-                "-fx-background-color:#f3f8ff;" +
+                "-fx-background-color: #f3f8ff;" +
                 "-fx-border-color:transparent;"
         );
 
@@ -107,7 +109,7 @@ public class PortAuthorityLayout {
         );
 
         sidebar.setStyle(
-                "-fx-background-color:#050911;"
+                "-fx-background-color: #050911;"
         );
 
         // LOGO
@@ -209,6 +211,44 @@ public class PortAuthorityLayout {
                 );
         });
 
+        container.setOnAction(e -> {
+
+                setContent(new ContainerManagementPage().getContent(),
+                "Container Management",
+                "Dock Tech / Port Authority / Container Management"
+                );
+        });
+
+        allocation.setOnAction(e -> {
+                
+                setContent(new ContainerAllocationPage().getContent(), 
+                "Container Allocation", 
+                "Dock Teck / Port Authority / Container Allocation");
+        });
+
+        payments.setOnAction(e -> {
+
+                setContent(new PaymentPage().getContent(),
+                "Payment Management",
+                 "Dock Teck / Port Authority / Payment Management");
+        });
+
+        reports.setOnAction(e -> {
+
+                setContent(new ReportsPage().getContent(),
+                "Reports & Analytics", 
+                "Dock Teck / Port Authority / Reports and Analytics");
+        });
+
+        settings.setOnAction(e -> {
+
+                setContent(new SettingsPage().getContent(),
+                        "Settings",
+                        "Dock Tech / Port Authority / Settings"
+        );
+
+});
+
         return sidebar;
     }
 
@@ -306,7 +346,7 @@ public class PortAuthorityLayout {
 
         header.setStyle(
                 "-fx-background-color:white;" +
-                "-fx-border-color:#e5ebf3;" +
+                "-fx-border-color: #e5ebf3;" +
                 "-fx-border-width:0 0 1 0;"
         );
 
@@ -386,8 +426,8 @@ public class PortAuthorityLayout {
 
         // NOTIFICATION
 
-        Label notification =
-                new Label("🔔");
+        Button notification =
+                new Button("🔔");
 
         notification.setStyle(
                 "-fx-text-fill:#111827;" +
@@ -396,53 +436,57 @@ public class PortAuthorityLayout {
 
         // PROFILE
 
-        Label avatar =
-                new Label("P");
+        // =====================================================
+        // PROFILE MENU
+        // =====================================================
 
-        avatar.setMinSize(
-                32,
-                32
-        );
+        MenuButton profileButton =
+                new MenuButton("P  Port Authority");
 
-        avatar.setAlignment(
-                Pos.CENTER
-        );
-
-        avatar.setStyle(
-                "-fx-background-color:#dbeafe;" +
-                "-fx-background-radius:50;" +
-                "-fx-text-fill:#0f5fff;" +
-                "-fx-font-weight:bold;"
-        );
-
-        VBox profile =
-                new VBox(1);
-
-        Label user =
-                new Label(
-                        "Port Authority"
-                );
-
-        user.setStyle(
-                "-fx-text-fill:#111827;" +
+        profileButton.setStyle(
+                "-fx-background-color: transparent;" +
+                "-fx-text-fill: #111827;" +
                 "-fx-font-size:11;" +
-                "-fx-font-weight:bold;"
+                "-fx-font-weight:bold;" +
+                "-fx-cursor:hand;"
         );
 
-        Label role =
-                new Label(
-                        "Port Authority"
+
+        // =====================================================
+        // LOGOUT MENU ITEM
+        // =====================================================
+
+        MenuItem logout =
+                new MenuItem("Logout");
+
+        profileButton.getItems().add(
+                logout
+        );
+
+
+        // =====================================================
+        // LOGOUT ACTION
+        // =====================================================
+
+        logout.setOnAction(e -> {
+
+        javafx.scene.control.Alert alert =
+                new javafx.scene.control.Alert(
+                        javafx.scene.control.Alert.AlertType.CONFIRMATION
                 );
 
-        role.setStyle(
-                "-fx-text-fill:#8a93a1;" +
-                "-fx-font-size:9;"
+        alert.setTitle("Logout");
+
+        alert.setHeaderText(
+                "Logout"
         );
 
-        profile.getChildren().addAll(
-                user,
-                role
+        alert.setContentText(
+                "Are you sure you want to logout?"
         );
+
+        alert.showAndWait();
+        });
 
         header.getChildren().addAll(
                 pageInfo,
@@ -450,8 +494,7 @@ public class PortAuthorityLayout {
                 status,
                 dateLabel,
                 notification,
-                avatar,
-                profile
+                profileButton
         );
 
         return header;
