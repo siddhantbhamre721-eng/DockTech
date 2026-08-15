@@ -1,38 +1,42 @@
 package com.projectui.ShipCaptain;
 
 import javafx.application.Application;
-import javafx.geometry.Insets;
-import javafx.geometry.Pos;
-import javafx.scene.Node;
+import javafx.geometry.*;
 import javafx.scene.Scene;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.ProgressBar;
-import javafx.scene.control.TextField;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
-import javafx.scene.layout.VBox;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
-public class DashBoard {
-    private BorderPane root = new BorderPane();
+public class DashBoard extends Application {
 
+    private final BorderPane root = new BorderPane();
+    private Button activeButton;
+    private Stage stage;
+
+    @Override
     public void start(Stage stage) {
+
+        this.stage = stage;
 
         root.setStyle("-fx-background-color:#f3f8ff;");
         root.setLeft(sidebar());
         root.setTop(header());
         root.setCenter(dashboard());
 
-        stage.setScene(new Scene(root, 1550, 800));
+        stage.setScene(getDashboardScene());
         stage.setTitle("Ship Captain Dashboard");
         stage.show();
     }
 
-    // SIDEBAR
-    VBox sidebar() {
+    // ================= DASHBOARD SCENE =================
+
+    public Scene getDashboardScene() {
+        return new Scene(root, 1550, 800);
+    }
+
+    // ================= SIDEBAR =================
+
+    private VBox sidebar() {
 
         VBox side = new VBox(8);
         side.setPrefWidth(220);
@@ -56,41 +60,57 @@ public class DashBoard {
         VBox logoBox = new VBox(3, logo, sub);
         logoBox.setPadding(new Insets(0,0,22,10));
 
-        Button dashboard = nav("⌂","Dashboard");
-        Button ship = nav("●","View Assigned Ship");
-        Button status = nav("◆","Update Ship Status");
-        Button loading = nav("♟","Confirm Loading");
-        Button document = nav("▣","Upload Document");
-        Button sos = nav("⚙","Send SOS");
+        Button dashboard = nav("⌂", "Dashboard");
+        Button ship = nav("●", "View Assigned Ship");
+        Button status = nav("◆", "Update Ship Status");
+        Button loading = nav("♟", "Confirm Loading");
+        Button document = nav("▣", "Upload Document");
+        Button sos = nav("⚙", "Send SOS");
 
+        // DASHBOARD
         dashboard.setOnAction(e -> {
-            active(side, dashboard);
+            active(dashboard);
             root.setCenter(dashboard());
         });
 
+        // ASSIGNED SHIP
         ship.setOnAction(e -> {
-            active(side, ship);
-            root.setCenter(new ViewAssignedShip().getshipContent());
+            active(ship);
+            root.setCenter(
+                new ViewAssignedShip().getShipScene().getRoot()
+            );
         });
 
+        // UPDATE STATUS
         status.setOnAction(e -> {
-            active(side, status);
-            root.setCenter(page("Update Ship Status"));
+            active(status);
+            root.setCenter(
+                new UpdateShipStatus().getShipScene().getRoot()
+            );
         });
 
+        // CONFIRM LOADING
         loading.setOnAction(e -> {
-            active(side, loading);
-            root.setCenter(page("Confirm Loading"));
+            active(loading);
+            root.setCenter(
+                new ConfirmLoading().getScene().getRoot()
+            );
         });
 
+        // UPLOAD DOCUMENT
         document.setOnAction(e -> {
-            active(side, document);
-            root.setCenter(page("Upload Document"));
+            active(document);
+
+           
+            root.setCenter(new UploadDocuments()
+                .getUploadContent()
+            );
         });
 
+        // SOS
         sos.setOnAction(e -> {
-            active(side, sos);
-            root.setCenter(page("Send SOS"));
+            active(sos);
+            root.setCenter(new SendSOS().getSOSScene().getRoot());
         });
 
         side.getChildren().addAll(
@@ -103,13 +123,14 @@ public class DashBoard {
             sos
         );
 
-        active(side, dashboard);
+        active(dashboard);
 
         return side;
     }
 
-    // NAV BUTTON
-    Button nav(String icon, String text) {
+    // ================= NAV BUTTON =================
+
+    private Button nav(String icon, String text) {
 
         Button b = new Button(icon + "   " + text);
 
@@ -118,32 +139,17 @@ public class DashBoard {
         b.setAlignment(Pos.CENTER_LEFT);
         b.setPadding(new Insets(0,10,0,12));
 
-        b.setStyle(
-            "-fx-background-color:transparent;" +
-            "-fx-text-fill:#aebbd0;" +
-            "-fx-font-size:12;" +
-            "-fx-font-weight:bold;" +
-            "-fx-background-radius:8;"
-        );
+        normalStyle(b);
 
         return b;
     }
 
-    // ACTIVE BUTTON
-    void active(VBox side, Button selected) {
+    // ================= ACTIVE =================
 
-        for (Node n : side.getChildren()) {
+    private void active(Button selected) {
 
-            if (n instanceof Button) {
-                n.setStyle(
-                    "-fx-background-color:transparent;" +
-                    "-fx-text-fill:#aebbd0;" +
-                    "-fx-font-size:12;" +
-                    "-fx-font-weight:bold;" +
-                    "-fx-background-radius:8;"
-                );
-            }
-        }
+        if (activeButton != null)
+            normalStyle(activeButton);
 
         selected.setStyle(
             "-fx-background-color:#1769e8;" +
@@ -152,10 +158,24 @@ public class DashBoard {
             "-fx-font-weight:bold;" +
             "-fx-background-radius:8;"
         );
+
+        activeButton = selected;
     }
 
-    // HEADER
-    HBox header() {
+    private void normalStyle(Button b) {
+
+        b.setStyle(
+            "-fx-background-color:transparent;" +
+            "-fx-text-fill:#aebbd0;" +
+            "-fx-font-size:12;" +
+            "-fx-font-weight:bold;" +
+            "-fx-background-radius:8;"
+        );
+    }
+
+    // ================= HEADER =================
+
+    private HBox header() {
 
         HBox h = new HBox(15);
 
@@ -164,6 +184,14 @@ public class DashBoard {
         h.setPrefHeight(65);
         h.setStyle("-fx-background-color:white;");
 
+        Label title = new Label("Dashboard");
+
+        title.setStyle(
+            "-fx-font-size:22;" +
+            "-fx-font-weight:bold;" +
+            "-fx-text-fill:#172033;"
+        );
+
         Region space = new Region();
         HBox.setHgrow(space, Priority.ALWAYS);
 
@@ -171,14 +199,6 @@ public class DashBoard {
         search.setPromptText("Search...");
         search.setPrefWidth(230);
         search.setPrefHeight(35);
-
-        search.setStyle(
-            "-fx-background-color:#f8fafc;" +
-            "-fx-border-color:#e2e8f0;" +
-            "-fx-border-radius:6;" +
-            "-fx-background-radius:6;" +
-            "-fx-font-size:13;"
-        );
 
         Label system = new Label("● System Operational");
 
@@ -207,6 +227,7 @@ public class DashBoard {
         );
 
         h.getChildren().addAll(
+            title,
             space,
             search,
             system,
@@ -218,22 +239,25 @@ public class DashBoard {
         return h;
     }
 
-    // DASHBOARD
-    VBox dashboard() {
+    // ================= DASHBOARD =================
+
+    private VBox dashboard() {
 
         VBox main = new VBox(14);
         main.setPadding(new Insets(18,20,20,20));
 
-        Label title = new Label("Ship Captain Dashboard");
+        Label title =
+                new Label("Ship Captain Dashboard");
 
         title.setStyle(
             "-fx-font-size:22;" +
             "-fx-font-weight:bold;"
         );
 
-        Label sub = new Label(
-            "Monitor your assigned vessel and current voyage operations"
-        );
+        Label sub =
+                new Label(
+                    "Monitor your assigned vessel and current voyage operations"
+                );
 
         sub.setStyle(
             "-fx-font-size:13;" +
@@ -255,30 +279,7 @@ public class DashBoard {
             new Label("Current Berth: B04")
         );
 
-        status.setPadding(new Insets(22));
-        status.setMinHeight(165);
-
-        status.setStyle(
-            "-fx-background-color:white;" +
-            "-fx-background-radius:10;"
-        );
-
-        status.getChildren().get(0).setStyle(
-            "-fx-font-size:12;" +
-            "-fx-font-weight:bold;" +
-            "-fx-text-fill:#697386;"
-        );
-
-        status.getChildren().get(1).setStyle(
-            "-fx-font-size:18;" +
-            "-fx-font-weight:bold;" +
-            "-fx-text-fill:#168548;"
-        );
-
-        status.getChildren().get(2).setStyle(
-            "-fx-font-size:14;" +
-            "-fx-text-fill:#596579;"
-        );
+        styleStatus(status);
 
         row1.getChildren().addAll(ship,status);
 
@@ -294,32 +295,14 @@ public class DashBoard {
             new Label("10:30 AM")
         );
 
-        operation.setPadding(new Insets(20));
-        operation.setMinHeight(150);
+        styleOperation(operation);
 
-        operation.setStyle(
-            "-fx-background-color:white;" +
-            "-fx-background-radius:10;"
+        ProgressBar progress =
+                new ProgressBar(0.72);
+
+        progress.setMaxWidth(
+                Double.MAX_VALUE
         );
-
-        operation.getChildren().get(0).setStyle(
-            "-fx-font-size:12;" +
-            "-fx-font-weight:bold;" +
-            "-fx-text-fill:#697386;"
-        );
-
-        operation.getChildren().get(1).setStyle(
-            "-fx-font-size:18;" +
-            "-fx-font-weight:bold;"
-        );
-
-        operation.getChildren().get(2).setStyle(
-            "-fx-font-size:13;" +
-            "-fx-text-fill:#1684c5;"
-        );
-
-        ProgressBar progress = new ProgressBar(.72);
-        progress.setMaxWidth(Double.MAX_VALUE);
 
         VBox loading = new VBox(
             10,
@@ -329,29 +312,22 @@ public class DashBoard {
             new Label("612 of 850 Tons loaded")
         );
 
-        loading.setPadding(new Insets(20));
-        loading.setMinHeight(150);
+        styleLoading(loading);
 
-        loading.setStyle(
-            "-fx-background-color:white;" +
-            "-fx-background-radius:10;"
+        row2.getChildren().addAll(
+            operation,
+            loading
         );
 
-        loading.getChildren().get(0).setStyle(
-            "-fx-font-size:12;" +
-            "-fx-font-weight:bold;" +
-            "-fx-text-fill:#697386;"
+        HBox.setHgrow(
+            operation,
+            Priority.ALWAYS
         );
 
-        loading.getChildren().get(1).setStyle(
-            "-fx-font-size:18;" +
-            "-fx-font-weight:bold;"
+        HBox.setHgrow(
+            loading,
+            Priority.ALWAYS
         );
-
-        row2.getChildren().addAll(operation,loading);
-
-        HBox.setHgrow(operation,Priority.ALWAYS);
-        HBox.setHgrow(loading,Priority.ALWAYS);
 
         VBox activity = new VBox(
             10,
@@ -361,17 +337,21 @@ public class DashBoard {
             new Label("✓ Cargo loading started - Today 10:30 AM")
         );
 
-        activity.setPadding(new Insets(20));
+        activity.setPadding(
+            new Insets(20)
+        );
 
         activity.setStyle(
             "-fx-background-color:white;" +
             "-fx-background-radius:10;"
         );
 
-        activity.getChildren().get(0).setStyle(
-            "-fx-font-size:14;" +
-            "-fx-font-weight:bold;"
-        );
+        activity.getChildren()
+                .get(0)
+                .setStyle(
+                    "-fx-font-size:14;" +
+                    "-fx-font-weight:bold;"
+                );
 
         main.getChildren().addAll(
             title,
@@ -384,12 +364,18 @@ public class DashBoard {
         return main;
     }
 
-    // SHIP CARD
-    VBox card(String small, String big, String details) {
+    // ================= CARD =================
+
+    private VBox card(
+            String small,
+            String big,
+            String details
+    ) {
 
         VBox box = new VBox(15);
 
         Label s = new Label(small);
+
         s.setStyle(
             "-fx-font-size:12;" +
             "-fx-text-fill:#697386;" +
@@ -397,12 +383,14 @@ public class DashBoard {
         );
 
         Label b = new Label(big);
+
         b.setStyle(
             "-fx-font-size:18;" +
             "-fx-font-weight:bold;"
         );
 
         Label d = new Label(details);
+
         d.setStyle(
             "-fx-font-size:13;" +
             "-fx-text-fill:#596579;"
@@ -410,7 +398,10 @@ public class DashBoard {
 
         box.getChildren().addAll(s,b,d);
 
-        box.setPadding(new Insets(20));
+        box.setPadding(
+            new Insets(20)
+        );
+
         box.setMinHeight(165);
 
         box.setStyle(
@@ -421,11 +412,92 @@ public class DashBoard {
         return box;
     }
 
-    // OTHER PAGES
-    VBox page(String name) {
+    private void styleStatus(VBox box) {
+
+        box.setPadding(new Insets(22));
+        box.setMinHeight(165);
+
+        box.setStyle(
+            "-fx-background-color:white;" +
+            "-fx-background-radius:10;"
+        );
+
+        box.getChildren().get(0).setStyle(
+            "-fx-font-size:12;" +
+            "-fx-font-weight:bold;" +
+            "-fx-text-fill:#697386;"
+        );
+
+        box.getChildren().get(1).setStyle(
+            "-fx-font-size:18;" +
+            "-fx-font-weight:bold;" +
+            "-fx-text-fill:#168548;"
+        );
+
+        box.getChildren().get(2).setStyle(
+            "-fx-font-size:14;" +
+            "-fx-text-fill:#596579;"
+        );
+    }
+
+    private void styleOperation(VBox box) {
+
+        box.setPadding(new Insets(20));
+        box.setMinHeight(150);
+
+        box.setStyle(
+            "-fx-background-color:white;" +
+            "-fx-background-radius:10;"
+        );
+
+        box.getChildren().get(0).setStyle(
+            "-fx-font-size:12;" +
+            "-fx-font-weight:bold;" +
+            "-fx-text-fill:#697386;"
+        );
+
+        box.getChildren().get(1).setStyle(
+            "-fx-font-size:18;" +
+            "-fx-font-weight:bold;"
+        );
+
+        box.getChildren().get(2).setStyle(
+            "-fx-font-size:13;" +
+            "-fx-text-fill:#1684c5;"
+        );
+    }
+
+    private void styleLoading(VBox box) {
+
+        box.setPadding(new Insets(20));
+        box.setMinHeight(150);
+
+        box.setStyle(
+            "-fx-background-color:white;" +
+            "-fx-background-radius:10;"
+        );
+
+        box.getChildren().get(0).setStyle(
+            "-fx-font-size:12;" +
+            "-fx-font-weight:bold;" +
+            "-fx-text-fill:#697386;"
+        );
+
+        box.getChildren().get(1).setStyle(
+            "-fx-font-size:18;" +
+            "-fx-font-weight:bold;"
+        );
+    }
+
+    // ================= OTHER PAGE =================
+
+    private VBox page(String name) {
 
         VBox box = new VBox(15);
-        box.setPadding(new Insets(25));
+
+        box.setPadding(
+            new Insets(25)
+        );
 
         Label title = new Label(name);
 
@@ -434,21 +506,31 @@ public class DashBoard {
             "-fx-font-weight:bold;"
         );
 
-        Label text = new Label(name + " Page");
+        VBox card =
+                new VBox(
+                    new Label(name + " Page")
+                );
 
-        VBox card = new VBox(text);
-        card.setPadding(new Insets(25));
+        card.setPadding(
+            new Insets(25)
+        );
 
         card.setStyle(
             "-fx-background-color:white;" +
             "-fx-background-radius:10;"
         );
 
-        box.getChildren().addAll(title,card);
+        box.getChildren().addAll(
+            title,
+            card
+        );
 
         return box;
     }
 
-}
-    
+    // ================= MAIN =================
 
+    public static void main(String[] args) {
+        launch(args);
+    }
+}
