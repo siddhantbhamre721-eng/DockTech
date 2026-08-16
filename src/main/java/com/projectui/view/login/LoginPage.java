@@ -21,6 +21,8 @@ import javafx.scene.Group;
 
 public class LoginPage extends Application {
 
+        public static java.util.Map<String, Object> loggedInUser;
+
         private static final String NAVY = "#020B24";
 
         static final String[] ROLES = {
@@ -58,11 +60,56 @@ public class LoginPage extends Application {
         }
 
         public static void showRoot(Stage stage, Parent root) {
+                if (root == null || stage == null) return;
+                applyInvisibleScrollbar(root);
                 Scene scene = stage.getScene();
-                if (scene == null)
-                        stage.setScene(new Scene(root));
-                else
-                        scene.setRoot(root);
+                if (root.getScene() != null && root.getScene() != scene) {
+                        try {
+                                root.getScene().setRoot(new javafx.scene.layout.Pane());
+                        } catch (Exception ignored) {}
+                }
+                if (scene == null) {
+                        Scene s = new Scene(root);
+                        applyInvisibleScrollbar(s);
+                        stage.setScene(s);
+                } else {
+                        try {
+                                scene.setRoot(root);
+                                applyInvisibleScrollbar(scene);
+                        } catch (Exception e) {
+                                Scene s = new Scene(root);
+                                applyInvisibleScrollbar(s);
+                                stage.setScene(s);
+                        }
+                }
+        }
+
+        public static void applyInvisibleScrollbar(Object target) {
+                try {
+                        String cssUrl = LoginPage.class.getResource("/hide_scrollbar.css") != null
+                                        ? LoginPage.class.getResource("/hide_scrollbar.css").toExternalForm()
+                                        : null;
+                        if (cssUrl == null) {
+                                String cssData = ".scroll-bar{-fx-opacity:0;-fx-pref-width:0;-fx-pref-height:0;-fx-padding:0;}"
+                                                + ".scroll-bar:vertical,.scroll-bar:horizontal{-fx-opacity:0;-fx-pref-width:0;-fx-pref-height:0;-fx-padding:0;}"
+                                                + ".scroll-bar .track,.scroll-bar .thumb,.scroll-bar .increment-button,.scroll-bar .decrement-button"
+                                                + "{-fx-background-color:transparent;-fx-opacity:0;-fx-padding:0;}"
+                                                + ".scroll-pane{-fx-background-color:transparent;}"
+                                                + ".scroll-pane > .viewport{-fx-background-color:transparent;}";
+                                cssUrl = "data:text/css," + java.net.URLEncoder.encode(cssData, "UTF-8").replace("+", "%20");
+                        }
+                        if (target instanceof Scene) {
+                                Scene s = (Scene) target;
+                                if (!s.getStylesheets().contains(cssUrl)) {
+                                        s.getStylesheets().add(cssUrl);
+                                }
+                        } else if (target instanceof Parent) {
+                                Parent p = (Parent) target;
+                                if (!p.getStylesheets().contains(cssUrl)) {
+                                        p.getStylesheets().add(cssUrl);
+                                }
+                        }
+                } catch (Exception ignored) {}
         }
 
         private Parent createLoginPage() {
@@ -373,61 +420,145 @@ public class LoginPage extends Application {
 
                 login.setDisable(true);
                 showMessage(message, "Signing in...", "#AFC6D9");
+                System.out.println("[LOGIN] Starting authentication for: " + emailValue);
 
-                authService.signIn(emailValue, passwordValue, role.getValue()).whenComplete((authUser, authError) -> Platform.runLater(() -> {
-                        if (authError != null) {
-                                login.setDisable(false);
-                                Throwable actualError = authError.getCause() == null ? authError : authError.getCause();
-                                showMessage(message, actualError == null ? "Unable to authenticate. Please check your connection and try again." : actualError.getMessage(), "#FF9696");
-                                return;
-                        }
+                try {
+                        authService.signIn(emailValue, passwordValue, role.getValue()).whenComplete((authUser, authError) -> Platform.runLater(() -> {
+                                try {
+                                        if (authError != null) {
+                                                login.setDisable(false);
+                                                System.err.println("[LOGIN ERROR] Firebase authentication failed: " + authError.getMessage());
+                                                Throwable actualError = authError.getCause() == null ? authError : authError.getCause();
+                                                showMessage(message, actualError == null ? "Unable to authenticate. Please check your connection and try again." : actualError.getMessage(), "#FF9696");
+                                                return;
+                                        }
 
-                        if (authUser == null || authUser.getUid() == null) {
-                                login.setDisable(false);
-                                showMessage(message, "Unable to authenticate. Please check your connection and try again.", "#FF9696");
-                                return;
-                        }
+                                        if (authUser == null || authUser.getUid() == null) {
+                                                login.setDisable(false);
+                                                System.err.println("[LOGIN ERROR] Firebase Auth returned null user or UID");
+                                                showMessage(message, "Unable to authenticate. Please check your connection and try again.", "#FF9696");
+                                                return;
+                                        }
 
-                        System.out.println("[AUTH LOGIN] email=" + emailValue + ", uid=" + authUser.getUid());
+                                        System.out.println("[LOGIN] Firebase authentication completed");
+                                        System.out.println("[LOGIN] Firebase UID obtained: " + authUser.getUid());
+                                        System.out.println("[LOGIN] Loading Firestore profile...");
 
-                        userDao.getUserProfile(authUser.getUid()).whenComplete((profile, storeError) -> Platform.runLater(() -> {
-                                login.setDisable(false);
+                                        userDao.getUserProfile(authUser.getUid(), emailValue).whenComplete((profile, storeError) -> Platform.runLater(() -> {
+                                                try {
+                                                        login.setDisable(false);
 
-                                if (storeError != null) {
-                                        Throwable actualStoreError = storeError.getCause() == null ? storeError : storeError.getCause();
-                                        showMessage(message, actualStoreError != null ? actualStoreError.getMessage() : "Account authentication succeeded, but user profile could not be read.", "#FF9696");
-                                        return;
+                                                        if (storeError != null) {
+                                                                System.err.println("[LOGIN ERROR] Firestore profile load error: " + storeError.getMessage());
+                                                                Throwable actualStoreError = storeError.getCause() == null ? storeError : storeError.getCause();
+                                                                showMessage(message, actualStoreError != null ? actualStoreError.getMessage() : "Account authentication succeeded, but user profile could not be read.", "#FF9696");
+                                                                return;
+                                                        }
+
+                                                        if (profile == null) {
+                                                                System.err.println("[LOGIN ERROR] Profile not found in database for UID: " + authUser.getUid());
+                                                                showMessage(message, "User profile not found in database.", "#FF9696");
+                                                                return;
+                                                        }
+
+                                                        System.out.println("[LOGIN] Firestore profile found");
+                                                        loggedInUser = profile;
+
+                                                        String selectedRole = role.getValue();
+                                                        Object roleObj = profile.get("role");
+                                                        String firestoreRole = roleObj != null ? roleObj.toString() : null;
+
+                                                        Object statusObj = profile.get("status");
+                                                        String firestoreStatus = statusObj != null ? statusObj.toString() : null;
+
+                                                        if (!isRoleMatch(selectedRole, firestoreRole)) {
+                                                                System.err.println("[LOGIN ERROR] Role mismatch. Selected: " + selectedRole + ", DB: " + firestoreRole);
+                                                                showMessage(message, "Selected role does not match this account.", "#FF9696");
+                                                                return;
+                                                        }
+
+                                                        System.out.println("[LOGIN] Role validated");
+
+                                                        if (firestoreStatus == null || (!firestoreStatus.equalsIgnoreCase("Active")
+                                                                        && !firestoreStatus.equalsIgnoreCase("Active & Verified")
+                                                                        && !firestoreStatus.equalsIgnoreCase("Approved"))) {
+                                                                System.err.println("[LOGIN ERROR] Account inactive. Status: " + firestoreStatus);
+                                                                showMessage(message, "Your account is inactive. Please contact the administrator.", "#FF9696");
+                                                                return;
+                                                        }
+
+                                                        System.out.println("[LOGIN] Opening dashboard for role: " + firestoreRole);
+                                                        navigateToDashboard(firestoreRole);
+                                                } catch (Exception ex) {
+                                                        login.setDisable(false);
+                                                        System.err.println("[LOGIN ERROR] Exception during profile processing: " + ex.getMessage());
+                                                        ex.printStackTrace();
+                                                        showMessage(message, "An unexpected error occurred during login.", "#FF9696");
+                                                }
+                                        }));
+                                } catch (Exception ex) {
+                                        login.setDisable(false);
+                                        System.err.println("[LOGIN ERROR] Exception during auth callback: " + ex.getMessage());
+                                        ex.printStackTrace();
+                                        showMessage(message, "An unexpected error occurred during login.", "#FF9696");
                                 }
-
-                                String selectedRole = role.getValue();
-
-                                if (profile == null) {
-                                        showMessage(message, "User profile not found in database.", "#FF9696");
-                                        return;
-                                }
-
-                                Object roleObj = profile.get("role");
-                                String firestoreRole = roleObj != null ? roleObj.toString() : null;
-
-                                Object statusObj = profile.get("status");
-                                String firestoreStatus = statusObj != null ? statusObj.toString() : null;
-
-                                if (firestoreRole == null || !firestoreRole.equalsIgnoreCase(selectedRole)) {
-                                        showMessage(message, "Selected role does not match this account.", "#FF9696");
-                                        return;
-                                }
-
-                                if (firestoreStatus == null || (!firestoreStatus.equalsIgnoreCase("Active") && !firestoreStatus.equalsIgnoreCase("Active & Verified"))) {
-                                        showMessage(message, "Your account is inactive. Please contact the administrator.", "#FF9696");
-                                        return;
-                                }
-
-                                showAdmin();
                         }));
-                }));
+                } catch (Exception ex) {
+                        login.setDisable(false);
+                        System.err.println("[LOGIN ERROR] Failed to invoke auth service: " + ex.getMessage());
+                        ex.printStackTrace();
+                        showMessage(message, "An unexpected error occurred during login.", "#FF9696");
+                }
         }
 
-        // ================= ADMIN =================
+        private static boolean isRoleMatch(String selected, String database) {
+                if (selected == null || database == null) return false;
+                String s = selected.trim().replaceAll("\\s+", " ");
+                String d = database.trim().replaceAll("\\s+", " ");
+
+                if (s.equalsIgnoreCase(d)) return true;
+
+                if ((s.equalsIgnoreCase("Custom Officer") || s.equalsIgnoreCase("Customs Officer"))
+                 && (d.equalsIgnoreCase("Custom Officer") || d.equalsIgnoreCase("Customs Officer"))) {
+                        return true;
+                }
+
+                if ((s.equalsIgnoreCase("Admin") || s.equalsIgnoreCase("Port Authority"))
+                 && (d.equalsIgnoreCase("Admin") || d.equalsIgnoreCase("Port Authority"))) {
+                        return true;
+                }
+
+                return false;
+        }
+
+        // ================= ROLE-BASED DASHBOARD NAVIGATION =================
+
+        private void navigateToDashboard(String roleName) {
+                try {
+                        if (roleName == null) {
+                                showAdmin();
+                                return;
+                        }
+                        String r = roleName.trim();
+                        if (r.equalsIgnoreCase("Admin") || r.equalsIgnoreCase("Port Authority")) {
+                                showAdmin();
+                        } else if (r.equalsIgnoreCase("Custom Officer") || r.equalsIgnoreCase("Customs Officer")) {
+                                showCustomOfficer();
+                        } else if (r.equalsIgnoreCase("Importer")) {
+                                showImporter();
+                        } else if (r.equalsIgnoreCase("Exporter")) {
+                                showExporter();
+                        } else if (r.equalsIgnoreCase("Ship Captain")) {
+                                showShipCaptain();
+                        } else {
+                                showAdmin();
+                        }
+                } catch (Exception ex) {
+                        System.err.println("[NAVIGATION ERROR] Failed to navigate to dashboard: " + ex.getMessage());
+                        ex.printStackTrace();
+                        throw new RuntimeException("Failed to open dashboard: " + ex.getMessage(), ex);
+                }
+        }
 
         private void showAdmin() {
                 Parent root = new DockTechAdmin().getRoot(
@@ -435,6 +566,22 @@ public class LoginPage extends Application {
                                 "Dashboard");
 
                 showRoot(stage, root);
+        }
+
+        private void showCustomOfficer() {
+                new com.projectui.view.CustomOfficer.DashBoard().start(stage);
+        }
+
+        private void showImporter() {
+                new com.projectui.view.importer.ImporterDashboard().start(stage);
+        }
+
+        private void showExporter() {
+                new com.projectui.view.exporter.ExporterDashboard().start(stage);
+        }
+
+        private void showShipCaptain() {
+                new com.projectui.view.ShipCaptain.DashBoard().start(stage);
         }
 
         // ================= FEATURE =================

@@ -59,8 +59,59 @@ public class UserDao extends Dao {
         localProfileStore.put(email.toLowerCase(), data);
     }
 
+    public static boolean isRoleCreationAllowed(String creatorRole, String targetRole) {
+        if (targetRole == null || targetRole.isBlank()) return false;
+
+        String normTarget = targetRole.trim();
+        boolean isPrivilegedTarget = normTarget.equalsIgnoreCase("Admin") ||
+                                    normTarget.equalsIgnoreCase("Administrator") ||
+                                    normTarget.equalsIgnoreCase("Dock Tech Admin") ||
+                                    normTarget.equalsIgnoreCase("Port Authority") ||
+                                    normTarget.equalsIgnoreCase("Custom Officer") ||
+                                    normTarget.equalsIgnoreCase("Customs Officer") ||
+                                    normTarget.equalsIgnoreCase("Ship Captain");
+
+        // Public / Unauthenticated registration
+        if (creatorRole == null || creatorRole.isBlank() || creatorRole.equalsIgnoreCase("Public")) {
+            return !isPrivilegedTarget; // Only Exporter & Importer allowed
+        }
+
+        String normCreator = creatorRole.trim();
+        if (normCreator.equalsIgnoreCase("Admin") || normCreator.equalsIgnoreCase("Administrator") || normCreator.equalsIgnoreCase("Dock Tech Admin")) {
+            // Dock Tech Admin can manage/create Port Authority, Exporter, Importer
+            return normTarget.equalsIgnoreCase("Port Authority") ||
+                   normTarget.equalsIgnoreCase("Exporter") ||
+                   normTarget.equalsIgnoreCase("Importer");
+        }
+
+        if (normCreator.equalsIgnoreCase("Port Authority")) {
+            // Port Authority can manage/create Custom Officer, Ship Captain, Exporter, Importer
+            return normTarget.equalsIgnoreCase("Custom Officer") ||
+                   normTarget.equalsIgnoreCase("Customs Officer") ||
+                   normTarget.equalsIgnoreCase("Ship Captain") ||
+                   normTarget.equalsIgnoreCase("Exporter") ||
+                   normTarget.equalsIgnoreCase("Importer");
+        }
+
+        // Custom Officer, Ship Captain, Importer, Exporter cannot create privileged accounts
+        return !isPrivilegedTarget;
+    }
+
     public CompletableFuture<Void> saveUser(String uid, String email, String name, String company, String phone,
             String role, String status) {
+
+        String creatorRole = com.projectui.view.login.LoginPage.loggedInUser != null && com.projectui.view.login.LoginPage.loggedInUser.get("role") != null
+                ? com.projectui.view.login.LoginPage.loggedInUser.get("role").toString()
+                : "Public";
+
+        if (!isRoleCreationAllowed(creatorRole, role)) {
+            CompletableFuture<Void> failed = new CompletableFuture<>();
+            failed.completeExceptionally(new SecurityException(
+                    "Role creation denied: '" + creatorRole + "' is not authorized to assign the privileged role '" + role + "'."
+            ));
+            return failed;
+        }
+
         CompletableFuture<Void> future = new CompletableFuture<>();
         try {
             System.out.println("Creating Firestore profile...");
@@ -112,26 +163,109 @@ public class UserDao extends Dao {
                 });
             }
         } catch (Exception ex) {
-            System.err.println("Firestore profile save failed: " + ex.getMessage());
+            System.err.println("saveUser error: " + ex.getMessage());
             future.completeExceptionally(ex);
         }
         return future;
     }
 
-    public CompletableFuture<Map<String, Object>> getUserProfile(String uid) {
-        CompletableFuture<Map<String, Object>> future = new CompletableFuture<>();
-        System.out.println("[FIRESTORE LOOKUP] users/" + uid);
+    public CompletableFuture<Map<String, String>> provisionAccount(String creatorRole, String name, String email, String company, String phone, String role, String status) {
+        if (!isRoleCreationAllowed(creatorRole, role)) {
+            CompletableFuture<Map<String, String>> failed = new CompletableFuture<>();
+            failed.completeExceptionally(new SecurityException("Unauthorized: Creator role '" + creatorRole + "' is not permitted to provision '" + role + "' accounts."));
+            return failed;
+        }
 
-        try {
-            Firestore db = db();
-            if (db != null) {
-                db.collection("users").document(uid).get().addListener(() -> {
+        String tempPassword = "Pass#" + (int)(Math.random() * 8999 + 1000);
+        CompletableFuture<Map<String, String>> future = new CompletableFuture<>();
+
+        com.projectui.service.FirebaseAuthService authService = new com.projectui.service.FirebaseAuthService();
+        authService.createAccount(email, tempPassword, name, role).whenComplete((authUser, authError) -> {
+            String uid = (authUser != null && authUser.getUid() != null && !authUser.getUid().isBlank())
+                    ? authUser.getUid()
+                    : "usr_" + Math.abs(email.toLowerCase().hashCode());
+
+            saveUser(uid, email, name, company, phone, role, status != null ? status : "Active").whenComplete((unused, saveError) -> {
+                if (saveError != null) {
+                    future.completeExceptionally(saveError);
+                } else {
+                    Map<String, String> creds = new HashMap<>();
+                    creds.put("uid", uid);
+                    creds.put("email", email);
+                    creds.put("tempPassword", tempPassword);
+                    creds.put("role", role);
+                    creds.put("company", company);
+                    creds.put("name", name);
+                    future.complete(creds);
+                }
+            });
+        });
+
+        return future;
+    }
+
+    public CompletableFuture<Map<String, Object>> getUserProfile(String uid) {
+        return getUserProfile(uid, null);
+    }
+
+    public CompletableFuture<Map<String, Object>> getUserProfile(String uid, String email) {
+        CompletableFuture<Map<String, Object>> future = new CompletableFuture<>();
+        System.out.println("[FIRESTORE LOOKUP] searching for uid=" + uid + (email != null ? ", email=" + email : ""));
+
+        ForkJoinPool.commonPool().execute(() -> {
+            try {
+                Firestore db = db();
+                if (db != null) {
+                    // 1. Query users collection by uid field
                     try {
-                        com.google.cloud.firestore.DocumentSnapshot doc = db.collection("users").document(uid).get()
-                                .get();
+                        com.google.cloud.firestore.QuerySnapshot snap = db.collection("users")
+                                .whereEqualTo("uid", uid).get().get();
+                        if (snap != null && !snap.isEmpty()) {
+                            com.google.cloud.firestore.DocumentSnapshot doc = snap.getDocuments().get(0);
+                            if (doc.exists() && doc.getData() != null) {
+                                Map<String, Object> data = doc.getData();
+                                System.out.println("[PROFILE FOUND via uid field] uid=" + uid + " -> email=" + data.get("email")
+                                        + ", role=" + data.get("role") + ", status=" + data.get("status"));
+                                localProfileStore.put(uid, data);
+                                if (data.get("email") != null) {
+                                    localProfileStore.put(data.get("email").toString().toLowerCase(), data);
+                                }
+                                future.complete(data);
+                                return;
+                            }
+                        }
+                    } catch (Exception ex) {
+                        System.err.println("[FIRESTORE QUERY UID EXCEPTION] " + ex.getMessage());
+                    }
+
+                    // 2. Query users collection by email field if uid query yielded no documents
+                    if (email != null && !email.isBlank()) {
+                        try {
+                            com.google.cloud.firestore.QuerySnapshot emailSnap = db.collection("users")
+                                    .whereEqualTo("email", email.trim().toLowerCase()).get().get();
+                            if (emailSnap != null && !emailSnap.isEmpty()) {
+                                com.google.cloud.firestore.DocumentSnapshot doc = emailSnap.getDocuments().get(0);
+                                if (doc.exists() && doc.getData() != null) {
+                                    Map<String, Object> data = doc.getData();
+                                    System.out.println("[PROFILE FOUND via email field] email=" + email + " -> role="
+                                            + data.get("role") + ", status=" + data.get("status"));
+                                    localProfileStore.put(uid, data);
+                                    localProfileStore.put(email.toLowerCase(), data);
+                                    future.complete(data);
+                                    return;
+                                }
+                            }
+                        } catch (Exception ex) {
+                            System.err.println("[FIRESTORE QUERY EMAIL EXCEPTION] " + ex.getMessage());
+                        }
+                    }
+
+                    // 3. Direct document lookup by doc ID
+                    try {
+                        com.google.cloud.firestore.DocumentSnapshot doc = db.collection("users").document(uid).get().get();
                         if (doc.exists() && doc.getData() != null) {
                             Map<String, Object> data = doc.getData();
-                            System.out.println("[PROFILE FOUND] users/" + uid + " -> email=" + data.get("email")
+                            System.out.println("[PROFILE FOUND via doc ID] users/" + uid + " -> email=" + data.get("email")
                                     + ", role=" + data.get("role") + ", status=" + data.get("status"));
                             localProfileStore.put(uid, data);
                             future.complete(data);
@@ -140,60 +274,75 @@ public class UserDao extends Dao {
                     } catch (Exception ex) {
                         System.err.println("[FIRESTORE READ EXCEPTION] " + ex.getMessage());
                     }
+                }
 
-                    Map<String, Object> restData = readFirestoreRest(uid);
-                    if (restData != null) {
-                        future.complete(restData);
+                Map<String, Object> restData = readFirestoreRest(uid);
+                if (restData != null) {
+                    future.complete(restData);
+                    return;
+                }
+
+                if (email != null && !email.isBlank()) {
+                    Map<String, Object> restDataEmail = readFirestoreRest(email);
+                    if (restDataEmail != null) {
+                        future.complete(restDataEmail);
                         return;
                     }
+                }
 
-                    Map<String, Object> fallback = resolveFallbackProfile(uid);
-                    future.complete(fallback);
-                }, Runnable::run);
-                return future;
+                Map<String, Object> fallback = resolveFallbackProfile(uid, email);
+                future.complete(fallback);
+            } catch (Exception ex) {
+                System.err.println("[FIRESTORE LOOKUP EXCEPTION] " + ex.getMessage());
+                future.complete(resolveFallbackProfile(uid, email));
             }
-        } catch (Exception ex) {
-            System.err.println("[FIRESTORE LOOKUP ERROR] " + ex.getMessage());
-        }
+        });
 
-        Map<String, Object> restData = readFirestoreRest(uid);
-        if (restData != null) {
-            future.complete(restData);
-            return future;
-        }
-
-        Map<String, Object> fallback = resolveFallbackProfile(uid);
-        future.complete(fallback);
         return future;
     }
 
     private Map<String, Object> resolveFallbackProfile(String uidKey) {
-        if (uidKey == null)
+        return resolveFallbackProfile(uidKey, null);
+    }
+
+    private Map<String, Object> resolveFallbackProfile(String uidKey, String emailKey) {
+        if (uidKey == null && emailKey == null)
             return null;
 
         // 1. Direct local store match by UID
-        if (localProfileStore.containsKey(uidKey)) {
+        if (uidKey != null && localProfileStore.containsKey(uidKey)) {
             Map<String, Object> data = localProfileStore.get(uidKey);
-            System.out.println("[PROFILE FOUND] users/" + uidKey + " -> email=" + data.get("email") + ", role="
+            System.out.println("[PROFILE FOUND (local)] uidKey=" + uidKey + " -> email=" + data.get("email") + ", role="
                     + data.get("role") + ", status=" + data.get("status"));
             return data;
         }
 
         // 2. Direct local store match by Email
-        String lowerKey = uidKey.toLowerCase();
-        if (localProfileStore.containsKey(lowerKey)) {
-            Map<String, Object> data = localProfileStore.get(lowerKey);
-            System.out.println("[PROFILE FOUND] email=" + lowerKey + " -> role=" + data.get("role") + ", status="
+        if (emailKey != null && localProfileStore.containsKey(emailKey.toLowerCase())) {
+            Map<String, Object> data = localProfileStore.get(emailKey.toLowerCase());
+            System.out.println("[PROFILE FOUND (local)] emailKey=" + emailKey + " -> role=" + data.get("role") + ", status="
                     + data.get("status"));
             return data;
         }
 
-        // 3. Scan local store values for matching uid field
+        if (uidKey != null && localProfileStore.containsKey(uidKey.toLowerCase())) {
+            Map<String, Object> data = localProfileStore.get(uidKey.toLowerCase());
+            System.out.println("[PROFILE FOUND (local)] key=" + uidKey + " -> role=" + data.get("role") + ", status="
+                    + data.get("status"));
+            return data;
+        }
+
+        // 3. Scan local store values for matching uid or email field
         for (Map<String, Object> profile : localProfileStore.values()) {
             Object objUid = profile.get("uid");
-            if (objUid != null && uidKey.equals(objUid.toString())) {
-                System.out.println("[PROFILE FOUND] uid=" + uidKey + " -> email=" + profile.get("email") + ", role="
+            Object objEmail = profile.get("email");
+            if (uidKey != null && objUid != null && uidKey.equals(objUid.toString())) {
+                System.out.println("[PROFILE FOUND (local scan uid)] uid=" + uidKey + " -> email=" + profile.get("email") + ", role="
                         + profile.get("role"));
+                return profile;
+            }
+            if (emailKey != null && objEmail != null && emailKey.equalsIgnoreCase(objEmail.toString())) {
+                System.out.println("[PROFILE FOUND (local scan email)] email=" + emailKey + " -> role=" + profile.get("role"));
                 return profile;
             }
         }
@@ -202,7 +351,8 @@ public class UserDao extends Dao {
         try {
             for (AdminDataStore.UserAccount ua : AdminDataStore.getInstance().users) {
                 String accountUid = "usr_" + Math.abs(ua.email.toLowerCase().hashCode());
-                if (accountUid.equals(uidKey) || ua.email.equalsIgnoreCase(uidKey)) {
+                if ((uidKey != null && (accountUid.equals(uidKey) || ua.email.equalsIgnoreCase(uidKey)))
+                 || (emailKey != null && ua.email.equalsIgnoreCase(emailKey))) {
                     Map<String, Object> data = new HashMap<>();
                     data.put("uid", accountUid);
                     data.put("email", ua.email);
@@ -216,14 +366,14 @@ public class UserDao extends Dao {
                     localProfileStore.put(accountUid, data);
                     localProfileStore.put(ua.email.toLowerCase(), data);
                     System.out.println(
-                            "[PROFILE FOUND] email=" + ua.email + " -> role=" + ua.role + ", status=" + ua.status);
+                            "[PROFILE FOUND (AdminStore)] email=" + ua.email + " -> role=" + ua.role + ", status=" + ua.status);
                     return data;
                 }
             }
         } catch (Exception ignored) {
         }
 
-        System.out.println("[PROFILE NOT FOUND] users/" + uidKey);
+        System.out.println("[PROFILE NOT FOUND] uid=" + uidKey + ", email=" + emailKey);
         return null;
     }
 

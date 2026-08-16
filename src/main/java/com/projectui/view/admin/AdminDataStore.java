@@ -20,6 +20,7 @@ public class AdminDataStore {
     public final List<Port> ports = new ArrayList<>();
     public final List<UserAccount> users = new ArrayList<>();
     public final List<ReportRow> reports = new ArrayList<>();
+    public final List<PortRequest> portRequests = new ArrayList<>();
 
     public String adminName = "Dock Tech Admin";
     public String adminEmail = "";
@@ -45,6 +46,12 @@ public class AdminDataStore {
         users.add(new UserAccount("Alex Kumar", "alex@docktech.com", "Customs Officer", "Pending", "25 Jul 2026", "Pending approval"));
         users.add(new UserAccount("Meera Rao", "meera@docktech.com", "Exporter", "Active", "09 May 2026", now()));
         users.add(new UserAccount("Nisha Shah", "nisha@docktech.com", "Importer", "Deactivated", "16 Jun 2026", "05 Aug 2026, 17:35"));
+
+        portRequests.add(new PortRequest(
+                "REQ-101", "Port of Hazira", "IN-HAZ-01", "Hazira, Gujarat", "Hazira Port Complex, Surat", "Industrial container & liquid cargo terminal",
+                "Vikram Shah", "vikram@haziraport.com", "+91 98765 11223",
+                "Rajesh Varma", "pa_hazira@docktech.com", "PENDING", "15 Aug 2026"
+        ));
 
         generateReports("Today", "All Status");
     }
@@ -216,6 +223,51 @@ public class AdminDataStore {
             this.status = status;
             this.generatedBy = generatedBy == null || generatedBy.isBlank() ? "Aarav Mehta (Admin)" : generatedBy;
             this.generatedDate = generatedDate == null || generatedDate.isBlank() ? "14 Aug 2026, 18:30" : generatedDate;
+        }
+    }
+
+    public static class PortRequest {
+        public String requestId;
+        public String portName;
+        public String portCode;
+        public String location;
+        public String address;
+        public String details;
+        public String requesterName;
+        public String requesterEmail;
+        public String requesterPhone;
+        public String proposedPaName;
+        public String proposedPaEmail;
+        public String status;
+        public String requestDate;
+        public String rejectionReason;
+        public String documentRefs;
+
+        public PortRequest(String requestId, String portName, String portCode, String location, String address, String details,
+                           String requesterName, String requesterEmail, String requesterPhone,
+                           String proposedPaName, String proposedPaEmail, String status, String requestDate) {
+            this(requestId, portName, portCode, location, address, details, requesterName, requesterEmail, requesterPhone, proposedPaName, proposedPaEmail, status, requestDate, "", "Hazira_Port_Proposal.pdf, EIA_Clearance.pdf");
+        }
+
+        public PortRequest(String requestId, String portName, String portCode, String location, String address, String details,
+                           String requesterName, String requesterEmail, String requesterPhone,
+                           String proposedPaName, String proposedPaEmail, String status, String requestDate,
+                           String rejectionReason, String documentRefs) {
+            this.requestId = requestId;
+            this.portName = portName;
+            this.portCode = portCode;
+            this.location = location;
+            this.address = address;
+            this.details = details;
+            this.requesterName = requesterName;
+            this.requesterEmail = requesterEmail;
+            this.requesterPhone = requesterPhone;
+            this.proposedPaName = proposedPaName;
+            this.proposedPaEmail = proposedPaEmail;
+            this.status = status;
+            this.requestDate = requestDate;
+            this.rejectionReason = rejectionReason != null ? rejectionReason : "";
+            this.documentRefs = documentRefs != null ? documentRefs : "Proposal_Document.pdf";
         }
     }
 }

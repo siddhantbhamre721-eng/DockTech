@@ -1,0 +1,41 @@
+/* Hide visible scrollbars while maintaining full scroll functionality */
+
+.scroll-bar {
+    -fx-opacity: 0;
+    -fx-padding: 0;
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+    -fx-max-width: 0;
+    -fx-max-height: 0;
+}
+
+.scroll-bar:vertical, .scroll-bar:horizontal {
+    -fx-opacity: 0;
+    -fx-padding: 0;
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+    -fx-max-width: 0;
+    -fx-max-height: 0;
+}
+
+.scroll-bar .track,
+.scroll-bar .thumb,
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button,
+.scroll-bar .increment-arrow,
+.scroll-bar .decrement-arrow {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-opacity: 0;
+    -fx-padding: 0;
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+}
+
+.scroll-pane {
+    -fx-background-color: transparent;
+}
+
+.scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}

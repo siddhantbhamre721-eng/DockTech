@@ -23,9 +23,12 @@ import javafx.scene.layout.VBox;
 import javafx.scene.shape.Circle;
 import javafx.stage.Popup;
 
+import com.projectui.dao.UserDao;
+
 public class UserManagementPage extends AdminTheme {
 
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm");
+    private final UserDao userDao = new UserDao();
     private final AdminDataStore store = AdminDataStore.getInstance();
     private final List<AdminDataStore.UserAccount> users = store.users;
     private final GridPane table = new GridPane();
@@ -834,9 +837,26 @@ public class UserManagementPage extends AdminTheme {
         formSubtitle.setText("Register a new Dock Tech operator account");
         nameField.clear();
         emailField.clear();
-        roleCombo.setValue("Port Authority");
+
+        String creatorRole = com.projectui.view.login.LoginPage.loggedInUser != null && com.projectui.view.login.LoginPage.loggedInUser.get("role") != null
+                ? com.projectui.view.login.LoginPage.loggedInUser.get("role").toString()
+                : "Admin";
+
+        if ("Port Authority".equalsIgnoreCase(creatorRole)) {
+            roleCombo.getItems().setAll("Customs Officer", "Ship Captain", "Exporter", "Importer");
+            roleCombo.setValue("Customs Officer");
+            renderCapabilities("Customs Officer");
+        } else if ("Admin".equalsIgnoreCase(creatorRole) || "Administrator".equalsIgnoreCase(creatorRole)) {
+            roleCombo.getItems().setAll("Port Authority", "Exporter", "Importer");
+            roleCombo.setValue("Port Authority");
+            renderCapabilities("Port Authority");
+        } else {
+            roleCombo.getItems().setAll("Exporter", "Importer");
+            roleCombo.setValue("Exporter");
+            renderCapabilities("Exporter");
+        }
+
         statusCombo.setValue("Pending");
-        renderCapabilities("Port Authority");
         setFormEditable(true);
         saveBtn.setText("Create User");
         nameField.requestFocus();
@@ -903,20 +923,39 @@ public class UserManagementPage extends AdminTheme {
         String roleVal = roleCombo.getValue() == null ? "Port Authority" : roleCombo.getValue();
         String statusVal = statusCombo.getValue() == null ? "Active" : statusCombo.getValue();
 
+        String creatorRole = com.projectui.view.login.LoginPage.loggedInUser != null && com.projectui.view.login.LoginPage.loggedInUser.get("role") != null
+                ? com.projectui.view.login.LoginPage.loggedInUser.get("role").toString()
+                : "Admin";
+
+        if (!com.projectui.dao.UserDao.isRoleCreationAllowed(creatorRole, roleVal)) {
+            showToast("Role Assignment Denied: " + creatorRole + " is not authorized to create " + roleVal + " accounts.", false);
+            return;
+        }
+
         if (editingIndex >= 0 && editingIndex < users.size()) {
             AdminDataStore.UserAccount old = users.get(editingIndex);
             old.name = nameVal;
             old.email = emailVal;
             old.role = roleVal;
             old.status = statusVal;
-            showToast("Successfully updated user: " + nameVal, true);
+            showToast("Successfully updated profile for: " + nameVal, true);
         } else {
+            String phoneVal = "+91 98" + (int)(Math.random() * 89999999 + 10000000);
+            userDao.provisionAccount(creatorRole, nameVal, emailVal, "Dock Tech Operations", phoneVal, roleVal, statusVal)
+                .whenComplete((creds, err) -> javafx.application.Platform.runLater(() -> {
+                    if (creds != null) {
+                        String tempPass = creds.get("tempPassword");
+                        showToast("✓ Account Provisioned! Login ID: " + emailVal + " | Temp Pass: " + tempPass + " | Role: " + roleVal, true);
+                    } else {
+                        showToast("Successfully registered user: " + nameVal, true);
+                    }
+                }));
+
             AdminDataStore.UserAccount newUser = new AdminDataStore.UserAccount(
                     nameVal, emailVal, roleVal, statusVal, now(), "Just now"
             );
             users.add(0, newUser);
             editingIndex = 0;
-            showToast("Successfully registered new user: " + nameVal, true);
         }
 
         refreshTable();

@@ -76,157 +76,51 @@ public class DockTechAdmin extends AdminTheme {
     }
 
     private static void showCustomPopup(Window owner, String title1) {
-        Stage popup = new Stage();
-        if (owner != null && owner instanceof Stage) {
-            popup.initOwner(owner);
-            popup.initModality(Modality.WINDOW_MODAL);
-        } else {
-            popup.initModality(Modality.APPLICATION_MODAL);
-        }
-        popup.setTitle(title1);
-        popup.setResizable(false);
+        String nameVal = "";
+        String emailVal = "";
+        String phoneVal = "";
+        String companyVal = "";
+        String roleVal = "Administrator";
+        String uidVal = "";
+        String statusVal = "Active";
 
-        VBox mainBox = new VBox(20);
-        mainBox.setPadding(new Insets(20));
-        mainBox.setAlignment(Pos.TOP_CENTER);
-        mainBox.setStyle(
-                "-fx-background-color: white; " +
-                        "-fx-background-radius: 15; " +
-                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 10, 0.5, 0, 3);");
+        if (com.projectui.view.login.LoginPage.loggedInUser != null) {
+            Map<String, Object> u = com.projectui.view.login.LoginPage.loggedInUser;
+            if (u.get("name") != null) nameVal = u.get("name").toString();
+            else if (u.get("fullName") != null) nameVal = u.get("fullName").toString();
 
-        Label title = new Label("👤 User Profile");
-        title.setFont(Font.font("Segoe UI", FontWeight.BOLD, 28));
-        title.setTextFill(Color.web("#2E7D32"));
-        title.setAlignment(Pos.CENTER);
-
-        Label profilePic = new Label("\uD83D\uDC64");
-        profilePic.setFont(Font.font("Segoe UI Emoji", 80));
-        profilePic.setTextFill(Color.web("#4CAF50"));
-        profilePic.setStyle(
-                "-fx-background-color: #E8F5E9; " +
-                        "-fx-background-radius: 50%; " +
-                        "-fx-min-width: 120px; " +
-                        "-fx-min-height: 120px; " +
-                        "-fx-alignment: center;");
-
-        VBox userInfoBox = new VBox(10);
-        userInfoBox.setAlignment(Pos.CENTER_LEFT);
-        userInfoBox.setPadding(new Insets(10, 40, 10, 40));
-        // read current user info from AdminDataStore
-        AdminDataStore store = AdminDataStore.getInstance();
-        String nameVal = store.adminName == null ? "" : store.adminName;
-        String emailVal = store.adminEmail == null ? "" : store.adminEmail;
-        String usernameVal = "";
-        String roleVal = "";
-        if (!emailVal.isBlank()) {
-            int at = emailVal.indexOf('@');
-            usernameVal = at > 0 ? emailVal.substring(0, at) : emailVal;
-        }
-        for (AdminDataStore.UserAccount ua : store.users) {
-            if (ua.email != null && ua.email.equalsIgnoreCase(emailVal)) {
-                roleVal = ua.role == null ? "" : ua.role;
-                break;
-            }
+            if (u.get("email") != null) emailVal = u.get("email").toString();
+            if (u.get("role") != null) roleVal = u.get("role").toString();
+            if (u.get("phone") != null) phoneVal = u.get("phone").toString();
+            if (u.get("company") != null) companyVal = u.get("company").toString();
+            else if (u.get("organization") != null) companyVal = u.get("organization").toString();
+            if (u.get("uid") != null) uidVal = u.get("uid").toString();
+            if (u.get("status") != null) statusVal = u.get("status").toString();
         }
 
-        Label nameLabel = new Label("Name:");
-        nameLabel.setFont(Font.font("Segoe UI", FontWeight.SEMI_BOLD, 16));
-        nameLabel.setTextFill(Color.web("#388E3C"));
-        Label name = new Label(nameVal);
-        name.setFont(Font.font("Segoe UI", 16));
-        name.setTextFill(Color.web("#2E2E2E"));
+        if (nameVal.isBlank()) {
+            AdminDataStore store = AdminDataStore.getInstance();
+            if (store.adminName != null && !store.adminName.isBlank()) nameVal = store.adminName;
+            if (store.adminEmail != null && !store.adminEmail.isBlank()) emailVal = store.adminEmail;
+        }
+        if (nameVal.isBlank()) nameVal = "System Administrator";
+        if (emailVal.isBlank()) emailVal = "admin@docktech.com";
+        if (phoneVal.isBlank()) phoneVal = "+91 98765 43210";
+        if (companyVal.isBlank()) companyVal = "Dock Tech Administration";
+        if (uidVal.isBlank()) uidVal = "ADM-" + Math.abs(emailVal.hashCode() % 8999 + 1000);
 
-        Label emailLabel = new Label("Email:");
-        emailLabel.setFont(Font.font("Segoe UI", FontWeight.SEMI_BOLD, 16));
-        emailLabel.setTextFill(Color.web("#388E3C"));
-        Label email = new Label(emailVal);
-        email.setFont(Font.font("Segoe UI", 16));
-        email.setTextFill(Color.web("#2E2E2E"));
-
-        Label phoneLabel = new Label("Phone:");
-        phoneLabel.setFont(Font.font("Segoe UI", FontWeight.SEMI_BOLD, 16));
-        phoneLabel.setTextFill(Color.web("#388E3C"));
-        Label phoneNo = new Label("");
-        phoneNo.setFont(Font.font("Segoe UI", 16));
-        phoneNo.setTextFill(Color.web("#2E2E2E"));
-
-        Label loginLabel = new Label("Username:");
-        loginLabel.setFont(Font.font("Segoe UI", FontWeight.SEMI_BOLD, 16));
-        loginLabel.setTextFill(Color.web("#388E3C"));
-        Label loginName = new Label(usernameVal);
-        loginName.setFont(Font.font("Segoe UI", 16));
-        loginName.setTextFill(Color.web("#2E2E2E"));
-
-        Label roleLabel2 = new Label("Role:");
-        roleLabel2.setFont(Font.font("Segoe UI", FontWeight.SEMI_BOLD, 16));
-        roleLabel2.setTextFill(Color.web("#388E3C"));
-        Label roleValue = new Label(roleVal);
-        roleValue.setFont(Font.font("Segoe UI", 16));
-        roleValue.setTextFill(Color.web("#2E2E2E"));
-
-        userInfoBox.getChildren().addAll(
-                loginLabel, loginName,
-                roleLabel2, roleValue,
-                nameLabel, name,
-                phoneLabel, phoneNo,
-                emailLabel, email);
-
-        Button backButton = new Button("Back");
-        backButton.setPrefWidth(100);
-        backButton.setPrefHeight(40);
-        backButton.setStyle(
-                "-fx-background-color: linear-gradient(to bottom, #4CAF50, #2E7D32); " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-size: 16px; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 20; " +
-                        "-fx-cursor: hand;");
-        backButton.setOnMouseEntered(e -> backButton.setStyle(
-                "-fx-background-color: linear-gradient(to bottom, #66BB6A, #388E3C); " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-size: 16px; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 20; " +
-                        "-fx-cursor: hand;"));
-        backButton.setOnMouseExited(e -> backButton.setStyle(
-                "-fx-background-color: linear-gradient(to bottom, #4CAF50, #2E7D32); " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-size: 16px; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 20; " +
-                        "-fx-cursor: hand;"));
-        backButton.setOnAction(e -> popup.close());
-
-        VBox layout = new VBox(30);
-        layout.setAlignment(Pos.TOP_CENTER);
-        layout.setPadding(new Insets(30));
-        layout.setStyle(
-                "-fx-background-color: linear-gradient(to bottom right, #f0f4f8, #d9e2ec); " +
-                        "-fx-background-radius: 15;");
-
-        layout.getChildren().addAll(title, profilePic, userInfoBox, backButton);
-
-        Scene scene = new Scene(layout, 400, 550);
-
-        layout.setOpacity(0);
-        popup.setScene(scene);
-
-        // position near owner's top-right if possible
-        if (owner != null) {
-            popup.setX(owner.getX() + Math.max(0, owner.getWidth() - 420));
-            popup.setY(owner.getY() + 60);
+        String initials = "AD";
+        String nameTrim = nameVal.trim();
+        if (!nameTrim.isEmpty()) {
+            String[] parts = nameTrim.split("\\s+");
+            String a = parts[0].substring(0, 1);
+            String b = parts.length > 1 ? parts[parts.length - 1].substring(0, 1) : "";
+            initials = (a + b).toUpperCase();
         }
 
-        popup.show();
-
-        FadeTransition fadeIn = new FadeTransition(Duration.millis(400), layout);
-        fadeIn.setFromValue(0);
-        fadeIn.setToValue(1);
-        fadeIn.play();
-
-        popup.setOnHiding(event -> {
-            // no-op
-        });
+        com.projectui.view.login.DashboardLayoutHelper.showCustomPopup(
+                owner, nameVal, emailVal, phoneVal, roleVal, companyVal, uidVal, statusVal, initials
+        );
     }
 
     private HBox header(Label title) {
@@ -246,7 +140,7 @@ public class DockTechAdmin extends AdminTheme {
         dateLabel.setStyle("-fx-text-fill:#6b7280; -fx-font-size:13;");
 
         // live time label (updates every second)
-        DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("hh:mm a");
+        DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("hh:mm:ss a");
         Label timeLabel = new Label(java.time.LocalTime.now().format(timeFmt));
         timeLabel.setStyle("-fx-text-fill:#6b7280; -fx-font-size:13; -fx-padding:0 6 0 6;");
 

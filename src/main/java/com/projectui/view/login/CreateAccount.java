@@ -50,10 +50,26 @@ public class CreateAccount {
         Button back = createLink("←  Back to Login");
         back.setOnAction(event -> new LoginPage().show(stage));
 
+        // Form Mode Selector (User Registration vs Request New Port)
+        HBox modeSelector = new HBox(8);
+        modeSelector.setAlignment(Pos.CENTER);
+        modeSelector.setPadding(new Insets(0, 0, 8, 0));
+
+        Button modeUserBtn = new Button("👤 User Account");
+        Button modePortBtn = new Button("⚓ Request New Port");
+
+        String activeStyle = "-fx-background-color: #0F66D0; -fx-text-fill: white; -fx-font-size: 12px; -fx-font-weight: bold; -fx-padding: 8px 16px; -fx-background-radius: 20px; -fx-cursor: hand;";
+        String inactiveStyle = "-fx-background-color: rgba(255,255,255,0.08); -fx-text-fill: #C7DDF0; -fx-font-size: 12px; -fx-font-weight: bold; -fx-padding: 8px 16px; -fx-background-radius: 20px; -fx-cursor: hand;";
+
+        modeUserBtn.setStyle(activeStyle);
+        modePortBtn.setStyle(inactiveStyle);
+
+        modeSelector.getChildren().addAll(modeUserBtn, modePortBtn);
+
         Label title = new Label("Create Account");
         title.setStyle(
                 "-fx-text-fill:white;" +
-                        "-fx-font-size:36px;" +
+                        "-fx-font-size:32px;" +
                         "-fx-font-weight:700;");
 
         Label description = new Label(
@@ -62,124 +78,119 @@ public class CreateAccount {
         description.setWrapText(true);
         description.setStyle(
                 "-fx-text-fill:#C7DDF0;" +
-                        "-fx-font-size:14px;" +
+                        "-fx-font-size:13px;" +
                         "-fx-line-spacing:3px;");
 
+        // Standard User Account Fields
         TextField fullName = createTextField("Full Name");
         TextField email = createTextField("name@company.com");
         TextField company = createTextField("Company Name");
         ComboBox<String> role = createRoleBox();
         TextField phone = createTextField("Phone Number");
-
-        role.setValue("Admin");
+        role.setValue("Exporter");
 
         LoginPage.PasswordControl password = new LoginPage.PasswordControl("Create password");
-
         LoginPage.PasswordControl confirm = new LoginPage.PasswordControl("Confirm password");
-
-        CheckBox terms = new CheckBox(
-                "I agree to the Terms of Service and Privacy Policy");
-
+        CheckBox terms = new CheckBox("I agree to the Terms of Service and Privacy Policy");
         terms.setWrapText(true);
-        terms.setStyle(
-                "-fx-text-fill:#C8D9EA;" +
-                        "-fx-font-size:13px;" +
-                        "-fx-font-weight:bold;");
+        terms.setStyle("-fx-text-fill:#C8D9EA; -fx-font-size:13px; -fx-font-weight:bold;");
+
+        // Port Request Fields
+        TextField reqPortName = createTextField("Port Name (e.g. Port of Hazira)");
+        TextField reqPortCode = createTextField("Port Code (e.g. IN-HAZ-01)");
+        TextField reqLocation = createTextField("Location (e.g. Hazira, Gujarat)");
+        TextField reqAddress = createTextField("Port Address & Details");
+        TextField reqName = createTextField("Requester Full Name");
+        TextField reqEmail = createTextField("Requester Email Address");
+        TextField reqPhone = createTextField("Requester Phone Number");
+        TextField reqPaName = createTextField("Proposed Port Authority Name");
+        TextField reqPaEmail = createTextField("Proposed Port Authority Email");
+
+        VBox userFormBox = new VBox(12,
+                createLabeledField("Full Name", fullName),
+                createLabeledField("Email", email),
+                createLabeledField("Company Name", company),
+                createLabeledField("Role", role),
+                createLabeledField("Phone Number", phone),
+                createLabeledField("Password", password.root),
+                createLabeledField("Confirm Password", confirm.root),
+                terms
+        );
+
+        VBox portFormBox = new VBox(12,
+                createLabeledField("Port Name *", reqPortName),
+                createLabeledField("Port Code", reqPortCode),
+                createLabeledField("Location *", reqLocation),
+                createLabeledField("Address & Details", reqAddress),
+                createLabeledField("Requester Name *", reqName),
+                createLabeledField("Requester Email *", reqEmail),
+                createLabeledField("Requester Phone *", reqPhone),
+                createLabeledField("Proposed Port Authority Name *", reqPaName),
+                createLabeledField("Proposed Port Authority Email *", reqPaEmail)
+        );
+
+        portFormBox.setManaged(false);
+        portFormBox.setVisible(false);
 
         Label message = createMessage();
-
         Button create = createPrimaryButton("CREATE ACCOUNT");
         create.setMaxWidth(Double.MAX_VALUE);
 
-        create.setOnAction(event -> createAccount(
-                fullName,
-                email,
-                company,
-                role,
-                phone,
-                password,
-                confirm,
-                terms,
-                create,
-                message));
+        // Toggle Event Handlers
+        modeUserBtn.setOnAction(e -> {
+            modeUserBtn.setStyle(activeStyle);
+            modePortBtn.setStyle(inactiveStyle);
+            title.setText("Create Account");
+            description.setText("Please fill in the details to create your account.");
+            userFormBox.setManaged(true);
+            userFormBox.setVisible(true);
+            portFormBox.setManaged(false);
+            portFormBox.setVisible(false);
+            create.setText("CREATE ACCOUNT");
+            message.setText("");
+        });
 
-        Label existing = new Label(
-                "Already have an account?");
+        modePortBtn.setOnAction(e -> {
+            new RequestNewPortPage().show(stage);
+        });
 
-        existing.setStyle(
-                "-fx-text-fill:#C8D9EA;" +
-                        "-fx-font-size:13px;");
+        create.setOnAction(event -> {
+            if (userFormBox.isVisible()) {
+                createAccount(fullName, email, company, role, phone, password, confirm, terms, create, message);
+            } else {
+                submitPortRequest(reqPortName, reqPortCode, reqLocation, reqAddress, reqName, reqEmail, reqPhone, reqPaName, reqPaEmail, create, message);
+            }
+        });
 
+        Label existing = new Label("Already have an account?");
+        existing.setStyle("-fx-text-fill:#C8D9EA; -fx-font-size:13px;");
         Button login = createLink("Login");
+        login.setOnAction(event -> new LoginPage().show(stage));
 
-        login.setOnAction(
-                event -> new LoginPage().show(stage));
-
-        HBox loginRow = new HBox(
-                6,
-                existing,
-                login);
-
+        HBox loginRow = new HBox(6, existing, login);
         loginRow.setAlignment(Pos.CENTER);
 
         Button support = createFooterLink("Help & Support");
         Button privacy = createFooterLink("Privacy Policy");
-
         Label separator = new Label("|");
-
-        separator.setStyle(
-                "-fx-text-fill:rgba(190,220,240,0.35);" +
-                        "-fx-font-size:11px;");
-
-        HBox footer = new HBox(
-                15,
-                support,
-                separator,
-                privacy);
-
+        separator.setStyle("-fx-text-fill:rgba(190,220,240,0.35); -fx-font-size:11px;");
+        HBox footer = new HBox(15, support, separator, privacy);
         footer.setAlignment(Pos.CENTER);
 
         card.getChildren().addAll(
                 back,
+                modeSelector,
                 title,
                 description,
-
-                createLabeledField(
-                        "Full Name",
-                        fullName),
-
-                createLabeledField(
-                        "Email",
-                        email),
-
-                createLabeledField(
-                        "Company Name",
-                        company),
-
-                createLabeledField(
-                        "Role",
-                        role),
-
-                createLabeledField(
-                        "Phone Number",
-                        phone),
-
-                createLabeledField(
-                        "Password",
-                        password.root),
-
-                createLabeledField(
-                        "Confirm Password",
-                        confirm.root),
-
-                terms,
+                userFormBox,
+                portFormBox,
                 message,
                 create,
                 loginRow,
-                footer);
+                footer
+        );
 
         container.getChildren().add(card);
-
         return container;
     }
 
@@ -222,6 +233,11 @@ public class CreateAccount {
 
         if (role.getValue() == null) {
             message.setText("Please select a role.");
+            return;
+        }
+
+        if (!UserDao.isRoleCreationAllowed("Public", role.getValue())) {
+            message.setText("Privileged roles cannot be created via public registration.");
             return;
         }
 
@@ -298,6 +314,78 @@ public class CreateAccount {
                 pause.play();
             }));
         }));
+    }
+
+    private void submitPortRequest(
+            TextField reqPortName,
+            TextField reqPortCode,
+            TextField reqLocation,
+            TextField reqAddress,
+            TextField reqName,
+            TextField reqEmail,
+            TextField reqPhone,
+            TextField reqPaName,
+            TextField reqPaEmail,
+            Button submitBtn,
+            Label message) {
+
+        String portName = reqPortName.getText().trim();
+        String portCode = reqPortCode.getText().trim();
+        String location = reqLocation.getText().trim();
+        String address = reqAddress.getText().trim();
+        String name = reqName.getText().trim();
+        String email = reqEmail.getText().trim();
+        String phone = reqPhone.getText().trim();
+        String paName = reqPaName.getText().trim();
+        String paEmail = reqPaEmail.getText().trim();
+
+        if (portName.isEmpty()) {
+            showError(message, "Port name is required.");
+            return;
+        }
+        if (location.isEmpty()) {
+            showError(message, "Port location is required.");
+            return;
+        }
+        if (name.isEmpty()) {
+            showError(message, "Requester name is required.");
+            return;
+        }
+        if (email.isEmpty() || !LoginPage.isEmail(email)) {
+            showError(message, "Valid requester email is required.");
+            return;
+        }
+        if (phone.isEmpty()) {
+            showError(message, "Requester phone number is required.");
+            return;
+        }
+        if (paName.isEmpty()) {
+            showError(message, "Proposed Port Authority name is required.");
+            return;
+        }
+        if (paEmail.isEmpty() || !LoginPage.isEmail(paEmail)) {
+            showError(message, "Valid proposed Port Authority email is required.");
+            return;
+        }
+
+        String reqId = "REQ-" + (int)(Math.random() * 899 + 100);
+        String code = portCode.isEmpty() ? "IN-" + portName.replaceAll("[^A-Za-z]", "").toUpperCase().substring(0, Math.min(3, portName.length())) + "-01" : portCode;
+
+        com.projectui.view.admin.AdminDataStore.PortRequest req = new com.projectui.view.admin.AdminDataStore.PortRequest(
+                reqId, portName, code, location, address, "New Port Proposal",
+                name, email, phone, paName, paEmail, "PENDING",
+                java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy"))
+        );
+
+        com.projectui.view.admin.AdminDataStore.getInstance().portRequests.add(0, req);
+
+        message.setStyle("-fx-text-fill:#76E6B1; -fx-font-size:12px; -fx-font-weight:bold;");
+        message.setText("✓ Port Request (" + reqId + ") submitted successfully! Status: PENDING — Awaiting Dock Tech Admin review.");
+
+        submitBtn.setDisable(true);
+        javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(2.5));
+        pause.setOnFinished(evt -> new LoginPage().show(stage));
+        pause.play();
     }
 
     // =====================================================
@@ -478,8 +566,7 @@ public class CreateAccount {
 
         ComboBox<String> role = new ComboBox<>();
 
-        role.getItems().addAll(
-                LoginPage.ROLES);
+        role.getItems().addAll("Exporter", "Importer");
 
         role.setMaxWidth(
                 Double.MAX_VALUE);

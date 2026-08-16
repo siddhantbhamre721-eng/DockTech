@@ -7,6 +7,7 @@ import com.projectui.view.admin.AdminDataStore.Port;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -25,8 +26,13 @@ import javafx.scene.shape.ArcType;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 
+import com.projectui.dao.UserDao;
+
 public class PortManagementPage extends AdminTheme {
 
+    private final UserDao userDao = new UserDao();
+    private final com.projectui.dao.PortRequestDao portRequestDao = new com.projectui.dao.PortRequestDao();
+    private final com.projectui.service.EmailNotificationService emailService = new com.projectui.service.EmailNotificationService();
     private final AdminDataStore store = AdminDataStore.getInstance();
     private final List<Port> ports = store.ports;
     private final GridPane table = new GridPane();
@@ -123,14 +129,17 @@ public class PortManagementPage extends AdminTheme {
         HBox.setHgrow(listCard, Priority.ALWAYS);
         HBox.setHgrow(formCard, Priority.ALWAYS);
 
-        // 3. Supporting Bottom Cards
+        // 3. New Port Requests Section (Pending Admin Verification)
+        VBox requestsCard = portRequestsCard();
+
+        // 4. Supporting Bottom Cards
         HBox bottom = new HBox(12, operationalSummaryCard(), recentPortActivityCard(), capacityOverviewCard());
         bottom.getChildren().forEach(node -> {
             HBox.setHgrow(node, Priority.ALWAYS);
             if (node instanceof VBox) ((VBox) node).setMaxWidth(Double.MAX_VALUE);
         });
 
-        page.getChildren().addAll(titleRow, stats, main, bottom);
+        page.getChildren().addAll(titleRow, stats, main, requestsCard, bottom);
 
         refreshTable();
         refreshStats();
@@ -571,7 +580,24 @@ public class PortManagementPage extends AdminTheme {
         } else {
             ports.add(new Port(nameValue, locationValue, berths, 0, statusValue, "Containers", capacityValue, maintenanceValue.isEmpty() ? "Clear" : maintenanceValue, now()));
             editingIndex = ports.size() - 1;
-            formSubtitle.setText("✓ New port added successfully!");
+
+            // Provision Port Authority Account for newly approved port
+            String paEmail = "pa_" + nameValue.toLowerCase().replaceAll("[^a-z0-9]", "") + "@docktech.com";
+            String paPhone = "+91 98" + (int)(Math.random() * 89999999 + 10000000);
+
+            userDao.provisionAccount("Admin", "Port Authority (" + nameValue + ")", paEmail, nameValue, paPhone, "Port Authority", "Active")
+                .whenComplete((creds, err) -> javafx.application.Platform.runLater(() -> {
+                    if (creds != null) {
+                        String tempPass = creds.get("tempPassword");
+                        formSubtitle.setText("✓ Port Approved & Port Authority Provisioned!\nLogin ID: " + paEmail + " | Temp Pass: " + tempPass + " | Role: PORT_AUTHORITY | Port: " + nameValue);
+                        
+                        AdminDataStore.getInstance().users.add(0, new AdminDataStore.UserAccount(
+                                "Port Authority (" + nameValue + ")", paEmail, "Port Authority", "Active", "Today", "Just now"
+                        ));
+                    } else {
+                        formSubtitle.setText("✓ New port added successfully!");
+                    }
+                }));
         }
 
         refreshTable();
@@ -655,6 +681,165 @@ public class PortManagementPage extends AdminTheme {
 
         card.getChildren().addAll(header, middle, footer);
         return card;
+    }
+
+    private VBox portRequestsCard() {
+        VBox card = new VBox(12);
+        card.setPadding(new Insets(16));
+        card.setStyle(cardStyle());
+
+        Label title = new Label("📋 New Port Requests (Pending Admin Verification)");
+        title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:18; -fx-font-weight:bold;");
+        Label subtitle = new Label("Review port establishment proposals submitted by requesters, approve active ports, and provision Port Authority accounts.");
+        subtitle.setStyle("-fx-text-fill:#64748b; -fx-font-size:13;");
+
+        VBox requestsContainer = new VBox(8);
+        renderPortRequests(requestsContainer);
+
+        card.getChildren().addAll(new VBox(2, title, subtitle), requestsContainer);
+        return card;
+    }
+
+    private void renderPortRequests(VBox container) {
+        container.getChildren().clear();
+        List<AdminDataStore.PortRequest> list = store.portRequests;
+
+        if (list.isEmpty()) {
+            Label empty = new Label("No new port establishment requests pending.");
+            empty.setStyle("-fx-text-fill:#64748b; -fx-font-size:13; -fx-padding:10;");
+            container.getChildren().add(empty);
+            return;
+        }
+
+        for (AdminDataStore.PortRequest req : list) {
+            HBox row = new HBox(12);
+            row.setPadding(new Insets(12, 14, 12, 14));
+            row.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#e2e8f0; -fx-border-radius:8; -fx-background-radius:8;");
+            row.setAlignment(Pos.CENTER_LEFT);
+
+            VBox info = new VBox(4,
+                    boldLabel(req.portName + " (" + req.portCode + ")"),
+                    mutedLabel("📍 " + req.location + " • " + req.address),
+                    mutedLabel("👤 Requested By: " + req.requesterName + " (" + req.requesterEmail + ") • Date: " + req.requestDate)
+            );
+
+            VBox paInfo = new VBox(4,
+                    boldLabel("Proposed Port Authority:"),
+                    mutedLabel(req.proposedPaName + " <" + req.proposedPaEmail + ">")
+            );
+
+            String badgeBg;
+            String badgeFg;
+            if ("APPROVED".equalsIgnoreCase(req.status)) {
+                badgeBg = "#ecfdf5"; badgeFg = "#16a34a";
+            } else if ("REJECTED".equalsIgnoreCase(req.status)) {
+                badgeBg = "#fef2f2"; badgeFg = "#ef4444";
+            } else {
+                badgeBg = "#fff7ed"; badgeFg = "#f97316";
+            }
+
+            Label statusBadge = new Label(req.status);
+            statusBadge.setStyle("-fx-background-color:" + badgeBg + "; -fx-text-fill:" + badgeFg + "; -fx-font-size:11; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:12;");
+
+            Region space = new Region();
+            HBox.setHgrow(space, Priority.ALWAYS);
+
+            HBox actions = new HBox(8);
+            actions.setAlignment(Pos.CENTER_RIGHT);
+
+            if ("PENDING".equalsIgnoreCase(req.status)) {
+                Button approveBtn = new Button("✓ Approve & Create Port");
+                approveBtn.setStyle("-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-size:12; -fx-font-weight:bold; -fx-padding:6 12; -fx-background-radius:6; -fx-cursor:hand;");
+                approveBtn.setOnAction(e -> {
+                    req.status = "APPROVED";
+                    portRequestDao.updateRequestStatus(req.requestId, "APPROVED", null);
+                    ports.add(new Port(req.portName, req.location, 12, 0, "Operational", "Mixed Cargo, Containers", "100%", "Clear", now()));
+                    
+                    userDao.provisionAccount("Admin", req.proposedPaName, req.proposedPaEmail, req.portName, req.requesterPhone, "Port Authority", "Active")
+                        .whenComplete((creds, err) -> javafx.application.Platform.runLater(() -> {
+                            String tempPass = (creds != null && creds.get("tempPassword") != null) ? creds.get("tempPassword") : "Pass#9821";
+                            
+                            emailService.sendApprovalNotification(
+                                    req.requesterEmail, req.portName, req.portCode, req.requestId,
+                                    req.proposedPaName, req.proposedPaEmail, tempPass
+                            );
+
+                            formSubtitle.setText("✓ Port Approved & Created! Approval Notification Email sent to: " + req.requesterEmail + "\nLogin ID: " + req.proposedPaEmail + " | Temp Pass: " + tempPass);
+                            store.users.add(0, new AdminDataStore.UserAccount(req.proposedPaName, req.proposedPaEmail, "Port Authority", "Active", "Today", "Just now"));
+
+                            refreshTable();
+                            refreshStats();
+                            renderPortRequests(container);
+                        }));
+                });
+
+                Button rejectBtn = new Button("✕ Reject Request");
+                rejectBtn.setStyle("-fx-background-color:#ef4444; -fx-text-fill:white; -fx-font-size:12; -fx-font-weight:bold; -fx-padding:6 12; -fx-background-radius:6; -fx-cursor:hand;");
+                rejectBtn.setOnAction(e -> showRejectionDialog(req, container));
+
+                actions.getChildren().addAll(approveBtn, rejectBtn);
+            } else {
+                Label done = new Label(req.status + ("REJECTED".equalsIgnoreCase(req.status) && req.rejectionReason != null && !req.rejectionReason.isBlank() ? " (" + req.rejectionReason + ")" : ""));
+                done.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:12; -fx-font-weight:bold;");
+                actions.getChildren().add(done);
+            }
+
+            row.getChildren().addAll(info, paInfo, statusBadge, space, actions);
+            container.getChildren().add(row);
+        }
+    }
+
+    private void showRejectionDialog(AdminDataStore.PortRequest req, VBox container) {
+        javafx.stage.Stage dialog = new javafx.stage.Stage();
+        dialog.initModality(javafx.stage.Modality.APPLICATION_MODAL);
+        dialog.setTitle("Reject Port Establishment Request");
+
+        VBox dialogRoot = new VBox(14);
+        dialogRoot.setPadding(new Insets(20));
+        dialogRoot.setStyle("-fx-background-color:white; -fx-background-radius:12;");
+
+        Label title = new Label("Rejection Reason for " + req.portName + " (" + req.requestId + ")");
+        title.setStyle("-fx-font-size:16; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
+
+        Label desc = new Label("Please enter the official reason for rejection. This reason will be stored in Firestore and emailed directly to the requester (" + req.requesterEmail + ").");
+        desc.setWrapText(true);
+        desc.setStyle("-fx-font-size:13; -fx-text-fill:#64748b;");
+
+        TextArea reasonArea = new TextArea();
+        reasonArea.setPromptText("Enter rejection reason (e.g. Incomplete environmental clearance or invalid berth capacity proposal)...");
+        reasonArea.setPrefRowCount(3);
+        reasonArea.setStyle("-fx-font-size:13; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6;");
+
+        Button cancelBtn = new Button("Cancel");
+        cancelBtn.setStyle("-fx-background-color:#f1f5f9; -fx-text-fill:#475569; -fx-font-size:13; -fx-font-weight:bold; -fx-padding:8 16; -fx-background-radius:6; -fx-cursor:hand;");
+        cancelBtn.setOnAction(e -> dialog.close());
+
+        Button confirmBtn = new Button("Confirm Rejection & Send Email");
+        confirmBtn.setStyle("-fx-background-color:#ef4444; -fx-text-fill:white; -fx-font-size:13; -fx-font-weight:bold; -fx-padding:8 16; -fx-background-radius:6; -fx-cursor:hand;");
+        confirmBtn.setOnAction(e -> {
+            String reasonText = reasonArea.getText().trim();
+            if (reasonText.isEmpty()) {
+                reasonText = "Submitted port proposal does not meet operational or safety requirements.";
+            }
+
+            req.status = "REJECTED";
+            req.rejectionReason = reasonText;
+
+            portRequestDao.updateRequestStatus(req.requestId, "REJECTED", reasonText);
+            emailService.sendRejectionNotification(req.requesterEmail, req.portName, req.requestId, reasonText);
+
+            formSubtitle.setText("✕ Request " + req.requestId + " REJECTED. Notification email sent to: " + req.requesterEmail);
+            dialog.close();
+            renderPortRequests(container);
+        });
+
+        HBox btnRow = new HBox(10, cancelBtn, confirmBtn);
+        btnRow.setAlignment(Pos.CENTER_RIGHT);
+
+        dialogRoot.getChildren().addAll(title, desc, reasonArea, btnRow);
+        Scene scene = new Scene(dialogRoot, 460, 260);
+        dialog.setScene(scene);
+        dialog.show();
     }
 
     // ==========================================
