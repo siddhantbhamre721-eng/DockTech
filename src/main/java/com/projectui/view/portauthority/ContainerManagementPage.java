@@ -12,8 +12,6 @@ import javafx.scene.layout.VBox;
 import java.util.Optional;
 
 import javafx.beans.property.SimpleStringProperty;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 
 public class ContainerManagementPage {

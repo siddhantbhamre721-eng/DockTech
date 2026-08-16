@@ -1,8 +1,5 @@
 package com.projectui.view.portauthority;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;

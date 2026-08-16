@@ -15,7 +15,6 @@ import javafx.scene.chart.PieChart;
 import javafx.scene.layout.StackPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
-import javafx.scene.control.cell.PropertyValueFactory;
 
 public class DashboardPage {
 
