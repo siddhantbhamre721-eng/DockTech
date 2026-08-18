@@ -1,6 +1,5 @@
 package com.projectui.view.admin;
 
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 import com.projectui.service.FirebaseAuthService;
@@ -28,6 +27,7 @@ import javafx.scene.shape.Circle;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
+@SuppressWarnings("unused")
 public class SettingsPage extends AdminTheme {
 
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm");
@@ -724,6 +724,8 @@ public class SettingsPage extends AdminTheme {
         layout.setStyle("-fx-background-color:white;");
 
         Scene scene = new Scene(layout, 540, 410);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(stage);
         stage.setScene(scene);
         stage.setResizable(false);
         stage.show();
@@ -760,6 +762,8 @@ public class SettingsPage extends AdminTheme {
         layout.setStyle("-fx-background-color:white;");
 
         Scene scene = new Scene(layout, 480, 360);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(stage);
         stage.setScene(scene);
         stage.setResizable(false);
         stage.show();
@@ -797,6 +801,8 @@ public class SettingsPage extends AdminTheme {
         layout.setStyle("-fx-background-color:white;");
 
         Scene scene = new Scene(layout, 460, 200);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(stage);
         stage.setScene(scene);
         stage.setResizable(false);
         stage.show();

@@ -24,65 +24,187 @@ public class DashBoard extends Application {
     private final String GRAY="#6b7280";
     private final String BG="#f3f8fc";
 
-    private Stage stage;
-
-    private String currentPage = "Dashboard";
-
     @Override
     public void start(Stage stage) {
-        this.stage = stage;
         root=new BorderPane();
         root.setStyle("-fx-background-color:#f3f8ff;");
-
-        showPage("Dashboard", createDashboardPage());
-
-        stage.setTitle("Dock Tech - Customs Officer");
-        com.projectui.view.login.LoginPage.showRoot(stage, root);
-        stage.show();
-    }
-
-    private void showPage(String pageName, javafx.scene.Parent pageContent) {
-        this.currentPage = pageName;
-        root.setCenter(pageContent);
         root.setLeft(createSidebar());
         root.setTop(createHeader());
+        root.setCenter(createDashboardPage());
+
+        stage.setTitle("Dock Tech - Customs Officer");
+        stage.setScene(new Scene(root,1200,700));
+        stage.show();
     }
 
     // ================= SIDEBAR =================
 
     private VBox createSidebar() {
-        java.util.Map<String, Button> menuButtons = new java.util.LinkedHashMap<>();
-        Button dashboard = new Button("🏠   Dashboard");
-        Button document = new Button("📄   Document Verification");
-        Button cargo = new Button("🔍   Cargo Inspection");
-        Button approve = new Button("✓   Approve / Reject Cargo");
-        Button reports = new Button("📊   Reports & Analytics");
-        Button settings = new Button("⚙   Settings");
+        VBox side=new VBox(8);
+        side.setPrefWidth(220);
+        side.setPadding(new Insets(22,14,20,14));
+        side.setStyle("-fx-background-color:#050911;");
 
-        menuButtons.put("Dashboard", dashboard);
-        menuButtons.put("Document Verification", document);
-        menuButtons.put("Cargo Inspection", cargo);
-        menuButtons.put("Approve / Reject Cargo", approve);
-        menuButtons.put("Reports & Analytics", reports);
-        menuButtons.put("Settings", settings);
+        Label logo=new Label("⚓  DOCK TECH");
+        logo.setStyle("-fx-text-fill:white;-fx-font-size:18;-fx-font-weight:bold;");
 
-        dashboard.setOnAction(e -> showPage("Dashboard", createDashboardPage()));
-        document.setOnAction(e -> showPage("Document Verification", new DocumentVerification().getContent()));
-        cargo.setOnAction(e -> showPage("Cargo Inspection", new CargoInspection().getContent()));
-        approve.setOnAction(e -> showPage("Approve / Reject Cargo", new CargoClearance().getRoot()));
-        reports.setOnAction(e -> showPage("Reports & Analytics", new ReportsAnalytics().getContent()));
-        settings.setOnAction(e -> showPage("Settings", new SettingsPage().getContent()));
+        Label sub=new Label("SMART PORT\nOPERATIONS");
+        sub.setStyle("-fx-text-fill:#9aaac0;-fx-font-size:9;-fx-font-weight:bold;");
 
-        return com.projectui.view.login.DashboardLayoutHelper.createSidebar(stage, "Custom Officer", currentPage, menuButtons);
+        VBox logoBox=new VBox(3,logo,sub);
+        logoBox.setPadding(new Insets(0,0,22,10));
+
+        Button dashboard=nav("⌂","Dashboard");
+        Button document=nav("▣","Document Verification");
+        Button cargo=nav("◇","Cargo Inspection");
+        Button approve=nav("✓","Approve / Reject Cargo");
+        Button reports=nav("▣","Reports & Analytics");
+        Button settings=nav("⚙","Settings");
+
+        dashboard.setOnAction(e->{active(dashboard);root.setCenter(createDashboardPage());});
+        document.setOnAction(e->{active(document);root.setCenter(new DocumentVerification().getContent());});
+        cargo.setOnAction(e->{active(cargo);root.setCenter(new CargoInspection().getContent());});
+        approve.setOnAction(e->{active(approve);root.setCenter(new CargoClearance().getRoot());});
+        reports.setOnAction(e->{active(reports);root.setCenter(simplePage("Reports & Analytics","View customs activity and analytics reports."));});
+        settings.setOnAction(e->{active(settings);root.setCenter(simplePage("Settings","Manage application settings."));});
+
+        Region gap=new Region();
+        VBox.setVgrow(gap,Priority.ALWAYS);
+
+        side.getChildren().addAll(
+            logoBox,dashboard,document,cargo,approve,reports,settings,gap
+        );
+
+        activeButton=dashboard;
+        active(dashboard);
+        return side;
+    }
+
+    private Button nav(String icon,String text) {
+        Button b=new Button(icon+"   "+text);
+        b.setMaxWidth(Double.MAX_VALUE);
+        b.setPrefHeight(42);
+        b.setAlignment(Pos.CENTER_LEFT);
+        b.setPadding(new Insets(0,8,0,12));
+        b.setStyle(navStyle(false));
+
+        b.setOnMouseEntered(e->{if(b!=activeButton)b.setStyle(navStyle(true));});
+        b.setOnMouseExited(e->{if(b!=activeButton)b.setStyle(navStyle(false));});
+        return b;
+    }
+
+    private void active(Button b) {
+        if(activeButton!=null) activeButton.setStyle(navStyle(false));
+        activeButton=b;
+        b.setStyle(navStyle(true,true));
+    }
+
+    private String navStyle(boolean hover){return navStyle(hover,false);}
+
+    private String navStyle(boolean active,boolean selected) {
+        return "-fx-background-color:"+
+            (selected?BLUE:(active?"#10264a":"transparent"))+
+            ";-fx-text-fill:"+(active||selected?"white":"#aebbd0")+
+            ";-fx-font-size:11;-fx-font-weight:bold;"+
+            "-fx-background-radius:8;-fx-cursor:hand;";
     }
 
     // ================= HEADER =================
 
     private HBox createHeader() {
-        String breadcrumb = "Dock Tech / Custom Officer / " + currentPage;
-        return com.projectui.view.login.DashboardLayoutHelper.createHeader(stage, currentPage, breadcrumb, "Custom Officer", () -> {
-            new com.projectui.view.login.LoginPage().show(stage);
-        }, null);
+
+        HBox h=new HBox(12);
+        h.setAlignment(Pos.CENTER_LEFT);
+        h.setPadding(new Insets(12,22,12,25));
+        h.setPrefHeight(65);
+        h.setStyle("-fx-background-color:white;-fx-border-color:#e5ebf3;-fx-border-width:0 0 1 0;");
+
+        VBox info=new VBox(3,
+            styled("Dashboard",17,true,TEXT),
+            styled("Custom Officer / Admin / Dashboard",10,false,"#8a93a1")
+        );
+
+        Region gap=new Region();
+        HBox.setHgrow(gap,Priority.ALWAYS);
+
+        // SEARCH
+        TextField search=new TextField();
+        search.setPromptText("⌕  Search...");
+        search.setPrefSize(175,34);
+
+        Button searchBtn=new Button("🔍");
+        searchBtn.setPrefSize(40,34);
+        searchBtn.setStyle(
+            "-fx-background-color:#0f5fff;-fx-text-fill:white;"+
+            "-fx-background-radius:6;-fx-cursor:hand;"
+        );
+
+        searchBtn.setOnAction(e->{
+            if(!search.getText().trim().isEmpty()){
+                Alert a=new Alert(Alert.AlertType.INFORMATION);
+                a.setHeaderText("Search");
+                a.setContentText("Searching for: "+search.getText().trim());
+                a.showAndWait();
+            }
+        });
+
+        search.setOnAction(e->searchBtn.fire());
+
+        HBox searchBox=new HBox(5,search,searchBtn);
+
+        // STATUS
+        Label status=new Label("● System Operational");
+        status.setStyle(
+            "-fx-text-fill:#168548;-fx-background-color:#e7f7ee;"+
+            "-fx-background-radius:14;-fx-padding:6 10;"+
+            "-fx-font-size:10;-fx-font-weight:bold;"
+        );
+
+        // DATE & TIME
+        VBox dateTime=new VBox(1);
+        dateTime.setAlignment(Pos.CENTER_RIGHT);
+
+        Label date=new Label();
+        date.setStyle("-fx-text-fill:#4b5563;-fx-font-size:10;-fx-font-weight:bold;");
+
+        Label time=new Label();
+        time.setStyle("-fx-text-fill:#0f5fff;-fx-font-size:12;-fx-font-weight:bold;");
+
+        dateTime.getChildren().addAll(date,time);
+
+        Timeline clock=new Timeline(
+            new KeyFrame(Duration.ZERO,e->{
+                LocalDateTime now=LocalDateTime.now();
+                date.setText(now.format(DateTimeFormatter.ofPattern("dd MMM yyyy")));
+                time.setText(now.format(DateTimeFormatter.ofPattern("hh:mm:ss a")));
+            }),
+            new KeyFrame(Duration.seconds(1))
+        );
+
+        clock.setCycleCount(Timeline.INDEFINITE);
+        clock.play();
+
+        Label bell=new Label("🔔");
+        bell.setStyle("-fx-font-size:17;");
+
+        Label avatar=new Label("A");
+        avatar.setMinSize(32,32);
+        avatar.setAlignment(Pos.CENTER);
+        avatar.setStyle(
+            "-fx-background-color:#dbeafe;-fx-background-radius:50;"+
+            "-fx-text-fill:#0f5fff;-fx-font-weight:bold;"
+        );
+
+        VBox user=new VBox(1,
+            styled("Custom Officer",11,true,TEXT),
+            styled("Administrator",9,false,"#8a93a1")
+        );
+
+        h.getChildren().addAll(
+            info,gap,searchBox,status,dateTime,bell,avatar,user
+        );
+
+        return h;
     }
 
     // ================= DASHBOARD =================

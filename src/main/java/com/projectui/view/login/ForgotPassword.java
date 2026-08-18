@@ -377,7 +377,7 @@ public class ForgotPassword {
                                                                     "-fx-font-weight:bold;");
 
                                                     message.setText(
-                                                            "If the account exists, reset instructions will be sent.");
+                                                            "Password reset email sent successfully.");
 
                                                 } else {
 

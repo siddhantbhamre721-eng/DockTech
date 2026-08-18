@@ -25,9 +25,8 @@ import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
 
 import java.net.URL;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
+@SuppressWarnings("unused")
 public class TrackShipment {
 
     public Scene getTrackShipmentScene(
@@ -409,7 +408,9 @@ public class TrackShipment {
 
         root.setCenter(content);
 
-        return new Scene(root);
+        Scene scene = new Scene(root);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
+        return scene;
     }
 
     // =========================================================

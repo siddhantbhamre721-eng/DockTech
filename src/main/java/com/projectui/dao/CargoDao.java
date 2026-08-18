@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
+@SuppressWarnings({"null", "unchecked"})
 public class CargoDao extends Dao {
 
     private static final Map<String, Map<String, Object>> localCargoStore = new ConcurrentHashMap<>();

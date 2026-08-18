@@ -523,11 +523,13 @@ public class UpdateShipStatus {
             contentRow
         );
 
-        return new Scene(
+        Scene scene = new Scene(
             main,
             1260,
             760
         );
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
+        return scene;
     }
 
     // ================= INFO ITEM =================

@@ -275,7 +275,9 @@ public class ConfirmLoading {
         main.getChildren().addAll(card, side);
         root.setCenter(main);
 
-        return new Scene(root, 1450, 850);
+        Scene scene = new Scene(root, 1450, 850);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
+        return scene;
     }
 
     // ================= FUNCTIONS =================

@@ -16,7 +16,9 @@ public class SendSOS {
         root.setTop(header());
         root.setCenter(emergencyPage());
 
-        return new Scene(root, 1330, 735);
+        Scene scene = new Scene(root, 1330, 735);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
+        return scene;
     }
 
     // ================= HEADER =================

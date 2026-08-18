@@ -7,7 +7,6 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -192,6 +191,7 @@ public class MakePayment {
         root.setCenter(scrollPane);
 
         scene = new Scene(root);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
         return scene;
     }
 

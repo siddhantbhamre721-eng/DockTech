@@ -8,6 +8,8 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -24,7 +26,6 @@ import javafx.scene.layout.VBox;
 import javafx.scene.shape.Arc;
 import javafx.scene.shape.ArcType;
 import javafx.scene.shape.Circle;
-import javafx.scene.shape.Rectangle;
 
 import com.projectui.dao.UserDao;
 
@@ -55,7 +56,9 @@ public class PortManagementPage extends AdminTheme {
     private TextField portCodeField;
     private TextField berthCount;
     private TextField portCapacity;
-    private TextArea maintenanceInfo;
+    private TextField maintenanceInfo;
+    private TextField latField;
+    private TextField lngField;
     private ComboBox<String> status;
     private Button saveBtn;
     private Button clearBtn;
@@ -74,16 +77,19 @@ public class PortManagementPage extends AdminTheme {
 
     public PortManagementPage(boolean startAddOnOpen) {
         this.startAddOnOpen = startAddOnOpen;
+        this.portRequestDao.syncWithDatabase();
     }
 
     public Parent getRoot() {
         // Page Header Buttons
         Button addQuickBtn = primaryButton("+  Add Port");
         addQuickBtn.setOnAction(event -> startAdd());
-        addQuickBtn.setStyle("-fx-background-color:" + BLUE + "; -fx-text-fill:white; -fx-font-size:14; -fx-font-weight:bold; -fx-padding:10 22; -fx-background-radius:8; -fx-cursor:hand;");
+        addQuickBtn.setStyle("-fx-background-color:" + BLUE
+                + "; -fx-text-fill:white; -fx-font-size:14; -fx-font-weight:bold; -fx-padding:10 22; -fx-background-radius:8; -fx-cursor:hand;");
 
         Button editQuickBtn = new Button("✎  Edit Port");
-        editQuickBtn.setStyle("-fx-background-color:#0aa05f; -fx-text-fill:white; -fx-font-size:14; -fx-font-weight:bold; -fx-padding:10 22; -fx-background-radius:8; -fx-cursor:hand;");
+        editQuickBtn.setStyle(
+                "-fx-background-color:#0aa05f; -fx-text-fill:white; -fx-font-size:14; -fx-font-weight:bold; -fx-padding:10 22; -fx-background-radius:8; -fx-cursor:hand;");
         editQuickBtn.setOnAction(event -> {
             if (editingIndex >= 0 && editingIndex < ports.size()) {
                 startEdit(editingIndex);
@@ -94,7 +100,8 @@ public class PortManagementPage extends AdminTheme {
 
         Label title = new Label("Port Management");
         title.setStyle("-fx-text-fill:#05070c; -fx-font-size:26; -fx-font-weight:bold;");
-        Label subtitle = new Label("Monitor and manage port operations, capacity, vessel traffic, berths and operational conditions.");
+        Label subtitle = new Label(
+                "Monitor and manage port operations, capacity, vessel traffic, berths and operational conditions.");
         subtitle.setStyle("-fx-text-fill:#64748b; -fx-font-size:14;");
         VBox titleCopy = new VBox(2, title, subtitle);
         Region titleSpace = new Region();
@@ -111,13 +118,16 @@ public class PortManagementPage extends AdminTheme {
                 statBox("Total Ports", "0", "All Registered", "⚓", BLUE, "#eff6ff", label -> totalValue = label),
                 statBox("Active Ports", "0", "Operational", "✓", "#16a34a", "#ecfdf5", label -> activeValue = label),
                 statBox("Maintenance", "0", "Under Repair", "⌁", BLUE, "#eff6ff", label -> maintenanceValue = label),
-                statBox("High Congestion", "0", "Requires Attention", "!", "#ef4444", "#fef2f2", label -> congestionValue = label),
-                statBox("Vessels in Port", "0", "Currently Docked", "▣", "#0b63ff", "#f5f3ff", label -> vesselsValue = label),
-                statBox("Berth Usage", "0 / 0", "Total Berths Occupied", "▤", "#f97316", "#fff7ed", label -> berthValue = label)
-        );
+                statBox("High Congestion", "0", "Requires Attention", "!", "#ef4444", "#fef2f2",
+                        label -> congestionValue = label),
+                statBox("Vessels in Port", "0", "Currently Docked", "▣", "#0b63ff", "#f5f3ff",
+                        label -> vesselsValue = label),
+                statBox("Berth Usage", "0 / 0", "Total Berths Occupied", "▤", "#f97316", "#fff7ed",
+                        label -> berthValue = label));
         stats.getChildren().forEach(node -> {
             HBox.setHgrow(node, Priority.ALWAYS);
-            if (node instanceof VBox) ((VBox) node).setMaxWidth(Double.MAX_VALUE);
+            if (node instanceof VBox)
+                ((VBox) node).setMaxWidth(Double.MAX_VALUE);
         });
 
         // 2. Main Section: Left Control Center Table (52%) + Right Add/Edit Panel (48%)
@@ -136,10 +146,11 @@ public class PortManagementPage extends AdminTheme {
         HBox bottom = new HBox(12, operationalSummaryCard(), recentPortActivityCard(), capacityOverviewCard());
         bottom.getChildren().forEach(node -> {
             HBox.setHgrow(node, Priority.ALWAYS);
-            if (node instanceof VBox) ((VBox) node).setMaxWidth(Double.MAX_VALUE);
+            if (node instanceof VBox)
+                ((VBox) node).setMaxWidth(Double.MAX_VALUE);
         });
 
-        page.getChildren().addAll(titleRow, stats, main, requestsCard, bottom);
+        page.getChildren().addAll(titleRow, main, requestsCard);
 
         refreshTable();
         refreshStats();
@@ -170,20 +181,20 @@ public class PortManagementPage extends AdminTheme {
         styleCustomField(search);
         search.textProperty().addListener((obs, oldValue, newValue) -> refreshTable());
 
-        statusFilter = combo("Filter", "All Status", "Operational", "Busy", "High Congestion", "Maintenance", "Closed", "Restricted");
+        statusFilter = combo("Filter", "All Status", "Operational", "Busy", "High Congestion", "Maintenance", "Closed",
+                "Restricted");
         statusFilter.setPrefWidth(140);
         statusFilter.valueProperty().addListener((obs, oldValue, newValue) -> refreshTable());
 
         Button refresh = new Button("↻  Refresh");
         refresh.setStyle(
                 "-fx-background-color:#f1f5f9;" +
-                "-fx-text-fill:#475569;" +
-                "-fx-font-size:13;" +
-                "-fx-font-weight:bold;" +
-                "-fx-padding:8 14;" +
-                "-fx-background-radius:6;" +
-                "-fx-cursor:hand;"
-        );
+                        "-fx-text-fill:#475569;" +
+                        "-fx-font-size:13;" +
+                        "-fx-font-weight:bold;" +
+                        "-fx-padding:8 14;" +
+                        "-fx-background-radius:6;" +
+                        "-fx-cursor:hand;");
         refresh.setOnAction(event -> {
             refreshTable();
             refreshStats();
@@ -209,15 +220,23 @@ public class PortManagementPage extends AdminTheme {
         table.setHgap(0);
         table.setVgap(0);
         table.setMaxWidth(Double.MAX_VALUE);
-        table.setStyle("-fx-background-color:white; -fx-border-color:#e2e8f0; -fx-border-radius:8; -fx-background-radius:8;");
+        table.setStyle(
+                "-fx-background-color:white; -fx-border-color:#e2e8f0; -fx-border-radius:8; -fx-background-radius:8;");
 
-        ColumnConstraints c1 = new ColumnConstraints(); c1.setPercentWidth(22); // Port
-        ColumnConstraints c2 = new ColumnConstraints(); c2.setPercentWidth(15); // Location
-        ColumnConstraints c3 = new ColumnConstraints(); c3.setPercentWidth(16); // Status
-        ColumnConstraints c4 = new ColumnConstraints(); c4.setPercentWidth(10); // Vessels
-        ColumnConstraints c5 = new ColumnConstraints(); c5.setPercentWidth(17); // Berth Usage
-        ColumnConstraints c6 = new ColumnConstraints(); c6.setPercentWidth(10); // Capacity
-        ColumnConstraints c7 = new ColumnConstraints(); c7.setPercentWidth(10); // Action
+        ColumnConstraints c1 = new ColumnConstraints();
+        c1.setPercentWidth(22); // Port
+        ColumnConstraints c2 = new ColumnConstraints();
+        c2.setPercentWidth(15); // Location
+        ColumnConstraints c3 = new ColumnConstraints();
+        c3.setPercentWidth(16); // Status
+        ColumnConstraints c4 = new ColumnConstraints();
+        c4.setPercentWidth(10); // Vessels
+        ColumnConstraints c5 = new ColumnConstraints();
+        c5.setPercentWidth(17); // Berth Usage
+        ColumnConstraints c6 = new ColumnConstraints();
+        c6.setPercentWidth(10); // Capacity
+        ColumnConstraints c7 = new ColumnConstraints();
+        c7.setPercentWidth(10); // Action
         table.getColumnConstraints().setAll(c1, c2, c3, c4, c5, c6, c7);
 
         Label showing = new Label("Showing " + ports.size() + " of " + ports.size() + " registered ports");
@@ -264,12 +283,11 @@ public class PortManagementPage extends AdminTheme {
         formModeBadge = new Label("MODE: ADD");
         formModeBadge.setStyle(
                 "-fx-background-color:#eff6ff;" +
-                "-fx-text-fill:" + BLUE + ";" +
-                "-fx-font-size:12;" +
-                "-fx-font-weight:bold;" +
-                "-fx-padding:4 10;" +
-                "-fx-background-radius:6;"
-        );
+                        "-fx-text-fill:" + BLUE + ";" +
+                        "-fx-font-size:12;" +
+                        "-fx-font-weight:bold;" +
+                        "-fx-padding:4 10;" +
+                        "-fx-background-radius:6;");
 
         Region space = new Region();
         HBox.setHgrow(space, Priority.ALWAYS);
@@ -282,7 +300,9 @@ public class PortManagementPage extends AdminTheme {
         portCodeField = new TextField();
         berthCount = new TextField();
         portCapacity = new TextField();
-        maintenanceInfo = new TextArea();
+        maintenanceInfo = new TextField();
+        latField = new TextField();
+        lngField = new TextField();
         status = combo("Status", "Operational", "Busy", "High Congestion", "Maintenance", "Closed", "Restricted");
 
         portName.setPromptText("e.g. Port of JNPT");
@@ -291,8 +311,8 @@ public class PortManagementPage extends AdminTheme {
         berthCount.setPromptText("e.g. 18");
         portCapacity.setPromptText("e.g. 85%");
         maintenanceInfo.setPromptText("Enter current maintenance schedule or operational notices...");
-        maintenanceInfo.setPrefRowCount(4);
-        maintenanceInfo.setWrapText(true);
+        latField.setPromptText("e.g. 18.9439");
+        lngField.setPromptText("e.g. 72.8354");
 
         styleCustomField(portName);
         styleCustomField(location);
@@ -300,30 +320,30 @@ public class PortManagementPage extends AdminTheme {
         styleCustomField(berthCount);
         styleCustomField(portCapacity);
         styleCustomField(maintenanceInfo);
+        styleCustomField(latField);
+        styleCustomField(lngField);
 
         // Action Buttons
         saveBtn = primaryButton("💾  Save Changes");
         saveBtn.setStyle(
                 "-fx-background-color:" + BLUE + ";" +
-                "-fx-text-fill:white;" +
-                "-fx-font-size:14;" +
-                "-fx-font-weight:bold;" +
-                "-fx-padding:10 20;" +
-                "-fx-background-radius:6;" +
-                "-fx-cursor:hand;"
-        );
+                        "-fx-text-fill:white;" +
+                        "-fx-font-size:14;" +
+                        "-fx-font-weight:bold;" +
+                        "-fx-padding:10 20;" +
+                        "-fx-background-radius:6;" +
+                        "-fx-cursor:hand;");
         saveBtn.setOnAction(event -> savePort());
 
         clearBtn = new Button("🧹  Clear Form");
         clearBtn.setStyle(
                 "-fx-background-color:#f1f5f9;" +
-                "-fx-text-fill:#475569;" +
-                "-fx-font-size:14;" +
-                "-fx-font-weight:bold;" +
-                "-fx-padding:10 16;" +
-                "-fx-background-radius:6;" +
-                "-fx-cursor:hand;"
-        );
+                        "-fx-text-fill:#475569;" +
+                        "-fx-font-size:14;" +
+                        "-fx-font-weight:bold;" +
+                        "-fx-padding:10 16;" +
+                        "-fx-background-radius:6;" +
+                        "-fx-cursor:hand;");
         clearBtn.setOnAction(event -> clearFormFields());
 
         HBox buttonRow = new HBox(10, clearBtn, saveBtn);
@@ -332,9 +352,11 @@ public class PortManagementPage extends AdminTheme {
         VBox gridFields = new VBox(10,
                 new HBox(10, labeledControl("Port Name *", portName), labeledControl("Location *", location)),
                 new HBox(10, labeledControl("Port Code *", portCodeField), labeledControl("Port Status *", status)),
-                new HBox(10, labeledControl("Port Capacity (%) *", portCapacity), labeledControl("Number of Berths *", berthCount)),
-                labeledControl("Maintenance Information & Notices", maintenanceInfo)
-        );
+                new HBox(10, labeledControl("Latitude (-90 to +90) *", latField),
+                        labeledControl("Longitude (-180 to +180) *", lngField)),
+                new HBox(10, labeledControl("Port Capacity (%) *", portCapacity),
+                        labeledControl("Number of Berths *", berthCount)),
+                labeledControl("Maintenance Information & Notices", maintenanceInfo));
 
         // Allow HBox children in form grid to grow equally
         gridFields.getChildren().forEach(node -> {
@@ -342,7 +364,8 @@ public class PortManagementPage extends AdminTheme {
                 HBox row = (HBox) node;
                 for (var child : row.getChildren()) {
                     HBox.setHgrow(child, Priority.ALWAYS);
-                    if (child instanceof VBox) ((VBox) child).setMaxWidth(Double.MAX_VALUE);
+                    if (child instanceof VBox)
+                        ((VBox) child).setMaxWidth(Double.MAX_VALUE);
                 }
             }
         });
@@ -351,8 +374,7 @@ public class PortManagementPage extends AdminTheme {
                 tabs,
                 formHeaderRow,
                 gridFields,
-                buttonRow
-        );
+                buttonRow);
         card.setPadding(new Insets(18));
         card.setStyle(cardStyle());
 
@@ -365,41 +387,37 @@ public class PortManagementPage extends AdminTheme {
         if (isEditing) {
             addTabBtn.setStyle(
                     "-fx-background-color:#f1f5f9;" +
-                    "-fx-text-fill:#475569;" +
-                    "-fx-font-size:13;" +
-                    "-fx-font-weight:bold;" +
-                    "-fx-padding:7 16;" +
-                    "-fx-background-radius:6;" +
-                    "-fx-cursor:hand;"
-            );
+                            "-fx-text-fill:#475569;" +
+                            "-fx-font-size:13;" +
+                            "-fx-font-weight:bold;" +
+                            "-fx-padding:7 16;" +
+                            "-fx-background-radius:6;" +
+                            "-fx-cursor:hand;");
             editTabBtn.setStyle(
                     "-fx-background-color:" + BLUE + ";" +
-                    "-fx-text-fill:white;" +
-                    "-fx-font-size:13;" +
-                    "-fx-font-weight:bold;" +
-                    "-fx-padding:7 16;" +
-                    "-fx-background-radius:6;" +
-                    "-fx-cursor:hand;"
-            );
+                            "-fx-text-fill:white;" +
+                            "-fx-font-size:13;" +
+                            "-fx-font-weight:bold;" +
+                            "-fx-padding:7 16;" +
+                            "-fx-background-radius:6;" +
+                            "-fx-cursor:hand;");
         } else {
             addTabBtn.setStyle(
                     "-fx-background-color:" + BLUE + ";" +
-                    "-fx-text-fill:white;" +
-                    "-fx-font-size:13;" +
-                    "-fx-font-weight:bold;" +
-                    "-fx-padding:7 16;" +
-                    "-fx-background-radius:6;" +
-                    "-fx-cursor:hand;"
-            );
+                            "-fx-text-fill:white;" +
+                            "-fx-font-size:13;" +
+                            "-fx-font-weight:bold;" +
+                            "-fx-padding:7 16;" +
+                            "-fx-background-radius:6;" +
+                            "-fx-cursor:hand;");
             editTabBtn.setStyle(
                     "-fx-background-color:#f1f5f9;" +
-                    "-fx-text-fill:#475569;" +
-                    "-fx-font-size:13;" +
-                    "-fx-font-weight:bold;" +
-                    "-fx-padding:7 16;" +
-                    "-fx-background-radius:6;" +
-                    "-fx-cursor:hand;"
-            );
+                            "-fx-text-fill:#475569;" +
+                            "-fx-font-size:13;" +
+                            "-fx-font-weight:bold;" +
+                            "-fx-padding:7 16;" +
+                            "-fx-background-radius:6;" +
+                            "-fx-cursor:hand;");
         }
     }
 
@@ -410,7 +428,7 @@ public class PortManagementPage extends AdminTheme {
         table.getChildren().clear();
 
         // 7 Columns: Port, Location, Status, Vessels, Berth Usage, Capacity, Action
-        String[] headers = {"Port", "Location", "Status", "Vessels", "Berth Usage", "Capacity", "Action"};
+        String[] headers = { "Port", "Location", "Status", "Vessels", "Berth Usage", "Capacity", "Action" };
         for (int col = 0; col < headers.length; col++) {
             table.add(headerCell(headers[col]), col, 0);
         }
@@ -467,7 +485,8 @@ public class PortManagementPage extends AdminTheme {
             if ("Maintenance".equals(port.status)) {
                 maintenance++;
             }
-            if ("High Congestion".equals(port.status) || "Busy".equals(port.status) || port.vessels >= port.berths * 0.85) {
+            if ("High Congestion".equals(port.status) || "Busy".equals(port.status)
+                    || port.vessels >= port.berths * 0.85) {
                 highCongestion++;
             }
             vessels += port.vessels;
@@ -475,12 +494,18 @@ public class PortManagementPage extends AdminTheme {
             occupied += port.occupiedBerths();
         }
 
-        if (totalValue != null) totalValue.setText(String.valueOf(ports.size()));
-        if (activeValue != null) activeValue.setText(String.valueOf(active));
-        if (maintenanceValue != null) maintenanceValue.setText(String.valueOf(maintenance));
-        if (congestionValue != null) congestionValue.setText(String.valueOf(highCongestion));
-        if (vesselsValue != null) vesselsValue.setText(String.valueOf(vessels));
-        if (berthValue != null) berthValue.setText(occupied + " / " + berths);
+        if (totalValue != null)
+            totalValue.setText(String.valueOf(ports.size()));
+        if (activeValue != null)
+            activeValue.setText(String.valueOf(active));
+        if (maintenanceValue != null)
+            maintenanceValue.setText(String.valueOf(maintenance));
+        if (congestionValue != null)
+            congestionValue.setText(String.valueOf(highCongestion));
+        if (vesselsValue != null)
+            vesselsValue.setText(String.valueOf(vessels));
+        if (berthValue != null)
+            berthValue.setText(occupied + " / " + berths);
     }
 
     private void startAdd() {
@@ -488,121 +513,270 @@ public class PortManagementPage extends AdminTheme {
         formTitle.setText("Add New Port");
         formSubtitle.setText("Create a new registered maritime port facility.");
         formModeBadge.setText("MODE: ADD");
-        formModeBadge.setStyle("-fx-background-color:#eff6ff; -fx-text-fill:" + BLUE + "; -fx-font-size:12; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:6;");
+        formModeBadge.setStyle("-fx-background-color:#eff6ff; -fx-text-fill:" + BLUE
+                + "; -fx-font-size:12; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:6;");
 
         clearFormFields();
         updateTabStyles();
-        if (portName != null) portName.requestFocus();
+        if (portName != null)
+            portName.requestFocus();
     }
 
     private void startEdit(int index) {
-        if (index < 0 || index >= ports.size()) return;
+        if (index < 0 || index >= ports.size())
+            return;
         editingIndex = index;
         Port port = ports.get(index);
 
         formTitle.setText("Edit Port");
         formSubtitle.setText("Modifying details for: " + port.name);
         formModeBadge.setText("MODE: EDITING #" + (index + 1));
-        formModeBadge.setStyle("-fx-background-color:#ecfdf5; -fx-text-fill:#047857; -fx-font-size:12; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:6;");
+        formModeBadge.setStyle(
+                "-fx-background-color:#ecfdf5; -fx-text-fill:#047857; -fx-font-size:12; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:6;");
 
         portName.setText(port.name);
         location.setText(port.location);
-        portCodeField.setText("IN-" + port.name.replaceAll("[^A-Za-z]", "").toUpperCase().substring(0, Math.min(3, port.name.length())) + "-0" + (index + 1));
+        portCodeField.setText(port.code != null ? port.code
+                : "IN-" + port.name.replaceAll("[^A-Za-z]", "").toUpperCase().substring(0,
+                        Math.min(3, port.name.length())) + "-0" + (index + 1));
         berthCount.setText(String.valueOf(port.berths));
         portCapacity.setText(port.capacity);
         maintenanceInfo.setText(port.maintenance);
         status.setValue(port.status);
+        if (latField != null)
+            latField.setText(port.lat != 0.0 ? String.valueOf(port.lat) : "");
+        if (lngField != null)
+            lngField.setText(port.lng != 0.0 ? String.valueOf(port.lng) : "");
 
         updateTabStyles();
     }
 
     private void clearFormFields() {
-        if (portName != null) portName.clear();
-        if (location != null) location.clear();
-        if (portCodeField != null) portCodeField.clear();
-        if (berthCount != null) berthCount.clear();
-        if (portCapacity != null) portCapacity.clear();
-        if (maintenanceInfo != null) maintenanceInfo.clear();
-        if (status != null) status.setValue("Operational");
+        if (portName != null)
+            portName.clear();
+        if (location != null)
+            location.clear();
+        if (portCodeField != null)
+            portCodeField.clear();
+        if (berthCount != null)
+            berthCount.clear();
+        if (portCapacity != null)
+            portCapacity.clear();
+        if (maintenanceInfo != null)
+            maintenanceInfo.clear();
+        if (latField != null)
+            latField.clear();
+        if (lngField != null)
+            lngField.clear();
+        if (status != null)
+            status.setValue("Operational");
     }
 
     private void savePort() {
+        String nameValue = portName.getText().trim();
+        if (nameValue.isEmpty()) {
+            formSubtitle.setText("⚠️ Please enter a Port Name.");
+            return;
+        }
+
+        // Check duplicate port names for new port creations
+        if (editingIndex == -1) {
+            boolean isDuplicate = ports.stream().anyMatch(p -> p.name != null && p.name.equalsIgnoreCase(nameValue));
+            if (isDuplicate) {
+                formSubtitle.setText("⚠️ A port named '" + nameValue + "' already exists in the database.");
+                return;
+            }
+        }
+
+        String latText = latField.getText().trim();
+        String lngText = lngField.getText().trim();
+
+        // If coordinates are already present (or editing existing port with
+        // coordinates), perform save directly
+        if (!latText.isEmpty() && !lngText.isEmpty()) {
+            performPortSaveDirect();
+            return;
+        }
+
+        // Automatically search real-world location via Geocoding API using Port Name
+        formSubtitle.setText("⏳ Geocoding '" + nameValue + "' via real-world location API...");
+        saveBtn.setDisable(true);
+
+        com.projectui.service.GeocodingService.getInstance().searchPortLocation(nameValue)
+                .whenComplete((locations, err) -> {
+                    javafx.application.Platform.runLater(() -> {
+                        saveBtn.setDisable(false);
+                        if (err != null || locations == null || locations.isEmpty()) {
+                            formSubtitle
+                                    .setText("⚠️ Invalid or unavailable port location. Geocoding API could not locate '"
+                                            + nameValue + "'. Please check spelling or enter coordinates manually.");
+                            return;
+                        }
+
+                        if (locations.size() == 1) {
+                            com.projectui.service.GeocodingService.GeocodedLocation loc = locations.get(0);
+                            applyGeocodedLocation(loc);
+                            performPortSaveDirect();
+                        } else {
+                            showLocationSelectionModal(nameValue, locations);
+                        }
+                    });
+                });
+    }
+
+    private void applyGeocodedLocation(com.projectui.service.GeocodingService.GeocodedLocation loc) {
+        latField.setText(String.format(java.util.Locale.US, "%.4f", loc.lat));
+        lngField.setText(String.format(java.util.Locale.US, "%.4f", loc.lng));
+        if (location.getText().trim().isEmpty() || location.getText().contains("e.g.")) {
+            location.setText(loc.displayName);
+        }
+        if (portCodeField.getText().trim().isEmpty()) {
+            String pName = portName.getText().trim();
+            String codePrefix = pName.replaceAll("[^A-Za-z]", "").toUpperCase();
+            if (codePrefix.length() < 3)
+                codePrefix = (codePrefix + "PRT").substring(0, 3);
+            else
+                codePrefix = codePrefix.substring(0, 3);
+            portCodeField.setText("IN-" + codePrefix + "-01");
+        }
+        if (berthCount.getText().trim().isEmpty()) {
+            berthCount.setText("14");
+        }
+        if (portCapacity.getText().trim().isEmpty()) {
+            portCapacity.setText("85%");
+        }
+        if (maintenanceInfo.getText().trim().isEmpty()) {
+            maintenanceInfo.setText("Clear");
+        }
+    }
+
+    private void showLocationSelectionModal(String portNameQuery,
+            List<com.projectui.service.GeocodingService.GeocodedLocation> locations) {
+        Stage modal = new Stage();
+        modal.initModality(Modality.APPLICATION_MODAL);
+        modal.setTitle("Select Real-World Port Location");
+
+        VBox root = new VBox(12);
+        root.setPadding(new Insets(18));
+        root.setStyle("-fx-background-color:white;");
+
+        Label title = new Label("📍 Select Location for '" + portNameQuery + "'");
+        title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:16; -fx-font-weight:bold;");
+
+        Label sub = new Label("Multiple matching real-world locations found via Geocoding API:");
+        sub.setStyle("-fx-text-fill:#64748b; -fx-font-size:12;");
+
+        javafx.scene.control.ListView<com.projectui.service.GeocodingService.GeocodedLocation> listView = new javafx.scene.control.ListView<>();
+        listView.getItems().addAll(locations);
+        listView.getSelectionModel().select(0);
+        listView.setPrefHeight(180);
+
+        Button confirmBtn = primaryButton("Confirm Selected Location & Save Port");
+        confirmBtn.setMaxWidth(Double.MAX_VALUE);
+        confirmBtn.setOnAction(e -> {
+            com.projectui.service.GeocodingService.GeocodedLocation sel = listView.getSelectionModel()
+                    .getSelectedItem();
+            if (sel != null) {
+                applyGeocodedLocation(sel);
+                modal.close();
+                performPortSaveDirect();
+            }
+        });
+
+        root.getChildren().addAll(title, sub, listView, confirmBtn);
+        Scene scene = new Scene(root, 540, 330);
+        modal.setScene(scene);
+        modal.showAndWait();
+    }
+
+    private void performPortSaveDirect() {
         String nameValue = portName.getText().trim();
         String locationValue = location.getText().trim();
         String berthsValue = berthCount.getText().trim();
         String capacityValue = portCapacity.getText().trim();
         String maintenanceValue = maintenanceInfo.getText().trim();
         String statusValue = status.getValue();
+        String latText = latField.getText().trim();
+        String lngText = lngField.getText().trim();
 
         if (nameValue.isEmpty()) {
-            formSubtitle.setText("⚠️ Please enter a port name.");
-            return;
-        }
-        if (locationValue.isEmpty()) {
-            formSubtitle.setText("⚠️ Please enter a location.");
-            return;
-        }
-        if (berthsValue.isEmpty()) {
-            formSubtitle.setText("⚠️ Please enter number of berths.");
-            return;
-        }
-        if (capacityValue.isEmpty()) {
-            formSubtitle.setText("⚠️ Please enter port capacity.");
-            return;
-        }
-        if (statusValue == null || statusValue.isBlank()) {
-            formSubtitle.setText("⚠️ Please select a status.");
+            formSubtitle.setText("⚠️ Please enter a Port Name.");
             return;
         }
 
-        int berths;
+        int berths = 12;
         try {
-            berths = Integer.parseInt(berthsValue);
-            if (berths <= 0) {
-                formSubtitle.setText("⚠️ Number of berths must be greater than zero.");
-                return;
-            }
-        } catch (NumberFormatException ex) {
-            formSubtitle.setText("⚠️ Number of berths must be numeric.");
-            return;
+            if (!berthsValue.isEmpty())
+                berths = Integer.parseInt(berthsValue);
+        } catch (Exception ignored) {
+        }
+
+        double lat = 0.0;
+        double lng = 0.0;
+        try {
+            if (!latText.isEmpty())
+                lat = Double.parseDouble(latText);
+            if (!lngText.isEmpty())
+                lng = Double.parseDouble(lngText);
+        } catch (Exception ignored) {
+        }
+
+        String pCode = portCodeField.getText().trim();
+        if (pCode.isEmpty()) {
+            String prefix = nameValue.replaceAll("[^A-Za-z]", "").toUpperCase();
+            pCode = "IN-" + (prefix.length() >= 3 ? prefix.substring(0, 3) : "PRT") + "-01";
+            portCodeField.setText(pCode);
+        }
+
+        if (locationValue.isEmpty()) {
+            locationValue = nameValue + ", Maritime Sector";
+            location.setText(locationValue);
         }
 
         if (editingIndex >= 0 && editingIndex < ports.size()) {
             Port old = ports.get(editingIndex);
             old.name = nameValue;
             old.location = locationValue;
+            old.code = pCode;
             old.berths = berths;
-            old.status = statusValue;
-            old.capacity = capacityValue;
+            old.status = statusValue != null ? statusValue : "Operational";
+            old.capacity = capacityValue.isEmpty() ? "85%" : capacityValue;
             old.maintenance = maintenanceValue.isEmpty() ? "Clear" : maintenanceValue;
             old.lastUpdated = now();
+            old.lat = lat;
+            old.lng = lng;
             formSubtitle.setText("✓ Port updated successfully!");
         } else {
-            ports.add(new Port(nameValue, locationValue, berths, 0, statusValue, "Containers", capacityValue, maintenanceValue.isEmpty() ? "Clear" : maintenanceValue, now()));
+            // Check duplicate
+            boolean duplicate = ports.stream().anyMatch(p -> p.name != null && p.name.equalsIgnoreCase(nameValue));
+            if (duplicate) {
+                formSubtitle.setText("⚠️ A port named '" + nameValue + "' already exists in the database.");
+                return;
+            }
+
+            Port newPort = new Port(nameValue, locationValue, pCode, "Port Authority (" + nameValue + ")", berths, 0,
+                    statusValue != null ? statusValue : "Operational", "Containers",
+                    capacityValue.isEmpty() ? "85%" : capacityValue,
+                    maintenanceValue.isEmpty() ? "Clear" : maintenanceValue, now(), lat, lng, "APPROVED");
+            ports.add(newPort);
             editingIndex = ports.size() - 1;
 
-            // Provision Port Authority Account for newly approved port
-            String paEmail = "pa_" + nameValue.toLowerCase().replaceAll("[^a-z0-9]", "") + "@docktech.com";
-            String paPhone = "+91 98" + (int)(Math.random() * 89999999 + 10000000);
+            formSubtitle.setText(
+                    "✓ Port '" + nameValue + "' created at Lat: " + String.format(java.util.Locale.US, "%.4f", lat)
+                            + ", Lng: " + String.format(java.util.Locale.US, "%.4f", lng) + "!");
 
-            userDao.provisionAccount("Admin", "Port Authority (" + nameValue + ")", paEmail, nameValue, paPhone, "Port Authority", "Active")
-                .whenComplete((creds, err) -> javafx.application.Platform.runLater(() -> {
-                    if (creds != null) {
-                        String tempPass = creds.get("tempPassword");
-                        formSubtitle.setText("✓ Port Approved & Port Authority Provisioned!\nLogin ID: " + paEmail + " | Temp Pass: " + tempPass + " | Role: PORT_AUTHORITY | Port: " + nameValue);
-                        
-                        AdminDataStore.getInstance().users.add(0, new AdminDataStore.UserAccount(
-                                "Port Authority (" + nameValue + ")", paEmail, "Port Authority", "Active", "Today", "Just now"
-                        ));
-                    } else {
-                        formSubtitle.setText("✓ New port added successfully!");
-                    }
-                }));
+            String paEmail = "pa_" + nameValue.toLowerCase().replaceAll("[^a-z0-9]", "") + "@docktech.com";
+            String paPhone = "+91 98" + (int) (Math.random() * 89999999 + 10000000);
+            userDao.provisionAccount("Admin", "Port Authority (" + nameValue + ")", paEmail, nameValue, paPhone,
+                    "Port Authority", "Active");
         }
 
+        GeoTileMapCanvas.refreshAllMapInstances();
         refreshTable();
         refreshStats();
-        startEdit(editingIndex);
+        if (editingIndex >= 0 && editingIndex < ports.size()) {
+            startEdit(editingIndex);
+        }
     }
 
     // ==========================================
@@ -618,8 +792,7 @@ public class PortManagementPage extends AdminTheme {
                 summaryTile("✓", "Operational", countOperational(), "#16a34a", "#ecfdf5"),
                 summaryTile("⌁", "Maintenance", countMaintenance(), BLUE, "#eff6ff"),
                 summaryTile("!", "High Congestion", countHighCongestion(), "#ef4444", "#fef2f2"),
-                summaryTile("⊘", "Inactive", countInactive(), "#64748b", "#f8fafc")
-        );
+                summaryTile("⊘", "Inactive", countInactive(), "#64748b", "#f8fafc"));
         tiles.getChildren().forEach(node -> HBox.setHgrow(node, Priority.ALWAYS));
         card.getChildren().addAll(title, tiles);
         return card;
@@ -667,16 +840,19 @@ public class PortManagementPage extends AdminTheme {
                 capacityLegend("Operational Ports", countOperational(), ports.size(), "#16a34a"),
                 capacityLegend("Maintenance Ports", countMaintenance(), ports.size(), BLUE),
                 capacityLegend("High Congestion Ports", countHighCongestion(), ports.size(), "#ef4444"),
-                capacityLegend("Inactive Ports", countInactive(), ports.size(), "#94a3b8")
-        );
+                capacityLegend("Inactive Ports", countInactive(), ports.size(), "#94a3b8"));
         HBox middle = new HBox(16, donut, legend);
         middle.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(legend, Priority.ALWAYS);
 
-        HBox footer = new HBox(12, new Label("▣"), new VBox(2, boldLabel("Total Berths"), mutedLabel(totalOccupiedBerths() + " / " + totalBerths() + " Used")), new Region(), new VBox(2, boldLabel(average + "%"), mutedLabel("Average Usage")));
+        HBox footer = new HBox(12, new Label("▣"),
+                new VBox(2, boldLabel("Total Berths"),
+                        mutedLabel(totalOccupiedBerths() + " / " + totalBerths() + " Used")),
+                new Region(), new VBox(2, boldLabel(average + "%"), mutedLabel("Average Usage")));
         HBox.setHgrow(footer.getChildren().get(2), Priority.ALWAYS);
         footer.setPadding(new Insets(10, 12, 10, 12));
-        footer.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#e5edf6; -fx-border-radius:8; -fx-background-radius:8;");
+        footer.setStyle(
+                "-fx-background-color:#f8fafc; -fx-border-color:#e5edf6; -fx-border-radius:8; -fx-background-radius:8;");
         footer.setAlignment(Pos.CENTER_LEFT);
 
         card.getChildren().addAll(header, middle, footer);
@@ -690,56 +866,73 @@ public class PortManagementPage extends AdminTheme {
 
         Label title = new Label("📋 New Port Requests (Pending Admin Verification)");
         title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:18; -fx-font-weight:bold;");
-        Label subtitle = new Label("Review port establishment proposals submitted by requesters, approve active ports, and provision Port Authority accounts.");
+        Label subtitle = new Label(
+                "Review port establishment proposals submitted by requesters, approve active ports, and provision Port Authority accounts.");
         subtitle.setStyle("-fx-text-fill:#64748b; -fx-font-size:13;");
+
+        Button refreshBtn = new Button("↻ Refresh");
+        refreshBtn.setStyle("-fx-background-color:#f1f5f9; -fx-text-fill:" + BLUE
+                + "; -fx-font-size:12; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:6; -fx-cursor:hand;");
+
+        Region space = new Region();
+        HBox.setHgrow(space, Priority.ALWAYS);
+        HBox headerRow = new HBox(10, new VBox(2, title, subtitle), space, refreshBtn);
+        headerRow.setAlignment(Pos.CENTER_LEFT);
 
         VBox requestsContainer = new VBox(8);
         renderPortRequests(requestsContainer);
 
-        card.getChildren().addAll(new VBox(2, title, subtitle), requestsContainer);
+        refreshBtn.setOnAction(e -> {
+            refreshBtn.setText("⏳ Refreshing...");
+            refreshBtn.setDisable(true);
+
+            renderPortRequests(requestsContainer);
+
+            refreshBtn.setText("↻ Refresh");
+            refreshBtn.setDisable(false);
+        });
+
+        card.getChildren().addAll(headerRow, requestsContainer);
         return card;
     }
 
     private void renderPortRequests(VBox container) {
         container.getChildren().clear();
-        List<AdminDataStore.PortRequest> list = store.portRequests;
 
-        if (list.isEmpty()) {
+        // Filter ONLY PENDING requests for the Pending Admin Verification section
+        List<AdminDataStore.PortRequest> pendingList = store.portRequests.stream()
+                .filter(r -> r.status != null && "PENDING".equalsIgnoreCase(r.status.trim()))
+                .filter(r -> !"APPROVED".equalsIgnoreCase(r.status) && !"REJECTED".equalsIgnoreCase(r.status)
+                        && !"COMPLETED".equalsIgnoreCase(r.status) && !"CANCELLED".equalsIgnoreCase(r.status))
+                .toList();
+
+        if (pendingList.isEmpty()) {
             Label empty = new Label("No new port establishment requests pending.");
             empty.setStyle("-fx-text-fill:#64748b; -fx-font-size:13; -fx-padding:10;");
             container.getChildren().add(empty);
             return;
         }
 
-        for (AdminDataStore.PortRequest req : list) {
+        for (AdminDataStore.PortRequest req : pendingList) {
             HBox row = new HBox(12);
             row.setPadding(new Insets(12, 14, 12, 14));
-            row.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#e2e8f0; -fx-border-radius:8; -fx-background-radius:8;");
+            row.setStyle(
+                    "-fx-background-color:#f8fafc; -fx-border-color:#e2e8f0; -fx-border-radius:8; -fx-background-radius:8;");
             row.setAlignment(Pos.CENTER_LEFT);
 
             VBox info = new VBox(4,
                     boldLabel(req.portName + " (" + req.portCode + ")"),
                     mutedLabel("📍 " + req.location + " • " + req.address),
-                    mutedLabel("👤 Requested By: " + req.requesterName + " (" + req.requesterEmail + ") • Date: " + req.requestDate)
-            );
+                    mutedLabel("👤 Requested By: " + req.requesterName + " (" + req.requesterEmail + ") • Date: "
+                            + req.requestDate));
 
             VBox paInfo = new VBox(4,
                     boldLabel("Proposed Port Authority:"),
-                    mutedLabel(req.proposedPaName + " <" + req.proposedPaEmail + ">")
-            );
-
-            String badgeBg;
-            String badgeFg;
-            if ("APPROVED".equalsIgnoreCase(req.status)) {
-                badgeBg = "#ecfdf5"; badgeFg = "#16a34a";
-            } else if ("REJECTED".equalsIgnoreCase(req.status)) {
-                badgeBg = "#fef2f2"; badgeFg = "#ef4444";
-            } else {
-                badgeBg = "#fff7ed"; badgeFg = "#f97316";
-            }
+                    mutedLabel(req.proposedPaName + " <" + req.proposedPaEmail + ">"));
 
             Label statusBadge = new Label(req.status);
-            statusBadge.setStyle("-fx-background-color:" + badgeBg + "; -fx-text-fill:" + badgeFg + "; -fx-font-size:11; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:12;");
+            statusBadge.setStyle(
+                    "-fx-background-color:#fff7ed; -fx-text-fill:#f97316; -fx-font-size:11; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:12;");
 
             Region space = new Region();
             HBox.setHgrow(space, Priority.ALWAYS);
@@ -747,43 +940,107 @@ public class PortManagementPage extends AdminTheme {
             HBox actions = new HBox(8);
             actions.setAlignment(Pos.CENTER_RIGHT);
 
-            if ("PENDING".equalsIgnoreCase(req.status)) {
-                Button approveBtn = new Button("✓ Approve & Create Port");
-                approveBtn.setStyle("-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-size:12; -fx-font-weight:bold; -fx-padding:6 12; -fx-background-radius:6; -fx-cursor:hand;");
-                approveBtn.setOnAction(e -> {
-                    req.status = "APPROVED";
-                    portRequestDao.updateRequestStatus(req.requestId, "APPROVED", null);
-                    ports.add(new Port(req.portName, req.location, 12, 0, "Operational", "Mixed Cargo, Containers", "100%", "Clear", now()));
-                    
-                    userDao.provisionAccount("Admin", req.proposedPaName, req.proposedPaEmail, req.portName, req.requesterPhone, "Port Authority", "Active")
-                        .whenComplete((creds, err) -> javafx.application.Platform.runLater(() -> {
-                            String tempPass = (creds != null && creds.get("tempPassword") != null) ? creds.get("tempPassword") : "Pass#9821";
-                            
-                            emailService.sendApprovalNotification(
-                                    req.requesterEmail, req.portName, req.portCode, req.requestId,
-                                    req.proposedPaName, req.proposedPaEmail, tempPass
-                            );
+            Button approveBtn = new Button("✓ Approve & Create Port");
+            approveBtn.setStyle(
+                    "-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-size:12; -fx-font-weight:bold; -fx-padding:6 12; -fx-background-radius:6; -fx-cursor:hand;");
 
-                            formSubtitle.setText("✓ Port Approved & Created! Approval Notification Email sent to: " + req.requesterEmail + "\nLogin ID: " + req.proposedPaEmail + " | Temp Pass: " + tempPass);
-                            store.users.add(0, new AdminDataStore.UserAccount(req.proposedPaName, req.proposedPaEmail, "Port Authority", "Active", "Today", "Just now"));
+            Button rejectBtn = new Button("✕ Reject Request");
+            rejectBtn.setStyle(
+                    "-fx-background-color:#ef4444; -fx-text-fill:white; -fx-font-size:12; -fx-font-weight:bold; -fx-padding:6 12; -fx-background-radius:6; -fx-cursor:hand;");
 
-                            refreshTable();
-                            refreshStats();
-                            renderPortRequests(container);
-                        }));
+            approveBtn.setOnAction(e -> {
+                if ("APPROVED".equalsIgnoreCase(req.status)) {
+                    return;
+                }
+                approveBtn.setText("⏳ Approving...");
+                approveBtn.setDisable(true);
+                rejectBtn.setDisable(true);
+
+                // Update database status first (Requirement 1 & 2)
+                portRequestDao.updateRequestStatus(req.requestId, "APPROVED", null).whenComplete((dbSuccess, dbErr) -> {
+                    javafx.application.Platform.runLater(() -> {
+                        if (dbErr != null || Boolean.FALSE.equals(dbSuccess)) {
+                            // On failure: keep request visible and show alert (Requirement 14)
+                            req.status = "PENDING";
+                            approveBtn.setText("✓ Approve & Create Port");
+                            approveBtn.setDisable(false);
+                            rejectBtn.setDisable(false);
+                            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                                    javafx.scene.control.Alert.AlertType.ERROR, "Database Update Failed: "
+                                            + (dbErr != null ? dbErr.getMessage() : "Unknown error"));
+                            alert.showAndWait();
+                            return;
+                        }
+
+                        req.status = "APPROVED";
+
+                        Port existingPort = null;
+                        for (Port p : ports) {
+                            if (p.name.equalsIgnoreCase(req.portName)
+                                    || (p.code != null && p.code.equalsIgnoreCase(req.portCode))) {
+                                existingPort = p;
+                                break;
+                            }
+                        }
+
+                        if (existingPort != null) {
+                            existingPort.approvalStatus = "APPROVED";
+                            existingPort.status = "Operational";
+                            if (req.lat != 0.0 || req.lng != 0.0) {
+                                existingPort.lat = req.lat;
+                                existingPort.lng = req.lng;
+                            }
+                        } else {
+                            ports.add(new Port(req.portName, req.location, req.portCode, req.proposedPaName, 12, 0,
+                                    "Operational", "Mixed Cargo, Containers", "100%", "Clear", now(), req.lat, req.lng,
+                                    "APPROVED"));
+                        }
+
+                        // ONLY AFTER database operation succeeds: refresh table, stats, map, dashboard,
+                        // and pending list
+                        refreshTable();
+                        refreshStats();
+                        GeoTileMapCanvas.refreshAllMapInstances();
+                        DashboardPage.refreshAllDashboards();
+                        renderPortRequests(container);
+
+                        userDao.provisionAccount("Admin", req.proposedPaName, req.proposedPaEmail, req.portName,
+                                req.requesterPhone, "Port Authority", "Active")
+                                .whenComplete((creds, err) -> javafx.application.Platform.runLater(() -> {
+                                    String accId = (creds != null && creds.get("id") != null) ? creds.get("id")
+                                            : "PA-001";
+                                    String tempPass = (creds != null && creds.get("tempPassword") != null)
+                                            ? creds.get("tempPassword")
+                                            : "Pass#9821";
+
+                                    String databaseRequesterEmail = (req.requesterEmail != null && !req.requesterEmail.isBlank()) ? req.requesterEmail.trim() : req.proposedPaEmail;
+                                    System.out.println("[APPROVAL] requesterEmail from database: " + databaseRequesterEmail);
+                                    System.out.println("[APPROVAL] final email recipient: " + databaseRequesterEmail);
+
+                                    emailService.sendApprovalNotification(
+                                            databaseRequesterEmail,
+                                            req.portName,
+                                            req.portCode,
+                                            req.requestId,
+                                            req.proposedPaName,
+                                            accId,
+                                            tempPass);
+
+                                    formSubtitle.setText("✓ Port Approved & Created! Credentials created for: "
+                                            + req.proposedPaEmail + " (ID: " + accId + ")");
+                                    store.users.add(0, new AdminDataStore.UserAccount(req.proposedPaName,
+                                            req.proposedPaEmail, "Port Authority", "Active", "Today", "Just now"));
+
+                                    showPortAuthorityAccountCreatedPopup(req.portName, req.proposedPaName,
+                                            req.proposedPaEmail, accId, tempPass);
+                                }));
+                    });
                 });
+            });
 
-                Button rejectBtn = new Button("✕ Reject Request");
-                rejectBtn.setStyle("-fx-background-color:#ef4444; -fx-text-fill:white; -fx-font-size:12; -fx-font-weight:bold; -fx-padding:6 12; -fx-background-radius:6; -fx-cursor:hand;");
-                rejectBtn.setOnAction(e -> showRejectionDialog(req, container));
+            rejectBtn.setOnAction(e -> showRejectionDialog(req, container));
 
-                actions.getChildren().addAll(approveBtn, rejectBtn);
-            } else {
-                Label done = new Label(req.status + ("REJECTED".equalsIgnoreCase(req.status) && req.rejectionReason != null && !req.rejectionReason.isBlank() ? " (" + req.rejectionReason + ")" : ""));
-                done.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:12; -fx-font-weight:bold;");
-                actions.getChildren().add(done);
-            }
-
+            actions.getChildren().addAll(approveBtn, rejectBtn);
             row.getChildren().addAll(info, paInfo, statusBadge, space, actions);
             container.getChildren().add(row);
         }
@@ -801,21 +1058,27 @@ public class PortManagementPage extends AdminTheme {
         Label title = new Label("Rejection Reason for " + req.portName + " (" + req.requestId + ")");
         title.setStyle("-fx-font-size:16; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
 
-        Label desc = new Label("Please enter the official reason for rejection. This reason will be stored in Firestore and emailed directly to the requester (" + req.requesterEmail + ").");
+        Label desc = new Label(
+                "Please enter the official reason for rejection. This reason will be stored in Firestore and emailed directly to the requester ("
+                        + req.requesterEmail + ").");
         desc.setWrapText(true);
         desc.setStyle("-fx-font-size:13; -fx-text-fill:#64748b;");
 
         TextArea reasonArea = new TextArea();
-        reasonArea.setPromptText("Enter rejection reason (e.g. Incomplete environmental clearance or invalid berth capacity proposal)...");
+        reasonArea.setPromptText(
+                "Enter rejection reason (e.g. Incomplete environmental clearance or invalid berth capacity proposal)...");
         reasonArea.setPrefRowCount(3);
-        reasonArea.setStyle("-fx-font-size:13; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6;");
+        reasonArea
+                .setStyle("-fx-font-size:13; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6;");
 
         Button cancelBtn = new Button("Cancel");
-        cancelBtn.setStyle("-fx-background-color:#f1f5f9; -fx-text-fill:#475569; -fx-font-size:13; -fx-font-weight:bold; -fx-padding:8 16; -fx-background-radius:6; -fx-cursor:hand;");
+        cancelBtn.setStyle(
+                "-fx-background-color:#f1f5f9; -fx-text-fill:#475569; -fx-font-size:13; -fx-font-weight:bold; -fx-padding:8 16; -fx-background-radius:6; -fx-cursor:hand;");
         cancelBtn.setOnAction(e -> dialog.close());
 
         Button confirmBtn = new Button("Confirm Rejection & Send Email");
-        confirmBtn.setStyle("-fx-background-color:#ef4444; -fx-text-fill:white; -fx-font-size:13; -fx-font-weight:bold; -fx-padding:8 16; -fx-background-radius:6; -fx-cursor:hand;");
+        confirmBtn.setStyle(
+                "-fx-background-color:#ef4444; -fx-text-fill:white; -fx-font-size:13; -fx-font-weight:bold; -fx-padding:8 16; -fx-background-radius:6; -fx-cursor:hand;");
         confirmBtn.setOnAction(e -> {
             String reasonText = reasonArea.getText().trim();
             if (reasonText.isEmpty()) {
@@ -828,8 +1091,10 @@ public class PortManagementPage extends AdminTheme {
             portRequestDao.updateRequestStatus(req.requestId, "REJECTED", reasonText);
             emailService.sendRejectionNotification(req.requesterEmail, req.portName, req.requestId, reasonText);
 
-            formSubtitle.setText("✕ Request " + req.requestId + " REJECTED. Notification email sent to: " + req.requesterEmail);
+            formSubtitle.setText(
+                    "✕ Request " + req.requestId + " REJECTED. Notification email sent to: " + req.requesterEmail);
             dialog.close();
+            DashboardPage.refreshAllDashboards();
             renderPortRequests(container);
         });
 
@@ -838,8 +1103,59 @@ public class PortManagementPage extends AdminTheme {
 
         dialogRoot.getChildren().addAll(title, desc, reasonArea, btnRow);
         Scene scene = new Scene(dialogRoot, 460, 260);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(dialog);
         dialog.setScene(scene);
         dialog.show();
+    }
+
+    private void showPortAuthorityAccountCreatedPopup(String portNameStr, String paNameStr, String emailStr,
+            String accountIdStr, String tempPasswordStr) {
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle("Port Authority Account Created");
+        dialog.setHeaderText("Port created and Port Authority account created successfully.");
+
+        javafx.scene.control.ButtonType copyBtn = new javafx.scene.control.ButtonType("Copy Credentials",
+                javafx.scene.control.ButtonBar.ButtonData.LEFT);
+        javafx.scene.control.ButtonType okBtn = new javafx.scene.control.ButtonType("OK",
+                javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(copyBtn, okBtn);
+
+        VBox content = new VBox(12);
+        content.setPadding(new Insets(16));
+        content.setStyle("-fx-background-color:#FFFFFF;");
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Port Name: ").append(portNameStr).append("\n");
+        sb.append("Port Authority Name: ").append(paNameStr).append("\n");
+        sb.append("Email: ").append(emailStr).append("\n");
+        sb.append("Account ID: ").append(accountIdStr).append("\n");
+        sb.append("Temporary Password: ").append(tempPasswordStr);
+
+        Label infoLabel = new Label(sb.toString());
+        infoLabel.setStyle(
+                "-fx-font-family: monospace; -fx-font-size: 13px; -fx-text-fill: #0F172A; -fx-background-color: #F8FAFC; -fx-padding: 12; -fx-border-color: #E2E8F0; -fx-border-radius: 6; -fx-background-radius: 6;");
+
+        Label confirmEmailText = new Label("Account credentials have been sent to the registered email address.");
+        confirmEmailText.setStyle("-fx-font-size: 12px; -fx-text-fill: #16A34A; -fx-font-weight: bold;");
+
+        content.getChildren().addAll(infoLabel, confirmEmailText);
+        dialog.getDialogPane().setContent(content);
+
+        dialog.setResultConverter(btn -> {
+            if (btn == copyBtn) {
+                javafx.scene.input.ClipboardContent clip = new javafx.scene.input.ClipboardContent();
+                clip.putString(sb.toString());
+                javafx.scene.input.Clipboard.getSystemClipboard().setContent(clip);
+
+                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                        javafx.scene.control.Alert.AlertType.INFORMATION, "Credentials copied to clipboard!");
+                alert.showAndWait();
+            }
+            return btn;
+        });
+
+        dialog.showAndWait();
     }
 
     // ==========================================
@@ -855,7 +1171,8 @@ public class PortManagementPage extends AdminTheme {
         cell.setMinHeight(52);
         cell.setAlignment(Pos.CENTER_LEFT);
         cell.setPadding(new Insets(0, 12, 0, 12));
-        cell.setStyle("-fx-background-color:white; -fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0; -fx-cursor:hand;");
+        cell.setStyle(
+                "-fx-background-color:white; -fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0; -fx-cursor:hand;");
         return cell;
     }
 
@@ -889,13 +1206,12 @@ public class PortManagementPage extends AdminTheme {
         Button editBtn = new Button("✎ Edit");
         editBtn.setStyle(
                 "-fx-background-color:#eff6ff;" +
-                "-fx-text-fill:" + BLUE + ";" +
-                "-fx-font-size:13;" +
-                "-fx-font-weight:bold;" +
-                "-fx-padding:4 10;" +
-                "-fx-background-radius:6;" +
-                "-fx-cursor:hand;"
-        );
+                        "-fx-text-fill:" + BLUE + ";" +
+                        "-fx-font-size:13;" +
+                        "-fx-font-weight:bold;" +
+                        "-fx-padding:4 10;" +
+                        "-fx-background-radius:6;" +
+                        "-fx-cursor:hand;");
         editBtn.setOnAction(e -> startEdit(index));
 
         HBox cell = new HBox(editBtn);
@@ -915,7 +1231,8 @@ public class PortManagementPage extends AdminTheme {
         cell.setMinHeight(46);
         cell.setAlignment(Pos.CENTER_LEFT);
         cell.setPadding(new Insets(0, 12, 0, 12));
-        cell.setStyle("-fx-background-color:#f8fafc; -fx-text-fill:#0f172a; -fx-font-size:14; -fx-font-weight:bold; -fx-border-color:#e2e8f0; -fx-border-width:0 0 1 0;");
+        cell.setStyle(
+                "-fx-background-color:#f8fafc; -fx-text-fill:#0f172a; -fx-font-size:14; -fx-font-weight:bold; -fx-border-color:#e2e8f0; -fx-border-width:0 0 1 0;");
         return cell;
     }
 
@@ -926,14 +1243,16 @@ public class PortManagementPage extends AdminTheme {
         cell.setMinHeight(52);
         cell.setAlignment(Pos.CENTER_LEFT);
         cell.setPadding(new Insets(0, 12, 0, 12));
-        cell.setStyle("-fx-background-color:white; -fx-text-fill:#111827; -fx-font-size:14; -fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0;");
+        cell.setStyle(
+                "-fx-background-color:white; -fx-text-fill:#111827; -fx-font-size:14; -fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0;");
         return cell;
     }
 
     private HBox statusBadge(String text) {
         Label badge = new Label(text);
         badge.setPadding(new Insets(4, 10, 4, 10));
-        badge.setStyle("-fx-background-color:" + statusBackground(text) + "; -fx-background-radius:12; -fx-text-fill:" + statusColor(text) + "; -fx-font-size:12; -fx-font-weight:bold;");
+        badge.setStyle("-fx-background-color:" + statusBackground(text) + "; -fx-background-radius:12; -fx-text-fill:"
+                + statusColor(text) + "; -fx-font-size:12; -fx-font-weight:bold;");
 
         HBox cell = new HBox(badge);
         cell.setMaxWidth(Double.MAX_VALUE);
@@ -948,7 +1267,8 @@ public class PortManagementPage extends AdminTheme {
     private VBox summaryTile(String iconText, String title, int value, String color, String bg) {
         Label icon = new Label(iconText);
         icon.setAlignment(Pos.CENTER);
-        icon.setStyle("-fx-background-color:" + bg + "; -fx-text-fill:" + color + "; -fx-font-size:18; -fx-font-weight:bold; -fx-background-radius:8; -fx-min-width:42; -fx-min-height:42;");
+        icon.setStyle("-fx-background-color:" + bg + "; -fx-text-fill:" + color
+                + "; -fx-font-size:18; -fx-font-weight:bold; -fx-background-radius:8; -fx-min-width:42; -fx-min-height:42;");
         Label number = new Label(String.valueOf(value));
         number.setStyle("-fx-text-fill:" + color + "; -fx-font-size:26; -fx-font-weight:800;");
         Label label = new Label(title);
@@ -957,7 +1277,8 @@ public class PortManagementPage extends AdminTheme {
         tile.setAlignment(Pos.CENTER);
         tile.setPadding(new Insets(12, 10, 12, 10));
         tile.setMaxWidth(Double.MAX_VALUE);
-        tile.setStyle("-fx-background-color:" + bg + "; -fx-border-color:" + color + "22; -fx-border-radius:8; -fx-background-radius:8;");
+        tile.setStyle("-fx-background-color:" + bg + "; -fx-border-color:" + color
+                + "22; -fx-border-radius:8; -fx-background-radius:8;");
         return tile;
     }
 
@@ -965,7 +1286,8 @@ public class PortManagementPage extends AdminTheme {
         String color = statusColor(port.status);
         Label icon = new Label("⚓");
         icon.setAlignment(Pos.CENTER);
-        icon.setStyle("-fx-background-color:" + statusBackground(port.status) + "; -fx-text-fill:" + color + "; -fx-font-size:14; -fx-font-weight:bold; -fx-background-radius:999; -fx-min-width:32; -fx-min-height:32;");
+        icon.setStyle("-fx-background-color:" + statusBackground(port.status) + "; -fx-text-fill:" + color
+                + "; -fx-font-size:14; -fx-font-weight:bold; -fx-background-radius:999; -fx-min-width:32; -fx-min-height:32;");
         Label title = new Label(port.name);
         title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:13; -fx-font-weight:bold;");
         Label detail = new Label(alertSummary(port));
@@ -1027,7 +1349,8 @@ public class PortManagementPage extends AdminTheme {
         return label;
     }
 
-    private VBox statBox(String title, String value, String detail, String iconText, String color, String bg, LabelSetter setter) {
+    private VBox statBox(String title, String value, String detail, String iconText, String color, String bg,
+            LabelSetter setter) {
         Label titleLabel = new Label(title);
         titleLabel.setStyle("-fx-text-fill:#0f172a; -fx-font-size:14; -fx-font-weight:bold;");
 
@@ -1040,7 +1363,8 @@ public class PortManagementPage extends AdminTheme {
 
         Label icon = new Label(iconText);
         icon.setAlignment(Pos.CENTER);
-        icon.setStyle("-fx-background-color:" + bg + "; -fx-text-fill:" + color + "; -fx-font-size:22; -fx-font-weight:bold; -fx-background-radius:999; -fx-min-width:52; -fx-min-height:52;");
+        icon.setStyle("-fx-background-color:" + bg + "; -fx-text-fill:" + color
+                + "; -fx-font-size:22; -fx-font-weight:bold; -fx-background-radius:999; -fx-min-width:52; -fx-min-height:52;");
 
         Region space = new Region();
         HBox.setHgrow(space, Priority.ALWAYS);
@@ -1070,26 +1394,29 @@ public class PortManagementPage extends AdminTheme {
     private void styleCustomField(javafx.scene.control.Control f) {
         f.setStyle(
                 "-fx-background-color:#f8fafc;" +
-                "-fx-border-color:#e2e8f0;" +
-                "-fx-border-radius:6;" +
-                "-fx-background-radius:6;" +
-                "-fx-padding:8 12 8 12;" +
-                "-fx-font-size:14;" +
-                "-fx-text-fill:#0f172a;"
-        );
+                        "-fx-border-color:#e2e8f0;" +
+                        "-fx-border-radius:6;" +
+                        "-fx-background-radius:6;" +
+                        "-fx-padding:8 12 8 12;" +
+                        "-fx-font-size:14;" +
+                        "-fx-text-fill:#0f172a;");
     }
 
     private String usageColor(double pct) {
-        if (pct >= 0.85) return "#ef4444";
-        if (pct >= 0.7) return "#f97316";
-        if (pct >= 0.5) return "#0b63ff";
+        if (pct >= 0.85)
+            return "#ef4444";
+        if (pct >= 0.7)
+            return "#f97316";
+        if (pct >= 0.5)
+            return "#0b63ff";
         return "#16a34a";
     }
 
     private int countOperational() {
         int count = 0;
         for (Port port : ports) {
-            if ("Operational".equals(port.status)) count++;
+            if ("Operational".equals(port.status))
+                count++;
         }
         return count;
     }
@@ -1097,7 +1424,8 @@ public class PortManagementPage extends AdminTheme {
     private int countMaintenance() {
         int count = 0;
         for (Port port : ports) {
-            if ("Maintenance".equals(port.status)) count++;
+            if ("Maintenance".equals(port.status))
+                count++;
         }
         return count;
     }
@@ -1105,7 +1433,9 @@ public class PortManagementPage extends AdminTheme {
     private int countHighCongestion() {
         int count = 0;
         for (Port port : ports) {
-            if ("High Congestion".equals(port.status) || "Busy".equals(port.status) || port.vessels >= port.berths * 0.85) count++;
+            if ("High Congestion".equals(port.status) || "Busy".equals(port.status)
+                    || port.vessels >= port.berths * 0.85)
+                count++;
         }
         return count;
     }
@@ -1113,34 +1443,42 @@ public class PortManagementPage extends AdminTheme {
     private int countInactive() {
         int count = 0;
         for (Port port : ports) {
-            if ("Closed".equals(port.status) || "Restricted".equals(port.status) || "Inactive".equals(port.status) || "Deactivated".equals(port.status)) count++;
+            if ("Closed".equals(port.status) || "Restricted".equals(port.status) || "Inactive".equals(port.status)
+                    || "Deactivated".equals(port.status))
+                count++;
         }
         return count;
     }
 
     private int totalBerths() {
         int total = 0;
-        for (Port port : ports) total += port.berths;
+        for (Port port : ports)
+            total += port.berths;
         return total;
     }
 
     private int totalOccupiedBerths() {
         int total = 0;
-        for (Port port : ports) total += port.occupiedBerths();
+        for (Port port : ports)
+            total += port.occupiedBerths();
         return total;
     }
 
     private int averageCapacity() {
-        if (ports.isEmpty()) return 0;
+        if (ports.isEmpty())
+            return 0;
         int total = 0;
-        for (Port port : ports) total += capacityPercent(port.capacity);
+        for (Port port : ports)
+            total += capacityPercent(port.capacity);
         return Math.round(total / (float) ports.size());
     }
 
     private int capacityPercent(String value) {
-        if (value == null) return 0;
+        if (value == null)
+            return 0;
         String digits = value.replaceAll("[^0-9]", "");
-        if (digits.isBlank()) return 0;
+        if (digits.isBlank())
+            return 0;
         try {
             return Math.max(0, Math.min(100, Integer.parseInt(digits)));
         } catch (NumberFormatException ex) {
@@ -1149,20 +1487,25 @@ public class PortManagementPage extends AdminTheme {
     }
 
     private String lastUpdatedShort(String value) {
-        if (value == null || value.isBlank()) return "Now";
+        if (value == null || value.isBlank())
+            return "Now";
         int comma = value.indexOf(',');
         return comma >= 0 && comma + 2 < value.length() ? value.substring(comma + 2) : value;
     }
 
     private String alertSummary(Port port) {
-        if (!"Clear".equalsIgnoreCase(port.maintenance)) return port.maintenance;
-        if (port.vessels >= port.berths * 0.85) return "High congestion";
-        if ("Busy".equals(port.status)) return "Traffic watch";
+        if (!"Clear".equalsIgnoreCase(port.maintenance))
+            return port.maintenance;
+        if (port.vessels >= port.berths * 0.85)
+            return "High congestion";
+        if ("Busy".equals(port.status))
+            return "Traffic watch";
         return "No active alerts";
     }
 
     private boolean matches(Port port, String query) {
-        String selectedStatus = statusFilter == null || statusFilter.getValue() == null ? "All Status" : statusFilter.getValue();
+        String selectedStatus = statusFilter == null || statusFilter.getValue() == null ? "All Status"
+                : statusFilter.getValue();
         boolean statusMatches = "All Status".equals(selectedStatus) || selectedStatus.equals(port.status);
         boolean queryMatches = query.isEmpty()
                 || port.name.toLowerCase().contains(query)
@@ -1174,20 +1517,30 @@ public class PortManagementPage extends AdminTheme {
     }
 
     private String statusColor(String value) {
-        if ("Operational".equals(value)) return "#16a34a";
-        if ("High Congestion".equals(value) || "Busy".equals(value)) return "#ef4444";
-        if ("Available".equals(value)) return "#16a34a";
-        if ("Maintenance".equals(value)) return BLUE;
-        if ("Occupied".equals(value)) return "#d97706";
-        if ("Restricted".equals(value) || "Closed".equals(value)) return "#64748b";
+        if ("Operational".equals(value))
+            return "#16a34a";
+        if ("High Congestion".equals(value) || "Busy".equals(value))
+            return "#ef4444";
+        if ("Available".equals(value))
+            return "#16a34a";
+        if ("Maintenance".equals(value))
+            return BLUE;
+        if ("Occupied".equals(value))
+            return "#d97706";
+        if ("Restricted".equals(value) || "Closed".equals(value))
+            return "#64748b";
         return "#d97706";
     }
 
     private String statusBackground(String value) {
-        if ("Operational".equals(value)) return "#ecfdf5";
-        if ("High Congestion".equals(value) || "Busy".equals(value)) return "#fee2e2";
-        if ("Maintenance".equals(value)) return "#eff6ff";
-        if ("Restricted".equals(value) || "Closed".equals(value)) return "#f1f5f9";
+        if ("Operational".equals(value))
+            return "#ecfdf5";
+        if ("High Congestion".equals(value) || "Busy".equals(value))
+            return "#fee2e2";
+        if ("Maintenance".equals(value))
+            return "#eff6ff";
+        if ("Restricted".equals(value) || "Closed".equals(value))
+            return "#f1f5f9";
         return "#fff7ed";
     }
 

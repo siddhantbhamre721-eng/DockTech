@@ -223,7 +223,9 @@ public class ViewAssignedShip {
             voyage
         );
 
-        return new Scene(main,1060,760);
+        Scene scene = new Scene(main,1060,760);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
+        return scene;
     }
 
     // ================= ROW =================

@@ -11,20 +11,17 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
 import javafx.stage.Modality;
 import javafx.stage.Popup;
 import javafx.stage.Stage;
 import javafx.stage.Window;
-import javafx.animation.FadeTransition;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.util.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
+@SuppressWarnings("unused")
 public class DashboardLayoutHelper {
 
     private static final String BLUE = "#0b63ff";
@@ -197,7 +194,8 @@ public class DashboardLayoutHelper {
             logoutBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#ef4444; -fx-font-size:14; -fx-alignment:center-left; -fx-padding:8 6; -fx-cursor:hand; -fx-font-weight:bold;");
             logoutBtn.setOnAction(ae -> {
                 popup.hide();
-                finalLogoutAction.run();
+                Window ownerWin = profile.getScene() == null ? null : profile.getScene().getWindow();
+                LogoutModal.show(ownerWin, finalLogoutAction);
             });
 
             box.getChildren().addAll(headerBox, viewProfile, sep, logoutBtn);
@@ -310,6 +308,8 @@ public class DashboardLayoutHelper {
         root.getChildren().addAll(modalHeader, profileBanner, infoGrid, closeBtn);
 
         Scene scene = new Scene(root, 440, 600);
+        LoginPage.applyInvisibleScrollbar(scene);
+        LoginPage.applyInvisibleScrollbar(popup);
         popup.setScene(scene);
 
         if (owner != null) {

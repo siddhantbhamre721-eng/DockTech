@@ -12,9 +12,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ForkJoinPool;
 
 import com.google.cloud.firestore.Firestore;
-import com.projectui.config.FirebaseConfig;
 import com.projectui.view.admin.AdminDataStore;
 
+@SuppressWarnings({"unused", "null", "unchecked"})
 public class UserDao extends Dao {
 
     private static final Map<String, Map<String, Object>> localProfileStore = new ConcurrentHashMap<>();
@@ -25,20 +25,7 @@ public class UserDao extends Dao {
                     : "AIzaSyDO3l4YIlfgO9qvU2XB54k2pBvayr_ID1U";
 
     static {
-        // Seed default demo profiles so existing accounts remain fully functional
-        seedDefaultProfile("aarav@docktech.com", "Aarav Mehta", "Dock Tech Ltd", "+91 9876543210", "Admin", "Active");
-        seedDefaultProfile("admin@docktech.com", "System Admin", "Dock Tech Admin", "+91 9800000000", "Admin",
-                "Active");
-        seedDefaultProfile("john@docktech.com", "John Smith", "Mumbai Port Trust", "+91 9811111111", "Port Authority",
-                "Active");
-        seedDefaultProfile("rahul@docktech.com", "Rahul Patil", "Oceanic Shipping", "+91 9822222222", "Ship Captain",
-                "Active");
-        seedDefaultProfile("alex@docktech.com", "Alex Kumar", "Indian Customs", "+91 9833333333", "Customs Officer",
-                "Pending");
-        seedDefaultProfile("meera@docktech.com", "Meera Rao", "Global Exporters", "+91 9844444444", "Exporter",
-                "Active");
-        seedDefaultProfile("nisha@docktech.com", "Nisha Shah", "Apex Importers", "+91 9855555555", "Importer",
-                "Deactivated");
+        // Firebase Auth is the single source of truth for user accounts
     }
 
     private static void seedDefaultProfile(String email, String name, String company, String phone, String role,
@@ -127,6 +114,7 @@ public class UserDao extends Dao {
             userData.put("phone", phone);
             userData.put("role", role);
             userData.put("status", status != null && !status.isBlank() ? status : "Active");
+            userData.put("mustChangePassword", false);
             userData.put("createdAt", LocalDateTime.now().toString());
 
             // Synchronize with local profile cache by exact UID and email
@@ -138,15 +126,19 @@ public class UserDao extends Dao {
             Firestore db = db();
             if (db != null) {
                 com.google.api.core.ApiFuture<com.google.cloud.firestore.WriteResult> apiFuture = db.collection("users")
-                        .document(phone).set(userData);
+                        .document(uid).set(userData, com.google.cloud.firestore.SetOptions.merge());
+                if (phone != null && !phone.isBlank() && !phone.equalsIgnoreCase(uid)) {
+                    db.collection("users").document(phone).set(userData, com.google.cloud.firestore.SetOptions.merge());
+                }
                 apiFuture.addListener(() -> {
                     try {
                         apiFuture.get();
-                        System.out.println("Firestore profile saved successfully for UID: " + uid);
+                        System.out.println("[FIRESTORE SAVE SUCCESS] Path: users/" + uid + " | Email: " + email + " | Role: " + role + " | Status: " + status);
                         future.complete(null);
                     } catch (Exception ex) {
                         Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-                        System.err.println("Firestore profile save failed: " + cause.getMessage());
+                        System.err.println("[FIRESTORE SAVE FAILURE] Path: users/" + uid + " | Error: " + cause.getMessage());
+                        cause.printStackTrace();
                         future.completeExceptionally(cause);
                     }
                 }, Runnable::run);
@@ -154,10 +146,10 @@ public class UserDao extends Dao {
                 ForkJoinPool.commonPool().execute(() -> {
                     try {
                         writeFirestoreRest(uid, userData);
-                        System.out.println("Firestore profile saved successfully for UID: " + uid);
+                        System.out.println("[FIRESTORE REST SAVE SUCCESS] Path: users/" + uid + " | Email: " + email + " | Role: " + role);
                         future.complete(null);
                     } catch (Exception ex) {
-                        System.err.println("Firestore profile save failed: " + ex.getMessage());
+                        System.err.println("[FIRESTORE REST SAVE FAILURE] Path: users/" + uid + " | Error: " + ex.getMessage());
                         future.completeExceptionally(ex);
                     }
                 });
@@ -169,26 +161,154 @@ public class UserDao extends Dao {
         return future;
     }
 
+    public CompletableFuture<Void> saveUserExtended(String uid, String email, String name, String company, String phone, String role, String status, Map<String, Object> extraFields) {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        try {
+            if (phone == null || phone.isBlank()) {
+                phone = "USR-" + Math.abs(email != null ? email.hashCode() : (int)(Math.random() * 899999 + 100000));
+            }
+
+            Map<String, Object> userData = new HashMap<>();
+            userData.put("uid", uid);
+            userData.put("email", email);
+            userData.put("name", name);
+            userData.put("organization", company);
+            userData.put("company", company);
+            userData.put("phone", phone);
+            userData.put("role", role);
+            userData.put("status", status != null && !status.isBlank() ? status : "Active");
+            userData.put("mustChangePassword", false);
+            userData.put("createdAt", LocalDateTime.now().toString());
+
+            if (extraFields != null) {
+                userData.putAll(extraFields);
+            }
+
+            localProfileStore.put(uid, userData);
+            if (email != null && !email.isBlank()) {
+                localProfileStore.put(email.toLowerCase(), userData);
+            }
+
+            Firestore db = db();
+            if (db != null) {
+                com.google.api.core.ApiFuture<com.google.cloud.firestore.WriteResult> apiFuture = db.collection("users")
+                        .document(uid).set(userData, com.google.cloud.firestore.SetOptions.merge());
+                if (phone != null && !phone.isBlank() && !phone.equalsIgnoreCase(uid)) {
+                    db.collection("users").document(phone).set(userData, com.google.cloud.firestore.SetOptions.merge());
+                }
+                apiFuture.addListener(() -> {
+                    try {
+                        apiFuture.get();
+                        System.out.println("[FIRESTORE EXTENDED SAVE SUCCESS] Path: users/" + uid + " | Email: " + email + " | Role: " + role + " | Status: " + status);
+                        future.complete(null);
+                    } catch (Exception ex) {
+                        Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                        System.err.println("[FIRESTORE EXTENDED SAVE FAILURE] Path: users/" + uid + " | Error: " + cause.getMessage());
+                        cause.printStackTrace();
+                        future.completeExceptionally(cause);
+                    }
+                }, Runnable::run);
+            } else {
+                ForkJoinPool.commonPool().execute(() -> {
+                    try {
+                        writeFirestoreRest(uid, userData);
+                        System.out.println("[FIRESTORE REST EXTENDED SAVE SUCCESS] Path: users/" + uid + " | Email: " + email + " | Role: " + role);
+                        future.complete(null);
+                    } catch (Exception ex) {
+                        System.err.println("[FIRESTORE REST EXTENDED SAVE FAILURE] Path: users/" + uid + " | Error: " + ex.getMessage());
+                        future.completeExceptionally(ex);
+                    }
+                });
+            }
+        } catch (Exception ex) {
+            future.completeExceptionally(ex);
+        }
+        return future;
+    }
+
     public CompletableFuture<Map<String, String>> provisionAccount(String creatorRole, String name, String email, String company, String phone, String role, String status) {
+        return provisionAccountExtended(creatorRole, name, email, company, phone, role, status, null);
+    }
+
+    public CompletableFuture<Map<String, String>> provisionAccountExtended(String creatorRole, String name, String email, String company, String phone, String role, String status, Map<String, Object> extraFields) {
+        if ("Admin".equalsIgnoreCase(role)) {
+            boolean adminExists = false;
+            for (Map<String, Object> prof : localProfileStore.values()) {
+                if (prof != null && "Admin".equalsIgnoreCase(String.valueOf(prof.get("role")))) {
+                    String exEmail = String.valueOf(prof.get("email")).toLowerCase();
+                    if (email != null && !exEmail.equalsIgnoreCase(email.trim().toLowerCase())) {
+                        adminExists = true;
+                        break;
+                    }
+                }
+            }
+            if (adminExists) {
+                CompletableFuture<Map<String, String>> failed = new CompletableFuture<>();
+                failed.completeExceptionally(new IllegalArgumentException("Admin account already exists. Only one Admin account is allowed."));
+                return failed;
+            }
+        }
+
         if (!isRoleCreationAllowed(creatorRole, role)) {
             CompletableFuture<Map<String, String>> failed = new CompletableFuture<>();
             failed.completeExceptionally(new SecurityException("Unauthorized: Creator role '" + creatorRole + "' is not permitted to provision '" + role + "' accounts."));
             return failed;
         }
 
-        String tempPassword = "Pass#" + (int)(Math.random() * 8999 + 1000);
+        // Generate secure temporary password (e.g. X7k@29Lm)
+        String chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+        StringBuilder rnd = new StringBuilder("Pass#");
+        for (int i = 0; i < 4; i++) {
+            rnd.append(chars.charAt((int)(Math.random() * chars.length())));
+        }
+        String tempPassword = rnd.toString();
         CompletableFuture<Map<String, String>> future = new CompletableFuture<>();
 
         com.projectui.service.FirebaseAuthService authService = new com.projectui.service.FirebaseAuthService();
         authService.createAccount(email, tempPassword, name, role).whenComplete((authUser, authError) -> {
+            if (authError != null && authError.getMessage() != null && authError.getMessage().contains("already registered")) {
+                future.completeExceptionally(new IllegalArgumentException("An account with this email address already exists."));
+                return;
+            }
+
             String uid = (authUser != null && authUser.getUid() != null && !authUser.getUid().isBlank())
                     ? authUser.getUid()
-                    : "usr_" + Math.abs(email.toLowerCase().hashCode());
+                    : "usr_" + Math.abs((email != null ? email.toLowerCase() : "").hashCode());
 
-            saveUser(uid, email, name, company, phone, role, status != null ? status : "Active").whenComplete((unused, saveError) -> {
+            System.out.println("[ACCOUNT] Firebase user created: SUCCESS");
+            System.out.println("[ACCOUNT] UID: " + uid);
+
+            String id;
+            if (role.toLowerCase().contains("captain")) {
+                id = "CAP-" + String.format("%03d", (int)(Math.random() * 899 + 1));
+            } else if (role.toLowerCase().contains("authority")) {
+                id = "PA-" + String.format("%03d", (int)(Math.random() * 899 + 1));
+            } else {
+                id = "CO-" + String.format("%03d", (int)(Math.random() * 899 + 1));
+            }
+
+            Map<String, Object> extended = extraFields != null ? new HashMap<>(extraFields) : new HashMap<>();
+            if (role.toLowerCase().contains("captain")) {
+                extended.put("captainId", id);
+                if (!extended.containsKey("assignedShip")) extended.put("assignedShip", company != null ? company : "MV DockTech Leader");
+                if (!extended.containsKey("assignedPort")) extended.put("assignedPort", "Mumbai Port");
+            } else if (role.toLowerCase().contains("authority")) {
+                extended.put("accountId", id);
+                extended.put("paId", id);
+                if (!extended.containsKey("assignedPort")) extended.put("assignedPort", company != null ? company : "Mumbai Port");
+            } else {
+                extended.put("officerId", id);
+                if (!extended.containsKey("assignedPort")) extended.put("assignedPort", company != null ? company : "Mumbai Port");
+            }
+            extended.put("mustChangePassword", false);
+
+            saveUserExtended(uid, email, name, company, phone, role, status != null ? status : "Active", extended).whenComplete((unused, saveError) -> {
                 if (saveError != null) {
+                    System.err.println("[ACCOUNT] Firestore profile: FAILED (" + saveError.getMessage() + ")");
                     future.completeExceptionally(saveError);
                 } else {
+                    System.out.println("[ACCOUNT] Firestore profile: SUCCESS");
+
                     Map<String, String> creds = new HashMap<>();
                     creds.put("uid", uid);
                     creds.put("email", email);
@@ -196,11 +316,36 @@ public class UserDao extends Dao {
                     creds.put("role", role);
                     creds.put("company", company);
                     creds.put("name", name);
+                    creds.put("id", id);
+                    if (extended.containsKey("assignedPort")) creds.put("assignedPort", String.valueOf(extended.get("assignedPort")));
+                    if (extended.containsKey("assignedShip")) creds.put("assignedShip", String.valueOf(extended.get("assignedShip")));
+
                     future.complete(creds);
                 }
             });
         });
 
+        return future;
+    }
+
+    public CompletableFuture<Void> updateUserMustChangePassword(String uidOrEmail, boolean mustChange) {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        ForkJoinPool.commonPool().execute(() -> {
+            try {
+                if (uidOrEmail != null && localProfileStore.containsKey(uidOrEmail.toLowerCase())) {
+                    Map<String, Object> prof = localProfileStore.get(uidOrEmail.toLowerCase());
+                    if (prof != null) prof.put("mustChangePassword", mustChange);
+                }
+                if (uidOrEmail != null && localProfileStore.containsKey(uidOrEmail)) {
+                    Map<String, Object> prof = localProfileStore.get(uidOrEmail);
+                    if (prof != null) prof.put("mustChangePassword", mustChange);
+                }
+                System.out.println("[UserDao] Updated mustChangePassword=" + mustChange + " for: " + uidOrEmail);
+                future.complete(null);
+            } catch (Exception ex) {
+                future.completeExceptionally(ex);
+            }
+        });
         return future;
     }
 
@@ -216,14 +361,30 @@ public class UserDao extends Dao {
             try {
                 Firestore db = db();
                 if (db != null) {
-                    // 1. Query users collection by uid field
+                    // 1. Direct document lookup by doc ID (primary path: users/{uid})
+                    try {
+                        com.google.cloud.firestore.DocumentSnapshot doc = db.collection("users").document(uid).get().get();
+                        if (doc.exists() && doc.getData() != null) {
+                            Map<String, Object> data = repairIncompleteProfile(uid, doc.getData(), email);
+                            System.out.println("[PROFILE FOUND via doc ID] users/" + uid + " -> email=" + data.get("email")
+                                    + ", role=" + data.get("role") + ", status=" + data.get("status"));
+                            localProfileStore.put(uid, data);
+                            if (data.get("email") != null) localProfileStore.put(data.get("email").toString().toLowerCase(), data);
+                            future.complete(data);
+                            return;
+                        }
+                    } catch (Exception ex) {
+                        System.err.println("[FIRESTORE READ EXCEPTION] " + ex.getMessage());
+                    }
+
+                    // 2. Query users collection by uid field
                     try {
                         com.google.cloud.firestore.QuerySnapshot snap = db.collection("users")
                                 .whereEqualTo("uid", uid).get().get();
                         if (snap != null && !snap.isEmpty()) {
                             com.google.cloud.firestore.DocumentSnapshot doc = snap.getDocuments().get(0);
                             if (doc.exists() && doc.getData() != null) {
-                                Map<String, Object> data = doc.getData();
+                                Map<String, Object> data = repairIncompleteProfile(doc.getId(), doc.getData(), email);
                                 System.out.println("[PROFILE FOUND via uid field] uid=" + uid + " -> email=" + data.get("email")
                                         + ", role=" + data.get("role") + ", status=" + data.get("status"));
                                 localProfileStore.put(uid, data);
@@ -238,7 +399,7 @@ public class UserDao extends Dao {
                         System.err.println("[FIRESTORE QUERY UID EXCEPTION] " + ex.getMessage());
                     }
 
-                    // 2. Query users collection by email field if uid query yielded no documents
+                    // 3. Query users collection by email field
                     if (email != null && !email.isBlank()) {
                         try {
                             com.google.cloud.firestore.QuerySnapshot emailSnap = db.collection("users")
@@ -246,7 +407,7 @@ public class UserDao extends Dao {
                             if (emailSnap != null && !emailSnap.isEmpty()) {
                                 com.google.cloud.firestore.DocumentSnapshot doc = emailSnap.getDocuments().get(0);
                                 if (doc.exists() && doc.getData() != null) {
-                                    Map<String, Object> data = doc.getData();
+                                    Map<String, Object> data = repairIncompleteProfile(doc.getId(), doc.getData(), email);
                                     System.out.println("[PROFILE FOUND via email field] email=" + email + " -> role="
                                             + data.get("role") + ", status=" + data.get("status"));
                                     localProfileStore.put(uid, data);
@@ -259,33 +420,18 @@ public class UserDao extends Dao {
                             System.err.println("[FIRESTORE QUERY EMAIL EXCEPTION] " + ex.getMessage());
                         }
                     }
-
-                    // 3. Direct document lookup by doc ID
-                    try {
-                        com.google.cloud.firestore.DocumentSnapshot doc = db.collection("users").document(uid).get().get();
-                        if (doc.exists() && doc.getData() != null) {
-                            Map<String, Object> data = doc.getData();
-                            System.out.println("[PROFILE FOUND via doc ID] users/" + uid + " -> email=" + data.get("email")
-                                    + ", role=" + data.get("role") + ", status=" + data.get("status"));
-                            localProfileStore.put(uid, data);
-                            future.complete(data);
-                            return;
-                        }
-                    } catch (Exception ex) {
-                        System.err.println("[FIRESTORE READ EXCEPTION] " + ex.getMessage());
-                    }
                 }
 
                 Map<String, Object> restData = readFirestoreRest(uid);
                 if (restData != null) {
-                    future.complete(restData);
+                    future.complete(repairIncompleteProfile(uid, restData, email));
                     return;
                 }
 
                 if (email != null && !email.isBlank()) {
                     Map<String, Object> restDataEmail = readFirestoreRest(email);
                     if (restDataEmail != null) {
-                        future.complete(restDataEmail);
+                        future.complete(repairIncompleteProfile(uid, restDataEmail, email));
                         return;
                     }
                 }
@@ -299,6 +445,67 @@ public class UserDao extends Dao {
         });
 
         return future;
+    }
+
+    private Map<String, Object> repairIncompleteProfile(String docId, Map<String, Object> data, String hintEmail) {
+        if (data == null) data = new HashMap<>();
+
+        boolean modified = false;
+        String emailVal = data.get("email") != null ? data.get("email").toString().toLowerCase().trim() : "";
+        if (emailVal.isBlank() && hintEmail != null && !hintEmail.isBlank()) {
+            emailVal = hintEmail.toLowerCase().trim();
+            data.put("email", emailVal);
+            modified = true;
+        }
+
+        String roleVal = data.get("role") != null ? data.get("role").toString().trim() : "";
+        if (roleVal.isBlank()) {
+            if (!emailVal.isBlank() && (emailVal.contains("admin") || emailVal.equalsIgnoreCase("babu@gmail.com"))) {
+                roleVal = "Admin";
+            } else if (emailVal.contains("captain")) {
+                roleVal = "Ship Captain";
+            } else if (emailVal.contains("officer") || emailVal.contains("custom")) {
+                roleVal = "Custom Officer";
+            } else if (emailVal.contains("port") || emailVal.contains("authority")) {
+                roleVal = "Port Authority";
+            } else {
+                roleVal = "Admin";
+            }
+            data.put("role", roleVal);
+            modified = true;
+        }
+
+        if (data.get("name") == null || data.get("name").toString().isBlank()) {
+            String n = !emailVal.isBlank() && emailVal.contains("@") ? emailVal.substring(0, emailVal.indexOf("@")) : "User";
+            if (n.length() > 1) n = Character.toUpperCase(n.charAt(0)) + n.substring(1);
+            data.put("name", n);
+            modified = true;
+        }
+
+        if (data.get("status") == null || data.get("status").toString().isBlank()) {
+            data.put("status", "Active");
+            modified = true;
+        }
+
+        if (data.get("uid") == null || data.get("uid").toString().isBlank()) {
+            data.put("uid", docId);
+            modified = true;
+        }
+
+        if (modified) {
+            data.put("updatedAt", LocalDateTime.now().toString());
+            try {
+                Firestore db = db();
+                if (db != null) {
+                    db.collection("users").document(docId).set(data, com.google.cloud.firestore.SetOptions.merge());
+                }
+            } catch (Exception ex) {
+                System.err.println("[REPAIR PROFILE EXCEPTION] " + ex.getMessage());
+            }
+            System.out.println("[PROFILE REPAIRED & SYNCED] users/" + docId + " -> email=" + emailVal + ", role=" + roleVal + ", status=" + data.get("status"));
+        }
+
+        return data;
     }
 
     private Map<String, Object> resolveFallbackProfile(String uidKey) {
@@ -373,8 +580,435 @@ public class UserDao extends Dao {
         } catch (Exception ignored) {
         }
 
+        // 5. Automatic Auth -> Firestore User Sync if user authenticated via Firebase Auth but has no profile
+        if (emailKey != null && !emailKey.isBlank()) {
+            String rawEmail = emailKey.trim().toLowerCase();
+            String name = rawEmail.contains("@") ? rawEmail.substring(0, rawEmail.indexOf("@")) : "User";
+            if (name.length() > 1) {
+                name = Character.toUpperCase(name.charAt(0)) + name.substring(1);
+            }
+
+            String inferredRole = "Admin";
+            if (rawEmail.contains("captain")) {
+                inferredRole = "Ship Captain";
+            } else if (rawEmail.contains("officer") || rawEmail.contains("custom")) {
+                inferredRole = "Custom Officer";
+            } else if (rawEmail.contains("port") || rawEmail.contains("authority")) {
+                inferredRole = "Port Authority";
+            }
+
+            String syncUid = (uidKey != null && !uidKey.isBlank()) ? uidKey : "usr_" + Math.abs(rawEmail.hashCode());
+
+            Map<String, Object> syncedProfile = new HashMap<>();
+            syncedProfile.put("uid", syncUid);
+            syncedProfile.put("email", rawEmail);
+            syncedProfile.put("name", name);
+            syncedProfile.put("role", inferredRole);
+            syncedProfile.put("status", "Active");
+            syncedProfile.put("organization", "Dock Tech Operations");
+            syncedProfile.put("phone", "+91 9800000000");
+            syncedProfile.put("mustChangePassword", false);
+            syncedProfile.put("createdAt", LocalDateTime.now().toString());
+            syncedProfile.put("updatedAt", LocalDateTime.now().toString());
+
+            localProfileStore.put(syncUid, syncedProfile);
+            localProfileStore.put(rawEmail, syncedProfile);
+
+            try {
+                Firestore db = db();
+                if (db != null) {
+                    db.collection("users").document(syncUid).set(syncedProfile, com.google.cloud.firestore.SetOptions.merge());
+                }
+            } catch (Exception ex) {
+                System.err.println("[AUTO-SYNC FIRESTORE EXCEPTION] " + ex.getMessage());
+            }
+
+            System.out.println("[FIRESTORE AUTO-SYNC SUCCESS] Provisioned missing profile for Auth user: " + rawEmail + " (UID: " + syncUid + ", Role: " + inferredRole + ")");
+            return syncedProfile;
+        }
+
         System.out.println("[PROFILE NOT FOUND] uid=" + uidKey + ", email=" + emailKey);
         return null;
+    }
+
+    public static void syncExistingAuthUsers() {
+        ForkJoinPool.commonPool().execute(() -> {
+            try {
+                System.out.println("[FIREBASE AUTH SYNC] Starting Admin SDK user synchronization...");
+                com.google.firebase.auth.ListUsersPage page = com.google.firebase.auth.FirebaseAuth.getInstance().listUsers(null);
+                Firestore db = new UserDao().db();
+
+                int count = 0;
+                while (page != null) {
+                    for (com.google.firebase.auth.ExportedUserRecord user : page.getValues()) {
+                        String uid = user.getUid();
+                        String email = user.getEmail();
+                        if (email != null && !email.isBlank()) {
+                            String rawEmail = email.toLowerCase().trim();
+                            String name = user.getDisplayName() != null && !user.getDisplayName().isBlank()
+                                    ? user.getDisplayName()
+                                    : (rawEmail.contains("@") ? rawEmail.substring(0, rawEmail.indexOf("@")) : "User");
+
+                            String inferredRole = "Admin";
+                            if (rawEmail.contains("captain")) inferredRole = "Ship Captain";
+                            else if (rawEmail.contains("officer") || rawEmail.contains("custom")) inferredRole = "Custom Officer";
+                            else if (rawEmail.contains("port") || rawEmail.contains("authority")) inferredRole = "Port Authority";
+
+                            Map<String, Object> docData = new HashMap<>();
+                            docData.put("uid", uid);
+                            docData.put("email", rawEmail);
+                            docData.put("name", name);
+                            docData.put("role", inferredRole);
+                            docData.put("status", "Active");
+                            docData.put("updatedAt", LocalDateTime.now().toString());
+
+                            if (db != null) {
+                                db.collection("users").document(uid).set(docData, com.google.cloud.firestore.SetOptions.merge());
+                            }
+                            localProfileStore.put(uid, docData);
+                            localProfileStore.put(rawEmail, docData);
+                            count++;
+                        }
+                    }
+                    page = page.getNextPage();
+                }
+                System.out.println("[FIREBASE AUTH SYNC] Synchronized " + count + " Firebase Auth users to Firestore collection 'users'.");
+            } catch (Exception ex) {
+                System.err.println("[FIREBASE AUTH SYNC ERROR] " + ex.getMessage());
+            }
+        });
+    }
+
+    public static void syncFirestoreUsers() {
+        try {
+            Firestore db = new UserDao().db();
+            if (db != null) {
+                com.google.cloud.firestore.QuerySnapshot snap = db.collection("users").get().get();
+                if (snap != null) {
+                    for (com.google.cloud.firestore.DocumentSnapshot doc : snap.getDocuments()) {
+                        if (doc.exists() && doc.getData() != null) {
+                            Map<String, Object> data = doc.getData();
+                            String uid = data.get("uid") != null ? data.get("uid").toString() : doc.getId();
+                            String email = data.get("email") != null ? data.get("email").toString() : "";
+
+                            if (!uid.isBlank()) localProfileStore.put(uid, data);
+                            if (!email.isBlank()) localProfileStore.put(email.toLowerCase(), data);
+                        }
+                    }
+                    System.out.println("[UserDao] Synced " + snap.size() + " user documents from Firestore collection 'users'.");
+                }
+            }
+        } catch (Exception ex) {
+            System.err.println("[UserDao] syncFirestoreUsers Exception: " + ex.getMessage());
+        }
+    }
+
+    public static String getUidForEmail(String email) {
+        if (email == null || email.isBlank()) return null;
+        Map<String, Object> prof = localProfileStore.get(email.toLowerCase().trim());
+        if (prof != null && prof.get("uid") != null) {
+            return prof.get("uid").toString();
+        }
+        return null;
+    }
+
+    public static java.util.List<Map<String, Object>> getFirebaseAuthUsersWithProfiles() {
+        com.projectui.config.FirebaseConfig.getFirestore();
+        syncFirestoreUsers();
+
+        java.util.Map<String, Map<String, Object>> usersByEmail = new java.util.LinkedHashMap<>();
+
+        try {
+            com.google.firebase.auth.ListUsersPage page = com.google.firebase.auth.FirebaseAuth.getInstance().listUsers(null);
+            if (page != null) {
+                while (page != null) {
+                    for (com.google.firebase.auth.ExportedUserRecord authUser : page.getValues()) {
+                        if (authUser == null) continue;
+                        String uid = authUser.getUid();
+                        String email = authUser.getEmail() != null ? authUser.getEmail().toLowerCase().trim() : "";
+                        String authName = authUser.getDisplayName() != null ? authUser.getDisplayName().trim() : "";
+
+                        String key = !email.isBlank() ? email : (uid != null ? uid : "");
+                        if (key.isBlank() || usersByEmail.containsKey(key)) continue;
+
+                        Map<String, Object> profile = null;
+                        if (uid != null && !uid.isBlank()) profile = localProfileStore.get(uid);
+                        if (profile == null && !email.isBlank()) profile = localProfileStore.get(email);
+
+                        Map<String, Object> userMap = new HashMap<>();
+                        userMap.put("uid", uid != null && !uid.isBlank() ? uid : key);
+                        userMap.put("email", email);
+
+                        String name = authName;
+                        if (name.isBlank() && profile != null && profile.get("name") != null) {
+                            name = profile.get("name").toString().trim();
+                        }
+                        if (name.isBlank() && profile != null && profile.get("fullName") != null) {
+                            name = profile.get("fullName").toString().trim();
+                        }
+                        if (name.isBlank() && !email.isBlank()) {
+                            name = email.contains("@") ? email.substring(0, email.indexOf("@")) : email;
+                        }
+                        if (name.isBlank()) name = "User";
+                        userMap.put("name", name);
+
+                        String role = profile != null && profile.get("role") != null
+                                ? profile.get("role").toString().trim()
+                                : (email.contains("captain") ? "Ship Captain" : (email.contains("officer") || email.contains("custom") ? "Custom Officer" : "Port Authority"));
+                        userMap.put("role", role);
+
+                        String status = profile != null && profile.get("status") != null
+                                ? profile.get("status").toString().trim()
+                                : "Active";
+                        userMap.put("status", status);
+
+                        String createdAt = profile != null && profile.get("createdAt") != null
+                                ? profile.get("createdAt").toString().trim()
+                                : formatAuthTimestamp(authUser.getUserMetadata().getCreationTimestamp());
+                        userMap.put("createdAt", createdAt);
+
+                        String updatedAt = profile != null && profile.get("updatedAt") != null
+                                ? profile.get("updatedAt").toString().trim()
+                                : formatAuthTimestamp(authUser.getUserMetadata().getLastSignInTimestamp());
+                        userMap.put("updatedAt", updatedAt);
+
+                        usersByEmail.put(key, userMap);
+                    }
+                    page = page.getNextPage();
+                }
+            }
+        } catch (Throwable ex) {
+            System.err.println("[UserDao] Admin SDK listUsers notice: " + ex.getMessage());
+        }
+
+        // Deduplicate synced Firestore user profiles by canonical email/UID
+        for (Map<String, Object> prof : localProfileStore.values()) {
+            if (prof == null) continue;
+            String email = prof.get("email") != null ? prof.get("email").toString().toLowerCase().trim() : "";
+            String uid = prof.get("uid") != null ? prof.get("uid").toString().trim() : "";
+
+            String key = !email.isBlank() ? email : uid;
+            if (key.isBlank()) continue;
+
+            if (!usersByEmail.containsKey(key)) {
+                String bestUid = uid;
+                if (bestUid.isBlank() || bestUid.startsWith("+")) {
+                    bestUid = "usr_" + Math.abs(key.hashCode());
+                }
+
+                String name = prof.get("name") != null ? prof.get("name").toString().trim() : "";
+                if (name.isBlank() && prof.get("fullName") != null) name = prof.get("fullName").toString().trim();
+                if (name.isBlank() && !email.isBlank()) {
+                    name = email.contains("@") ? email.substring(0, email.indexOf("@")) : email;
+                }
+                if (name.isBlank()) name = "User";
+
+                String role = prof.get("role") != null ? prof.get("role").toString().trim() : "Port Authority";
+                String status = prof.get("status") != null ? prof.get("status").toString().trim() : "Active";
+                String createdAt = prof.get("createdAt") != null ? prof.get("createdAt").toString().trim() : "Registered";
+                String updatedAt = prof.get("updatedAt") != null ? prof.get("updatedAt").toString().trim() : "Recently";
+
+                Map<String, Object> userMap = new HashMap<>();
+                userMap.put("uid", bestUid);
+                userMap.put("email", email);
+                userMap.put("name", name);
+                userMap.put("role", role);
+                userMap.put("status", status);
+                userMap.put("createdAt", createdAt);
+                userMap.put("updatedAt", updatedAt);
+
+                usersByEmail.put(key, userMap);
+            } else {
+                Map<String, Object> existing = usersByEmail.get(key);
+                String existingUid = existing.get("uid") != null ? existing.get("uid").toString() : "";
+                if ((existingUid.startsWith("+") || existingUid.startsWith("usr_")) && !uid.isBlank() && !uid.startsWith("+") && !uid.startsWith("usr_")) {
+                    existing.put("uid", uid);
+                }
+                if (prof.get("role") != null && !prof.get("role").toString().isBlank()) {
+                    existing.put("role", prof.get("role").toString().trim());
+                }
+                if (prof.get("name") != null && !prof.get("name").toString().isBlank() && !prof.get("name").toString().equalsIgnoreCase("User")) {
+                    existing.put("name", prof.get("name").toString().trim());
+                }
+            }
+        }
+
+        return new java.util.ArrayList<>(usersByEmail.values());
+    }
+
+    private static String formatAuthTimestamp(long millis) {
+        if (millis <= 0) return "Recently";
+        try {
+            return java.time.Instant.ofEpochMilli(millis)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy"));
+        } catch (Exception ex) {
+            return "Recently";
+        }
+    }
+
+    public static java.util.List<Map<String, Object>> getUsersByRoles(String... roles) {
+        java.util.List<Map<String, Object>> allAuthUsers = getFirebaseAuthUsersWithProfiles();
+        if (roles == null || roles.length == 0) {
+            return allAuthUsers;
+        }
+
+        java.util.List<Map<String, Object>> result = new java.util.ArrayList<>();
+        for (Map<String, Object> profile : allAuthUsers) {
+            Object roleObj = profile.get("role");
+            String userRole = roleObj != null ? roleObj.toString().trim() : "Port Authority";
+
+            for (String r : roles) {
+                if (r != null && (userRole.equalsIgnoreCase(r.trim()) || userRole.replaceAll("[_\\s]+", "").equalsIgnoreCase(r.trim().replaceAll("[_\\s]+", "")))) {
+                    result.add(profile);
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
+    public CompletableFuture<Void> updateUserStatus(String uidOrEmail, String newStatus) {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        if (uidOrEmail == null || uidOrEmail.isBlank()) {
+            future.complete(null);
+            return future;
+        }
+
+        Map<String, Object> profile = localProfileStore.get(uidOrEmail.toLowerCase());
+        if (profile == null) {
+            profile = readFirestoreRest(uidOrEmail);
+        }
+
+        if (profile != null) {
+            profile.put("status", newStatus);
+            String uid = profile.get("uid") != null ? profile.get("uid").toString() : uidOrEmail;
+            String email = profile.get("email") != null ? profile.get("email").toString() : uidOrEmail;
+
+            localProfileStore.put(uid, profile);
+            localProfileStore.put(email.toLowerCase(), profile);
+
+            final String docUid = uid;
+            final Map<String, Object> finalData = profile;
+            Firestore db = db();
+            if (db != null) {
+                db.collection("users").document(docUid).update("status", newStatus);
+            } else {
+                ForkJoinPool.commonPool().execute(() -> {
+                    try {
+                        writeFirestoreRest(docUid, finalData);
+                    } catch (Exception ignored) {}
+                });
+            }
+        }
+
+        future.complete(null);
+        return future;
+    }
+
+    public CompletableFuture<Void> deleteUserAccount(String uidOrEmail) {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        if (uidOrEmail == null || uidOrEmail.isBlank()) {
+            future.complete(null);
+            return future;
+        }
+
+        ForkJoinPool.commonPool().execute(() -> {
+            try {
+                Map<String, Object> profile = localProfileStore.get(uidOrEmail.toLowerCase());
+                if (profile == null) profile = localProfileStore.get(uidOrEmail);
+                if (profile == null) profile = readFirestoreRest(uidOrEmail);
+
+                if (profile != null) {
+                    String role = profile.get("role") != null ? profile.get("role").toString() : "";
+                    String uid = profile.get("uid") != null ? profile.get("uid").toString() : uidOrEmail;
+                    String email = profile.get("email") != null ? profile.get("email").toString() : uidOrEmail;
+                    String phone = profile.get("phone") != null ? profile.get("phone").toString() : "";
+
+                    // Security Guard: Protect the single system Admin account!
+                    if (role.toLowerCase().contains("admin") || email.equalsIgnoreCase("babu@gmail.com")) {
+                        System.err.println("[SECURITY GUARD] Refused to delete system Admin account: " + email);
+                        future.completeExceptionally(new SecurityException("Cannot delete the only system administrator."));
+                        return;
+                    }
+
+                    String userName = profile.get("name") != null ? profile.get("name").toString() : "User";
+
+                    // Remove from local cache
+                    localProfileStore.remove(uid);
+                    localProfileStore.remove(email.toLowerCase());
+                    if (!phone.isBlank()) localProfileStore.remove(phone);
+
+                    // Delete from Firestore collection "users"
+                    Firestore db = new UserDao().db();
+                    if (db != null) {
+                        try {
+                            if (!phone.isBlank()) db.collection("users").document(phone).delete();
+                            if (!uid.isBlank()) db.collection("users").document(uid).delete();
+                        } catch (Exception ex) {
+                            System.err.println("[UserDao Firestore Delete Error] " + ex.getMessage());
+                        }
+                    }
+
+                    // Try Firebase Admin SDK deleteUser if available
+                    try {
+                        com.google.firebase.auth.FirebaseAuth.getInstance().deleteUser(uid);
+                        System.out.println("[Firebase Auth] Deleted Auth user UID: " + uid);
+                    } catch (Throwable ignored) {}
+
+                    logActivity(userName, email, "USER_DELETED", "User account deleted by Admin");
+                    System.out.println("[UserDao] Permanently deleted personnel profile for UID: " + uid + ", Email: " + email);
+                }
+                future.complete(null);
+            } catch (Exception ex) {
+                System.err.println("[UserDao deleteUserAccount Exception] " + ex.getMessage());
+                future.completeExceptionally(ex);
+            }
+        });
+        return future;
+    }
+
+    public static void logActivity(String userName, String email, String action, String description) {
+        ForkJoinPool.commonPool().execute(() -> {
+            try {
+                Map<String, Object> log = new HashMap<>();
+                log.put("userName", userName != null ? userName : "Admin");
+                log.put("email", email != null ? email : "admin@docktech.com");
+                log.put("action", action);
+                log.put("description", description);
+                log.put("timestamp", LocalDateTime.now().toString());
+
+                Firestore db = new UserDao().db();
+                if (db != null) {
+                    db.collection("activity_logs").add(log);
+                }
+                System.out.println("[ACTIVITY LOGGED] " + userName + ": " + description);
+            } catch (Exception ex) {
+                System.err.println("[LOG ACTIVITY ERROR] " + ex.getMessage());
+            }
+        });
+    }
+
+    public static java.util.List<Map<String, Object>> getActivityLogs() {
+        java.util.List<Map<String, Object>> list = new java.util.ArrayList<>();
+        try {
+            Firestore db = new UserDao().db();
+            if (db != null) {
+                com.google.cloud.firestore.QuerySnapshot snap = db.collection("activity_logs")
+                        .orderBy("timestamp", com.google.cloud.firestore.Query.Direction.DESCENDING)
+                        .limit(10).get().get();
+                if (snap != null) {
+                    for (com.google.cloud.firestore.DocumentSnapshot doc : snap.getDocuments()) {
+                        if (doc.exists() && doc.getData() != null) {
+                            list.add(doc.getData());
+                        }
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            System.err.println("[GET ACTIVITY LOGS ERROR] " + ex.getMessage());
+        }
+        return list;
     }
 
     private static void writeFirestoreRest(String uid, Map<String, Object> userData) throws Exception {

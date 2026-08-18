@@ -15,6 +15,7 @@ import javafx.stage.Stage;
 import java.io.File;
 import java.util.*;
 
+@SuppressWarnings("unused")
 public class DocumentVerification {
     private final BorderPane root = new BorderPane();
     private VBox content;
@@ -355,6 +356,8 @@ public class DocumentVerification {
             previewBox.getChildren().addAll(pIcon, pTitle, pSub, mockDocContent, closeBtn);
 
             Scene pScene = new Scene(previewBox, 500, 420);
+            com.projectui.view.login.LoginPage.applyInvisibleScrollbar(pScene);
+            com.projectui.view.login.LoginPage.applyInvisibleScrollbar(previewStage);
             previewStage.setScene(pScene);
             previewStage.show();
         }

@@ -294,6 +294,7 @@ public class BookContainer {
         root.setCenter(scrollPane);
 
         scene = new Scene(root);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
         return scene;
     }
 

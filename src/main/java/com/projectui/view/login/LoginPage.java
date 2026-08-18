@@ -1,5 +1,6 @@
 package com.projectui.view.login;
 
+import java.util.Map;
 import com.projectui.service.FirebaseAuthService;
 import com.projectui.view.admin.DockTechAdmin;
 
@@ -33,14 +34,76 @@ public class LoginPage extends Application {
         private final FirebaseAuthService authService = new FirebaseAuthService();
         private final com.projectui.dao.UserDao userDao = new com.projectui.dao.UserDao();
         private Stage stage;
-
         private MediaPlayer backgroundPlayer;
 
-        private static MediaPlayer sharedBackgroundPlayer;
-        private static MediaView sharedBackgroundView;
+        @Override
+        public void init() {
+                initVideoBackground();
+                initGlobalScrollbarHider();
+        }
+
+        private static boolean globalHiderInitialized = false;
+
+        public static synchronized void initGlobalScrollbarHider() {
+                if (globalHiderInitialized)
+                        return;
+                globalHiderInitialized = true;
+                try {
+                        javafx.collections.ObservableList<javafx.stage.Window> windows = javafx.stage.Window
+                                        .getWindows();
+                        windows.addListener((javafx.collections.ListChangeListener<javafx.stage.Window>) change -> {
+                                while (change.next()) {
+                                        if (change.wasAdded()) {
+                                                for (javafx.stage.Window w : change.getAddedSubList()) {
+                                                        applyInvisibleScrollbar(w);
+                                                }
+                                        }
+                                }
+                        });
+                        for (javafx.stage.Window w : windows) {
+                                applyInvisibleScrollbar(w);
+                        }
+                } catch (Exception ignored) {
+                }
+        }
+
+        private static void initVideoBackground() {
+                if (sharedBackgroundPlayer != null)
+                        return;
+                String path = "/Assets/images/video/1786944457130486.MP4";
+                var url = LoginPage.class.getResource(path);
+                if (url == null) {
+                        url = LoginPage.class.getResource("/assets/images/video/DockTechBG.MP4");
+                }
+                if (url == null) {
+                        try {
+                                java.io.File file = new java.io.File(
+                                                "src/main/resources/Assets/images/video/DockTechBG.MP4");
+                                if (file.exists()) {
+                                        url = file.toURI().toURL();
+                                }
+                        } catch (Exception ignored) {
+                        }
+                }
+                if (url == null) {
+                        System.err.println("Video not found: " + path);
+                        return;
+                }
+                try {
+                        Media media = new Media(url.toExternalForm());
+                        sharedBackgroundPlayer = new MediaPlayer(media);
+                        sharedBackgroundPlayer.setAutoPlay(true);
+                        sharedBackgroundPlayer.setMute(true);
+                        sharedBackgroundPlayer.setCycleCount(MediaPlayer.INDEFINITE);
+                        sharedBackgroundPlayer.play();
+                } catch (Exception e) {
+                        System.err.println("VIDEO INIT ERROR: " + e.getMessage());
+                }
+        }
 
         @Override
         public void start(Stage primaryStage) {
+                initGlobalScrollbarHider();
                 stage = primaryStage;
                 stage.setTitle("Dock Tech - Smart Maritime Operations");
                 stage.setMinWidth(1100);
@@ -51,71 +114,110 @@ public class LoginPage extends Application {
         }
 
         public void show(Stage stage) {
+                initGlobalScrollbarHider();
                 this.stage = stage;
                 showLoginScene();
         }
 
         private void showLoginScene() {
+                initVideoBackground();
                 showRoot(stage, createLoginPage());
         }
 
         public static void showRoot(Stage stage, Parent root) {
-                if (root == null || stage == null) return;
+                if (root == null)
+                        return;
+                if (stage == null) {
+                        for (javafx.stage.Window w : javafx.stage.Window.getWindows()) {
+                                if (w instanceof Stage s && s.isShowing()) {
+                                        stage = s;
+                                        break;
+                                }
+                        }
+                }
+                if (stage == null)
+                        return;
+                initGlobalScrollbarHider();
                 applyInvisibleScrollbar(root);
                 Scene scene = stage.getScene();
                 if (root.getScene() != null && root.getScene() != scene) {
                         try {
                                 root.getScene().setRoot(new javafx.scene.layout.Pane());
-                        } catch (Exception ignored) {}
+                        } catch (Exception ignored) {
+                        }
                 }
                 if (scene == null) {
                         Scene s = new Scene(root);
                         applyInvisibleScrollbar(s);
                         stage.setScene(s);
                 } else {
-                        try {
-                                scene.setRoot(root);
-                                applyInvisibleScrollbar(scene);
-                        } catch (Exception e) {
-                                Scene s = new Scene(root);
-                                applyInvisibleScrollbar(s);
-                                stage.setScene(s);
-                        }
+                        scene.setRoot(root);
                 }
+                applyInvisibleScrollbar(stage);
+        }
+
+        private static String cachedCssUrl;
+
+        public static String getScrollbarCssUrl() {
+                if (cachedCssUrl != null)
+                        return cachedCssUrl;
+                try {
+                        var resource = LoginPage.class.getResource("/hide-scrollbar.css");
+                        if (resource != null) {
+                                cachedCssUrl = resource.toExternalForm();
+                                return cachedCssUrl;
+                        }
+                } catch (Exception ignored) {
+                }
+                return null;
         }
 
         public static void applyInvisibleScrollbar(Object target) {
-                try {
-                        String cssUrl = LoginPage.class.getResource("/hide_scrollbar.css") != null
-                                        ? LoginPage.class.getResource("/hide_scrollbar.css").toExternalForm()
-                                        : null;
-                        if (cssUrl == null) {
-                                String cssData = ".scroll-bar{-fx-opacity:0;-fx-pref-width:0;-fx-pref-height:0;-fx-padding:0;}"
-                                                + ".scroll-bar:vertical,.scroll-bar:horizontal{-fx-opacity:0;-fx-pref-width:0;-fx-pref-height:0;-fx-padding:0;}"
-                                                + ".scroll-bar .track,.scroll-bar .thumb,.scroll-bar .increment-button,.scroll-bar .decrement-button"
-                                                + "{-fx-background-color:transparent;-fx-opacity:0;-fx-padding:0;}"
-                                                + ".scroll-pane{-fx-background-color:transparent;}"
-                                                + ".scroll-pane > .viewport{-fx-background-color:transparent;}";
-                                cssUrl = "data:text/css," + java.net.URLEncoder.encode(cssData, "UTF-8").replace("+", "%20");
+                if (target == null)
+                        return;
+                initGlobalScrollbarHider();
+                String cssUrl = getScrollbarCssUrl();
+                if (cssUrl == null)
+                        return;
+
+                if (target instanceof Scene scene) {
+                        if (!scene.getStylesheets().contains(cssUrl)) {
+                                scene.getStylesheets().add(cssUrl);
                         }
-                        if (target instanceof Scene) {
-                                Scene s = (Scene) target;
-                                if (!s.getStylesheets().contains(cssUrl)) {
-                                        s.getStylesheets().add(cssUrl);
-                                }
-                        } else if (target instanceof Parent) {
-                                Parent p = (Parent) target;
-                                if (!p.getStylesheets().contains(cssUrl)) {
-                                        p.getStylesheets().add(cssUrl);
-                                }
+                } else if (target instanceof Parent parent) {
+                        if (!parent.getStylesheets().contains(cssUrl)) {
+                                parent.getStylesheets().add(cssUrl);
                         }
-                } catch (Exception ignored) {}
+                        if (parent.getScene() != null && !parent.getScene().getStylesheets().contains(cssUrl)) {
+                                parent.getScene().getStylesheets().add(cssUrl);
+                        }
+                } else if (target instanceof javafx.stage.Window window) {
+                        if (window.getScene() != null && !window.getScene().getStylesheets().contains(cssUrl)) {
+                                window.getScene().getStylesheets().add(cssUrl);
+                        }
+                        window.sceneProperty().addListener((obs, oldScene, newScene) -> {
+                                if (newScene != null && !newScene.getStylesheets().contains(cssUrl)) {
+                                        newScene.getStylesheets().add(cssUrl);
+                                }
+                        });
+                } else if (target instanceof DialogPane dialogPane) {
+                        if (!dialogPane.getStylesheets().contains(cssUrl)) {
+                                dialogPane.getStylesheets().add(cssUrl);
+                        }
+                        if (dialogPane.getScene() != null && !dialogPane.getScene().getStylesheets().contains(cssUrl)) {
+                                dialogPane.getScene().getStylesheets().add(cssUrl);
+                        }
+                } else if (target instanceof Dialog<?> dialog) {
+                        DialogPane pane = dialog.getDialogPane();
+                        if (pane != null) {
+                                applyInvisibleScrollbar(pane);
+                        }
+                }
         }
 
         private Parent createLoginPage() {
                 StackPane root = new StackPane();
                 root.setStyle("-fx-background-color:" + NAVY + ";");
-                addBackground(root);
 
                 HBox layout = new HBox(40);
                 layout.setPadding(new Insets(30, 50, 30, 50));
@@ -128,36 +230,44 @@ public class LoginPage extends Application {
                 HBox.setHgrow(right, Priority.SOMETIMES);
 
                 layout.getChildren().addAll(left, right);
-                root.getChildren().add(layout);
+
+                attachVideoBackground(root, layout);
+
+                Region overlay = new Region();
+                overlay.setMouseTransparent(true);
+                overlay.setStyle(
+                                "-fx-background-color:" +
+                                                "linear-gradient(" +
+                                                "from 0% 0% to 100% 0%," +
+                                                "rgba(2,11,36,0.25)," +
+                                                "rgba(2,11,36,0.10) 52%," +
+                                                "rgba(2,11,36,0.55) 100%);");
+                overlay.prefWidthProperty().bind(root.widthProperty());
+                overlay.prefHeightProperty().bind(root.heightProperty());
+
+                if (!root.getChildren().contains(overlay)) {
+                        root.getChildren().add(overlay);
+                }
+                if (!root.getChildren().contains(layout)) {
+                        root.getChildren().add(layout);
+                }
 
                 return root;
         }
 
-        // ================= VIDEO =================
+        private static MediaPlayer sharedBackgroundPlayer;
+        private static MediaView sharedBackgroundView;
 
         public static void attachVideoBackground(StackPane root) {
-                String path = "/Assets/images/video/DockTechBG.MP4";
-                var url = LoginPage.class.getResource(path);
+                attachVideoBackground(root, null);
+        }
 
-                if (url == null) {
-                        System.err.println("Video not found: " + path);
+        public static void attachVideoBackground(StackPane root, Node syncNode) {
+                initVideoBackground();
+                if (sharedBackgroundPlayer == null)
                         return;
-                }
 
                 try {
-                        if (sharedBackgroundPlayer == null) {
-                                Media media = new Media(url.toExternalForm());
-                                sharedBackgroundPlayer = new MediaPlayer(media);
-                                sharedBackgroundPlayer.setAutoPlay(true);
-                                sharedBackgroundPlayer.setMute(true);
-                                sharedBackgroundPlayer.setCycleCount(MediaPlayer.INDEFINITE);
-                                sharedBackgroundPlayer.setOnReady(
-                                                () -> System.out.println("VIDEO READY: " + media.getDuration()));
-                                sharedBackgroundPlayer.setOnPlaying(
-                                                () -> System.out.println("VIDEO PLAYING"));
-                                sharedBackgroundPlayer.play();
-                        }
-
                         if (sharedBackgroundView == null) {
                                 sharedBackgroundView = new MediaView(sharedBackgroundPlayer);
                                 sharedBackgroundView.setPreserveRatio(false);
@@ -177,12 +287,14 @@ public class LoginPage extends Application {
                         sharedBackgroundView.fitWidthProperty().bind(root.widthProperty());
                         sharedBackgroundView.fitHeightProperty().bind(root.heightProperty());
 
-                        root.getChildren().add(0, sharedBackgroundView);
+                        if (!root.getChildren().contains(sharedBackgroundView)) {
+                                root.getChildren().add(0, sharedBackgroundView);
+                        }
 
-                        sharedBackgroundPlayer.setOnError(() -> System.err.println(
-                                        "VIDEO PLAYER ERROR: " +
-                                                        sharedBackgroundPlayer.getError()));
-
+                        if (sharedBackgroundPlayer != null
+                                        && sharedBackgroundPlayer.getStatus() != MediaPlayer.Status.PLAYING) {
+                                sharedBackgroundPlayer.play();
+                        }
                 } catch (Exception e) {
                         System.err.println("VIDEO ERROR: " + e.getMessage());
                 }
@@ -320,20 +432,13 @@ public class LoginPage extends Application {
                 ComboBox<String> role = createRoleBox();
                 role.setValue("Admin");
 
-                CheckBox remember = new CheckBox("Remember me");
-                remember.setStyle(
-                                "-fx-text-fill:#C8D9EA;" +
-                                                "-fx-font-size:13px;" +
-                                                "-fx-font-weight:bold;");
-
                 Button forgot = createLink("Forgot Password?");
 
                 Region spacer = new Region();
                 HBox.setHgrow(spacer, Priority.ALWAYS);
 
-                HBox options = new HBox(
-                                8, remember, spacer, forgot);
-                options.setAlignment(Pos.CENTER_LEFT);
+                HBox options = new HBox(spacer, forgot);
+                options.setAlignment(Pos.CENTER_RIGHT);
 
                 Label message = createMessage();
 
@@ -385,6 +490,15 @@ public class LoginPage extends Application {
 
         // ================= LOGIN =================
 
+        private void resetLoadingState(Button login, Label message, String errorMessage) {
+                login.setDisable(false);
+                if (errorMessage != null && !errorMessage.isBlank()) {
+                        showMessage(message, errorMessage, "#FF9696");
+                } else {
+                        message.setText("");
+                }
+        }
+
         private void signIn(
                         TextField email,
                         PasswordControl password,
@@ -395,136 +509,321 @@ public class LoginPage extends Application {
                 String passwordValue = password.getText();
 
                 if (!isEmail(emailValue)) {
-                        showMessage(
-                                        message,
-                                        "Please enter a valid email address.",
-                                        "#FF9696");
+                        resetLoadingState(login, message, "Please enter a valid email address.");
                         return;
                 }
 
                 if (passwordValue.isBlank()) {
-                        showMessage(
-                                        message,
-                                        "Please enter your password.",
-                                        "#FF9696");
+                        resetLoadingState(login, message, "Please enter your password.");
                         return;
                 }
 
                 if (role.getValue() == null) {
-                        showMessage(
-                                        message,
-                                        "Please select a role.",
-                                        "#FF9696");
+                        resetLoadingState(login, message, "Please select a role.");
                         return;
+                }
+
+                if (this.stage == null) {
+                        if (login.getScene() != null && login.getScene().getWindow() instanceof Stage s) {
+                                this.stage = s;
+                        } else {
+                                for (javafx.stage.Window w : javafx.stage.Window.getWindows()) {
+                                        if (w instanceof Stage s && s.isShowing()) {
+                                                this.stage = s;
+                                                break;
+                                        }
+                                }
+                        }
                 }
 
                 login.setDisable(true);
                 showMessage(message, "Signing in...", "#AFC6D9");
-                System.out.println("[LOGIN] Starting authentication for: " + emailValue);
+                System.out.println("[LOGIN] Attempting Firebase authentication for: " + emailValue);
 
                 try {
-                        authService.signIn(emailValue, passwordValue, role.getValue()).whenComplete((authUser, authError) -> Platform.runLater(() -> {
-                                try {
-                                        if (authError != null) {
-                                                login.setDisable(false);
-                                                System.err.println("[LOGIN ERROR] Firebase authentication failed: " + authError.getMessage());
-                                                Throwable actualError = authError.getCause() == null ? authError : authError.getCause();
-                                                showMessage(message, actualError == null ? "Unable to authenticate. Please check your connection and try again." : actualError.getMessage(), "#FF9696");
-                                                return;
-                                        }
-
-                                        if (authUser == null || authUser.getUid() == null) {
-                                                login.setDisable(false);
-                                                System.err.println("[LOGIN ERROR] Firebase Auth returned null user or UID");
-                                                showMessage(message, "Unable to authenticate. Please check your connection and try again.", "#FF9696");
-                                                return;
-                                        }
-
-                                        System.out.println("[LOGIN] Firebase authentication completed");
-                                        System.out.println("[LOGIN] Firebase UID obtained: " + authUser.getUid());
-                                        System.out.println("[LOGIN] Loading Firestore profile...");
-
-                                        userDao.getUserProfile(authUser.getUid(), emailValue).whenComplete((profile, storeError) -> Platform.runLater(() -> {
+                        authService.signIn(emailValue, passwordValue, role.getValue())
+                                        .whenComplete((authUser, authError) -> Platform.runLater(() -> {
                                                 try {
-                                                        login.setDisable(false);
-
-                                                        if (storeError != null) {
-                                                                System.err.println("[LOGIN ERROR] Firestore profile load error: " + storeError.getMessage());
-                                                                Throwable actualStoreError = storeError.getCause() == null ? storeError : storeError.getCause();
-                                                                showMessage(message, actualStoreError != null ? actualStoreError.getMessage() : "Account authentication succeeded, but user profile could not be read.", "#FF9696");
+                                                        if (authError != null) {
+                                                                System.err.println(
+                                                                                "[LOGIN ERROR] Firebase authentication failed: "
+                                                                                                + authError.getMessage());
+                                                                Throwable actualError = authError.getCause() == null
+                                                                                ? authError
+                                                                                : authError.getCause();
+                                                                resetLoadingState(login, message, actualError == null
+                                                                                ? "Unable to authenticate. Please check your credentials and try again."
+                                                                                : actualError.getMessage());
                                                                 return;
                                                         }
 
-                                                        if (profile == null) {
-                                                                System.err.println("[LOGIN ERROR] Profile not found in database for UID: " + authUser.getUid());
-                                                                showMessage(message, "User profile not found in database.", "#FF9696");
+                                                        if (authUser == null || authUser.getUid() == null) {
+                                                                System.err.println(
+                                                                                "[LOGIN ERROR] Firebase Auth returned null user or UID");
+                                                                resetLoadingState(login, message,
+                                                                                "Unable to authenticate. Please check your connection and try again.");
                                                                 return;
                                                         }
 
-                                                        System.out.println("[LOGIN] Firestore profile found");
-                                                        loggedInUser = profile;
+                                                        System.out.println(
+                                                                        "[LOGIN] Firebase authentication successful");
+                                                        System.out.println(
+                                                                        "[LOGIN] Firebase UID: " + authUser.getUid());
+                                                        System.out.println("[LOGIN] Loading user profile");
 
-                                                        String selectedRole = role.getValue();
-                                                        Object roleObj = profile.get("role");
-                                                        String firestoreRole = roleObj != null ? roleObj.toString() : null;
+                                                        userDao.getUserProfile(authUser.getUid(), emailValue)
+                                                                        .whenComplete((profile, storeError) -> Platform
+                                                                                        .runLater(() -> {
+                                                                                                try {
+                                                                                                        if (storeError != null) {
+                                                                                                                System.err.println(
+                                                                                                                                "[LOGIN ERROR] Firestore profile load error: "
+                                                                                                                                                + storeError.getMessage());
+                                                                                                                Throwable actualStoreError = storeError
+                                                                                                                                .getCause() == null
+                                                                                                                                                ? storeError
+                                                                                                                                                : storeError.getCause();
+                                                                                                                resetLoadingState(
+                                                                                                                                login,
+                                                                                                                                message,
+                                                                                                                                actualStoreError != null
+                                                                                                                                                ? actualStoreError
+                                                                                                                                                                .getMessage()
+                                                                                                                                                : "Account authentication succeeded, but user profile could not be read.");
+                                                                                                                return;
+                                                                                                        }
 
-                                                        Object statusObj = profile.get("status");
-                                                        String firestoreStatus = statusObj != null ? statusObj.toString() : null;
+                                                                                                        if (profile == null) {
+                                                                                                                System.err.println(
+                                                                                                                                "[LOGIN ERROR] Firebase authentication successful but user profile not found");
+                                                                                                                resetLoadingState(
+                                                                                                                                login,
+                                                                                                                                message,
+                                                                                                                                "User profile not found in database.");
+                                                                                                                return;
+                                                                                                        }
 
-                                                        if (!isRoleMatch(selectedRole, firestoreRole)) {
-                                                                System.err.println("[LOGIN ERROR] Role mismatch. Selected: " + selectedRole + ", DB: " + firestoreRole);
-                                                                showMessage(message, "Selected role does not match this account.", "#FF9696");
-                                                                return;
-                                                        }
+                                                                                                        System.out.println(
+                                                                                                                        "[LOGIN] Profile found");
+                                                                                                        loggedInUser = profile;
 
-                                                        System.out.println("[LOGIN] Role validated");
+                                                                                                        String selectedRole = role
+                                                                                                                        .getValue();
+                                                                                                        Object roleObj = profile
+                                                                                                                        .get("role");
+                                                                                                        String firestoreRole = roleObj != null
+                                                                                                                        ? roleObj.toString()
+                                                                                                                        : null;
 
-                                                        if (firestoreStatus == null || (!firestoreStatus.equalsIgnoreCase("Active")
-                                                                        && !firestoreStatus.equalsIgnoreCase("Active & Verified")
-                                                                        && !firestoreStatus.equalsIgnoreCase("Approved"))) {
-                                                                System.err.println("[LOGIN ERROR] Account inactive. Status: " + firestoreStatus);
-                                                                showMessage(message, "Your account is inactive. Please contact the administrator.", "#FF9696");
-                                                                return;
-                                                        }
+                                                                                                        if (firestoreRole == null
+                                                                                                                        || firestoreRole.isBlank()) {
+                                                                                                                System.err.println(
+                                                                                                                                "[LOGIN ERROR] User profile found but role is missing");
+                                                                                                                resetLoadingState(
+                                                                                                                                login,
+                                                                                                                                message,
+                                                                                                                                "User profile is incomplete (role missing).");
+                                                                                                                return;
+                                                                                                        }
 
-                                                        System.out.println("[LOGIN] Opening dashboard for role: " + firestoreRole);
-                                                        navigateToDashboard(firestoreRole);
+                                                                                                        System.out.println(
+                                                                                                                        "[LOGIN] Role: " + firestoreRole);
+
+                                                                                                        Object statusObj = profile
+                                                                                                                        .get("status");
+                                                                                                        String firestoreStatus = statusObj != null
+                                                                                                                        ? statusObj.toString()
+                                                                                                                        : null;
+
+                                                                                                        if (!isRoleMatch(
+                                                                                                                        selectedRole,
+                                                                                                                        firestoreRole)) {
+                                                                                                                System.err.println(
+                                                                                                                                "[LOGIN ERROR] Selected role ("
+                                                                                                                                                + selectedRole
+                                                                                                                                                + ") does not match account role ("
+                                                                                                                                                + firestoreRole
+                                                                                                                                                + ")");
+                                                                                                                resetLoadingState(
+                                                                                                                                login,
+                                                                                                                                message,
+                                                                                                                                "Selected role does not match this account.");
+                                                                                                                return;
+                                                                                                        }
+
+                                                                                                        System.out.println(
+                                                                                                                        "[LOGIN] Role validated");
+
+                                                                                                        if (firestoreStatus == null
+                                                                                                                        || (!firestoreStatus
+                                                                                                                                        .equalsIgnoreCase(
+                                                                                                                                                        "Active")
+                                                                                                                                        && !firestoreStatus
+                                                                                                                                                        .equalsIgnoreCase(
+                                                                                                                                                                        "Active & Verified")
+                                                                                                                                        && !firestoreStatus
+                                                                                                                                                        .equalsIgnoreCase(
+                                                                                                                                                                        "Approved")
+                                                                                                                                        && !firestoreStatus
+                                                                                                                                                        .equalsIgnoreCase(
+                                                                                                                                                                        "Operational"))) {
+                                                                                                                System.err.println(
+                                                                                                                                "[LOGIN ERROR] Account inactive or pending approval. Status: "
+                                                                                                                                                + firestoreStatus);
+                                                                                                                resetLoadingState(
+                                                                                                                                login,
+                                                                                                                                message,
+                                                                                                                                "Your account or port establishment request is pending approval or inactive. Please contact Dock Tech Admin.");
+                                                                                                                return;
+                                                                                                        }
+
+                                                                                                        if (isPortAuthorityRole(
+                                                                                                                        firestoreRole)) {
+                                                                                                                System.out.println(
+                                                                                                                                "[LOGIN] Port Authority detected");
+                                                                                                                System.out.println(
+                                                                                                                                "[LOGIN] Loading Port Authority dashboard");
+                                                                                                        } else {
+                                                                                                                System.out.println(
+                                                                                                                                "[LOGIN] Opening dashboard for role: "
+                                                                                                                                                + firestoreRole);
+                                                                                                        }
+
+                                                                                                        resetLoadingState(
+                                                                                                                        login,
+                                                                                                                        message,
+                                                                                                                        null);
+                                                                                                        navigateToDashboard(
+                                                                                                                        firestoreRole);
+                                                                                                } catch (Exception ex) {
+                                                                                                        System.err.println(
+                                                                                                                        "[LOGIN ERROR] Exception during profile processing: "
+                                                                                                                                        + ex.getMessage());
+                                                                                                        ex.printStackTrace();
+                                                                                                        resetLoadingState(
+                                                                                                                        login,
+                                                                                                                        message,
+                                                                                                                        "An unexpected error occurred during login.");
+                                                                                                }
+                                                                                        }));
                                                 } catch (Exception ex) {
-                                                        login.setDisable(false);
-                                                        System.err.println("[LOGIN ERROR] Exception during profile processing: " + ex.getMessage());
+                                                        System.err.println(
+                                                                        "[LOGIN ERROR] Exception during auth callback: "
+                                                                                        + ex.getMessage());
                                                         ex.printStackTrace();
-                                                        showMessage(message, "An unexpected error occurred during login.", "#FF9696");
+                                                        resetLoadingState(login, message,
+                                                                        "An unexpected error occurred during login.");
                                                 }
                                         }));
-                                } catch (Exception ex) {
-                                        login.setDisable(false);
-                                        System.err.println("[LOGIN ERROR] Exception during auth callback: " + ex.getMessage());
-                                        ex.printStackTrace();
-                                        showMessage(message, "An unexpected error occurred during login.", "#FF9696");
-                                }
-                        }));
                 } catch (Exception ex) {
-                        login.setDisable(false);
-                        System.err.println("[LOGIN ERROR] Failed to invoke auth service: " + ex.getMessage());
-                        ex.printStackTrace();
-                        showMessage(message, "An unexpected error occurred during login.", "#FF9696");
+                        System.err.println("[LOGIN ERROR] Exception in handleSignIn: " + ex.getMessage());
+                        resetLoadingState(login, message, "An unexpected error occurred during login.");
                 }
         }
 
+        private void promptFirstLoginPasswordChange(com.projectui.service.FirebaseAuthService.AuthUser authUser,
+                        Map<String, Object> profile, String roleName) {
+                Dialog<Boolean> dialog = new Dialog<>();
+                dialog.setTitle("First Login Password Change Required");
+                dialog.setHeaderText("First Login Required: Please Change Your Temporary Password");
+
+                ButtonType changeBtnType = new ButtonType("Update Password", ButtonBar.ButtonData.OK_DONE);
+                dialog.getDialogPane().getButtonTypes().addAll(changeBtnType, ButtonType.CANCEL);
+
+                GridPane grid = new GridPane();
+                grid.setHgap(12);
+                grid.setVgap(12);
+                grid.setPadding(new Insets(20));
+
+                PasswordField currentPassField = new PasswordField();
+                currentPassField.setPromptText("Enter current temporary password");
+                PasswordField newPassField = new PasswordField();
+                newPassField.setPromptText("Enter new permanent password (min 6 chars)");
+                PasswordField confirmPassField = new PasswordField();
+                confirmPassField.setPromptText("Confirm new password");
+
+                grid.add(new Label("Current Password:"), 0, 0);
+                grid.add(currentPassField, 1, 0);
+                grid.add(new Label("New Password:"), 0, 1);
+                grid.add(newPassField, 1, 1);
+                grid.add(new Label("Confirm Password:"), 0, 2);
+                grid.add(confirmPassField, 1, 2);
+
+                dialog.getDialogPane().setContent(grid);
+
+                dialog.setResultConverter(btn -> {
+                        if (btn == changeBtnType) {
+                                String np = newPassField.getText().trim();
+                                String cp = confirmPassField.getText().trim();
+
+                                if (np.length() < 6) {
+                                        Alert alert = new Alert(Alert.AlertType.ERROR,
+                                                        "New password must be at least 6 characters long.");
+                                        alert.showAndWait();
+                                        return false;
+                                }
+                                if (!np.equals(cp)) {
+                                        Alert alert = new Alert(Alert.AlertType.ERROR,
+                                                        "New password and confirmation password do not match.");
+                                        alert.showAndWait();
+                                        return false;
+                                }
+
+                                String uid = (String) profile.get("uid");
+                                String email = (String) profile.get("email");
+
+                                new com.projectui.service.FirebaseAuthService()
+                                                .updatePassword(uid != null ? uid : email, np)
+                                                .whenComplete((unused, err) -> Platform.runLater(() -> {
+                                                        new com.projectui.dao.UserDao()
+                                                                        .updateUserMustChangePassword(email, false);
+                                                        if (uid != null)
+                                                                new com.projectui.dao.UserDao()
+                                                                                .updateUserMustChangePassword(uid,
+                                                                                                false);
+
+                                                        Alert alert = new Alert(Alert.AlertType.INFORMATION,
+                                                                        "Password updated successfully!\nWelcome to your DockTech Dashboard.");
+                                                        alert.setTitle("Password Changed");
+                                                        alert.setHeaderText("Password Updated Successfully");
+                                                        alert.showAndWait();
+                                                        navigateToDashboard(roleName);
+                                                }));
+                                return true;
+                        }
+                        return false;
+                });
+
+                dialog.showAndWait();
+        }
+
+        private static boolean isPortAuthorityRole(String roleStr) {
+                if (roleStr == null)
+                        return false;
+                String r = roleStr.trim().replaceAll("[_\\s]+", "").toLowerCase();
+                return r.contains("portauthority") || r.contains("portmanager")
+                                || (r.contains("port") && r.contains("authority"));
+        }
+
         private static boolean isRoleMatch(String selected, String database) {
-                if (selected == null || database == null) return false;
-                String s = selected.trim().replaceAll("\\s+", " ");
-                String d = database.trim().replaceAll("\\s+", " ");
+                if (selected == null || database == null)
+                        return false;
+                String s = selected.trim().replaceAll("[_\\s]+", "").toLowerCase();
+                String d = database.trim().replaceAll("[_\\s]+", "").toLowerCase();
 
-                if (s.equalsIgnoreCase(d)) return true;
+                if (s.equals(d))
+                        return true;
 
-                if ((s.equalsIgnoreCase("Custom Officer") || s.equalsIgnoreCase("Customs Officer"))
-                 && (d.equalsIgnoreCase("Custom Officer") || d.equalsIgnoreCase("Customs Officer"))) {
+                if (isPortAuthorityRole(selected) && isPortAuthorityRole(database)) {
                         return true;
                 }
 
-                if ((s.equalsIgnoreCase("Admin") || s.equalsIgnoreCase("Port Authority"))
-                 && (d.equalsIgnoreCase("Admin") || d.equalsIgnoreCase("Port Authority"))) {
+                if ((s.contains("custom") || s.contains("officer"))
+                                && (d.contains("custom") || d.contains("officer"))) {
+                        return true;
+                }
+
+                if (s.contains("admin") && d.contains("admin")) {
                         return true;
                 }
 
@@ -539,8 +838,14 @@ public class LoginPage extends Application {
                                 showAdmin();
                                 return;
                         }
+                        if (isPortAuthorityRole(roleName)) {
+                                showPortAuthority();
+                                return;
+                        }
+
                         String r = roleName.trim();
-                        if (r.equalsIgnoreCase("Admin") || r.equalsIgnoreCase("Port Authority")) {
+                        if (r.equalsIgnoreCase("Admin") || r.equalsIgnoreCase("Administrator")
+                                        || r.equalsIgnoreCase("Dock Tech Admin")) {
                                 showAdmin();
                         } else if (r.equalsIgnoreCase("Custom Officer") || r.equalsIgnoreCase("Customs Officer")) {
                                 showCustomOfficer();
@@ -558,6 +863,16 @@ public class LoginPage extends Application {
                         ex.printStackTrace();
                         throw new RuntimeException("Failed to open dashboard: " + ex.getMessage(), ex);
                 }
+        }
+
+        private void showPortAuthority() {
+                com.projectui.view.portauthority.PortAuthorityLayout layout = new com.projectui.view.portauthority.PortAuthorityLayout();
+                com.projectui.view.portauthority.DashboardPage dashboardPage = new com.projectui.view.portauthority.DashboardPage();
+                layout.setContent(
+                                dashboardPage.getRoot(),
+                                "Dashboard",
+                                "Dock Tech / Port Authority / Dashboard");
+                showRoot(stage, layout.getRoot());
         }
 
         private void showAdmin() {
@@ -851,17 +1166,8 @@ public class LoginPage extends Application {
                         textField.setVisible(false);
                         textField.setManaged(false);
 
-                        BorderPane layer = new BorderPane();
-                        layer.setMouseTransparent(true);
-                        layer.setRight(toggle);
-
-                        BorderPane.setAlignment(
-                                        toggle,
-                                        Pos.CENTER_RIGHT);
-
-                        BorderPane.setMargin(
-                                        toggle,
-                                        new Insets(0, 10, 0, 0));
+                        StackPane.setAlignment(toggle, Pos.CENTER_RIGHT);
+                        StackPane.setMargin(toggle, new Insets(0, 14, 0, 0));
 
                         toggle.setMouseTransparent(false);
                         toggle.setOnAction(e -> togglePassword());
@@ -869,7 +1175,7 @@ public class LoginPage extends Application {
                         root.getChildren().addAll(
                                         passwordField,
                                         textField,
-                                        layer);
+                                        toggle);
                 }
 
                 String getText() {

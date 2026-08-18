@@ -69,15 +69,46 @@ public class UserManagementPage extends AdminTheme {
 
     public UserManagementPage(boolean startAddOnOpen) {
         this.startAddOnOpen = startAddOnOpen;
-        // Ensure default users if store is empty
-        if (users.isEmpty()) {
-            users.add(new AdminDataStore.UserAccount("Aarav Mehta", "aarav@docktech.com", "Admin", "Active", "01 Jan 2026", now()));
-            users.add(new AdminDataStore.UserAccount("John Smith", "john@docktech.com", "Port Authority", "Active", "18 Feb 2026", now()));
-            users.add(new AdminDataStore.UserAccount("Rahul Patil", "rahul@docktech.com", "Ship Captain", "Active", "04 Mar 2026", "11 Aug 2026, 20:10"));
-            users.add(new AdminDataStore.UserAccount("Alex Kumar", "alex@docktech.com", "Customs Officer", "Pending", "25 Jul 2026", "Pending approval"));
-            users.add(new AdminDataStore.UserAccount("Meera Rao", "meera@docktech.com", "Exporter", "Active", "09 May 2026", now()));
-            users.add(new AdminDataStore.UserAccount("Nisha Shah", "nisha@docktech.com", "Importer", "Deactivated", "16 Jun 2026", "05 Aug 2026, 17:35"));
-        }
+        loadLiveUsersFromFirestore();
+    }
+
+    private void loadLiveUsersFromFirestore() {
+        java.util.concurrent.ForkJoinPool.commonPool().execute(() -> {
+            try {
+                List<java.util.Map<String, Object>> liveList = com.projectui.dao.UserDao.getFirebaseAuthUsersWithProfiles();
+                javafx.application.Platform.runLater(() -> {
+                    users.clear();
+                    java.util.Set<String> seenKeys = new java.util.HashSet<>();
+                    if (liveList != null && !liveList.isEmpty()) {
+                        for (java.util.Map<String, Object> u : liveList) {
+                            String email = u.get("email") != null ? u.get("email").toString().trim().toLowerCase() : "";
+                            String uid = u.get("uid") != null ? u.get("uid").toString().trim() : "";
+                            String key = !email.isBlank() ? email : uid;
+
+                            if (key.isBlank() || seenKeys.contains(key)) continue;
+                            seenKeys.add(key);
+
+                            String name = u.get("name") != null ? u.get("name").toString() : "User";
+                            String role = u.get("role") != null ? u.get("role").toString() : "Port Authority";
+                            String status = u.get("status") != null ? u.get("status").toString() : "Active";
+                            String created = u.get("createdAt") != null ? u.get("createdAt").toString() : "Today";
+                            String lastActive = u.get("updatedAt") != null ? u.get("updatedAt").toString() : "Recently";
+
+                            users.add(new AdminDataStore.UserAccount(uid, name, email, role, status, created, lastActive));
+                        }
+                    }
+                    refreshTable();
+                    refreshStats();
+                    if (toastMessage != null) {
+                        showToast("Live directory loaded (" + users.size() + " accounts from Firebase Auth).", true);
+                    }
+                });
+            } catch (Exception ex) {
+                javafx.application.Platform.runLater(() -> {
+                    if (toastMessage != null) showToast("Unable to load user data from database.", false);
+                });
+            }
+        });
     }
 
     public Parent getRoot() {
@@ -284,13 +315,13 @@ public class UserManagementPage extends AdminTheme {
         // Search Input
         search = new TextField();
         search.setPromptText("⌕  Search users by name, email, role...");
-        search.setPrefWidth(220);
+        search.setPrefWidth(180);
         search.setStyle(
                 "-fx-background-color:#f8fafc;" +
                 "-fx-border-color:#e2e8f0;" +
                 "-fx-border-radius:8;" +
                 "-fx-background-radius:8;" +
-                "-fx-padding:8 12 8 12;" +
+                "-fx-padding:8 10 8 10;" +
                 "-fx-font-size:13;"
         );
         search.textProperty().addListener((obs, oldValue, newValue) -> refreshTable());
@@ -300,8 +331,8 @@ public class UserManagementPage extends AdminTheme {
         statusFilter = combo("Status", "All Status", "Active", "Pending", "Deactivated");
         roleFilter.setStyle("-fx-font-size:13;");
         statusFilter.setStyle("-fx-font-size:13;");
-        roleFilter.setPrefWidth(140);
-        statusFilter.setPrefWidth(120);
+        roleFilter.setPrefWidth(125);
+        statusFilter.setPrefWidth(110);
         roleFilter.valueProperty().addListener((obs, oldValue, newValue) -> refreshTable());
         statusFilter.valueProperty().addListener((obs, oldValue, newValue) -> refreshTable());
 
@@ -312,7 +343,7 @@ public class UserManagementPage extends AdminTheme {
                 "-fx-text-fill:#475569;" +
                 "-fx-font-size:13;" +
                 "-fx-font-weight:bold;" +
-                "-fx-padding:8 14;" +
+                "-fx-padding:8 12;" +
                 "-fx-background-radius:6;" +
                 "-fx-cursor:hand;"
         );
@@ -327,14 +358,15 @@ public class UserManagementPage extends AdminTheme {
         Region space = new Region();
         HBox.setHgrow(space, Priority.ALWAYS);
 
-        HBox controls = new HBox(8, search, roleFilter, statusFilter, resetFilter);
+        HBox controls = new HBox(6, search, roleFilter, statusFilter, resetFilter);
         controls.setAlignment(Pos.CENTER_RIGHT);
 
-        HBox top = new HBox(12, titleBox, space, controls);
+        HBox top = new HBox(8, titleBox, space, controls);
         top.setAlignment(Pos.CENTER_LEFT);
 
         table.setHgap(0);
         table.setVgap(0);
+        table.setMaxWidth(Double.MAX_VALUE);
         table.setStyle(
                 "-fx-background-color:white;" +
                 "-fx-border-color:#e2e8f0;" +
@@ -342,7 +374,7 @@ public class UserManagementPage extends AdminTheme {
                 "-fx-background-radius:8;"
         );
 
-        VBox card = new VBox(14, top, horizontalScroll(table));
+        VBox card = new VBox(14, top, table);
         card.setPadding(new Insets(18));
         card.setStyle(
                 "-fx-background-color:white;" +
@@ -356,13 +388,22 @@ public class UserManagementPage extends AdminTheme {
 
     private void refreshTable() {
         table.getChildren().clear();
+        table.getColumnConstraints().clear();
+
+        // Responsive Column Proportions: User (20%), Email (28%), Role (18%), Status (12%), Last Active (12%), Actions (10%)
+        javafx.scene.layout.ColumnConstraints c0 = new javafx.scene.layout.ColumnConstraints(); c0.setPercentWidth(20);
+        javafx.scene.layout.ColumnConstraints c1 = new javafx.scene.layout.ColumnConstraints(); c1.setPercentWidth(28);
+        javafx.scene.layout.ColumnConstraints c2 = new javafx.scene.layout.ColumnConstraints(); c2.setPercentWidth(18);
+        javafx.scene.layout.ColumnConstraints c3 = new javafx.scene.layout.ColumnConstraints(); c3.setPercentWidth(12);
+        javafx.scene.layout.ColumnConstraints c4 = new javafx.scene.layout.ColumnConstraints(); c4.setPercentWidth(12);
+        javafx.scene.layout.ColumnConstraints c5 = new javafx.scene.layout.ColumnConstraints(); c5.setPercentWidth(10);
+        table.getColumnConstraints().addAll(c0, c1, c2, c3, c4, c5);
 
         // 6 Columns: User, Email, Role, Status, Last Active, Actions
         String[] headers = {"User", "Email Address", "Assigned Role", "Status", "Last Active", "Actions"};
-        double[] colWidths = {180, 200, 140, 115, 160, 130};
 
         for (int col = 0; col < headers.length; col++) {
-            Label headCell = directoryHeadCell(headers[col], colWidths[col]);
+            Label headCell = directoryHeadCell(headers[col]);
             table.add(headCell, col, 0);
         }
 
@@ -376,17 +417,17 @@ public class UserManagementPage extends AdminTheme {
             boolean isAlt = (displayRow % 2 == 0);
 
             // 1. User with avatar
-            HBox userCell = createUserAvatarCell(user.name, colWidths[0], isAlt);
+            HBox userCell = createUserAvatarCell(user.name, isAlt);
             // 2. Email
-            Label emailCell = createDirTextCell(user.email, colWidths[1], isAlt);
+            Label emailCell = createDirTextCell(user.email, isAlt);
             // 3. Role Tag
-            HBox roleCell = createRoleTagCell(user.role, colWidths[2], isAlt);
+            HBox roleCell = createRoleTagCell(user.role, isAlt);
             // 4. Status Badge
-            HBox statusCell = createStatusBadgeCell(user.status, colWidths[3], isAlt);
-            // 5. Last Active
-            Label lastActiveCell = createDirTextCell(user.lastLogin, colWidths[4], isAlt);
+            HBox statusCell = createStatusBadgeCell(user.status, isAlt);
+            // 5. Last Active (Live Relative Time)
+            Label lastActiveCell = createDirTextCell(getRelativeTime(user.lastLogin), isAlt);
             // 6. Action Cell (Edit + More Menu)
-            HBox actionCell = createDirectoryActionCell(row, colWidths[5], isAlt);
+            HBox actionCell = createDirectoryActionCell(row, isAlt);
 
             table.add(userCell, 0, displayRow);
             table.add(emailCell, 1, displayRow);
@@ -400,31 +441,32 @@ public class UserManagementPage extends AdminTheme {
 
         if (displayRow == 1) {
             Label empty = new Label("No users found matching filter criteria.");
-            empty.setMinWidth(925);
+            empty.setMaxWidth(Double.MAX_VALUE);
             empty.setMinHeight(60);
             empty.setAlignment(Pos.CENTER);
-            empty.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:15; -fx-font-style:italic; -fx-background-color:white;");
+            empty.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:14; -fx-font-style:italic; -fx-background-color:white;");
             table.add(empty, 0, 1, 6, 1);
         }
     }
 
-    private Label directoryHeadCell(String text, double width) {
+    private Label directoryHeadCell(String text) {
         Label cell = new Label(text);
-        cell.setMinWidth(width);
-        cell.setMinHeight(46);
+        cell.setMaxWidth(Double.MAX_VALUE);
+        cell.setMinHeight(44);
         cell.setAlignment(Pos.CENTER_LEFT);
-        cell.setPadding(new Insets(0, 12, 0, 12));
+        cell.setPadding(new Insets(0, 8, 0, 8));
+        cell.setTextOverrun(javafx.scene.control.OverrunStyle.ELLIPSIS);
         cell.setStyle(
                 "-fx-background-color:#f8fafc;" +
                 "-fx-text-fill:#0f172a;" +
-                "-fx-font-size:14;" +
+                "-fx-font-size:13;" +
                 "-fx-font-weight:bold;" +
                 "-fx-border-color:#e2e8f0; -fx-border-width:0 0 1 0;"
         );
         return cell;
     }
 
-    private HBox createUserAvatarCell(String userName, double width, boolean isAlt) {
+    private HBox createUserAvatarCell(String userName, boolean isAlt) {
         String initials = "U";
         if (userName != null && !userName.isBlank()) {
             String[] parts = userName.trim().split("\\s+");
@@ -437,22 +479,28 @@ public class UserManagementPage extends AdminTheme {
         avatar.setStyle(
                 "-fx-background-color:#eff6ff;" +
                 "-fx-text-fill:" + BLUE + ";" +
-                "-fx-font-size:13;" +
+                "-fx-font-size:11;" +
                 "-fx-font-weight:bold;" +
                 "-fx-alignment:center;" +
-                "-fx-min-width:30;" +
-                "-fx-min-height:30;" +
+                "-fx-min-width:28;" +
+                "-fx-min-height:28;" +
+                "-fx-max-width:28;" +
+                "-fx-max-height:28;" +
                 "-fx-background-radius:999;"
         );
 
         Label nameLbl = new Label(userName);
-        nameLbl.setStyle("-fx-text-fill:#0f172a; -fx-font-size:14; -fx-font-weight:bold;");
+        nameLbl.setStyle("-fx-text-fill:#0f172a; -fx-font-size:13; -fx-font-weight:bold;");
+        nameLbl.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(nameLbl, Priority.ALWAYS);
+        nameLbl.setTextOverrun(javafx.scene.control.OverrunStyle.ELLIPSIS);
+        javafx.scene.control.Tooltip.install(nameLbl, new javafx.scene.control.Tooltip(userName));
 
-        HBox cell = new HBox(8, avatar, nameLbl);
+        HBox cell = new HBox(6, avatar, nameLbl);
         cell.setAlignment(Pos.CENTER_LEFT);
-        cell.setMinWidth(width);
-        cell.setMinHeight(52);
-        cell.setPadding(new Insets(0, 12, 0, 12));
+        cell.setMaxWidth(Double.MAX_VALUE);
+        cell.setMinHeight(48);
+        cell.setPadding(new Insets(0, 8, 0, 8));
         cell.setStyle(
                 "-fx-background-color:" + (isAlt ? "#fafcff" : "white") + ";" +
                 "-fx-border-color:#f1f5f9; -fx-border-width:0 0 1 0;"
@@ -460,21 +508,25 @@ public class UserManagementPage extends AdminTheme {
         return cell;
     }
 
-    private Label createDirTextCell(String text, double width, boolean isAlt) {
+    private Label createDirTextCell(String text, boolean isAlt) {
         Label cell = new Label(text);
-        cell.setMinWidth(width);
-        cell.setMinHeight(52);
+        cell.setMaxWidth(Double.MAX_VALUE);
+        cell.setMinHeight(48);
         cell.setAlignment(Pos.CENTER_LEFT);
-        cell.setPadding(new Insets(0, 12, 0, 12));
+        cell.setPadding(new Insets(0, 8, 0, 8));
+        cell.setTextOverrun(javafx.scene.control.OverrunStyle.ELLIPSIS);
+        if (text != null && text.length() > 16) {
+            javafx.scene.control.Tooltip.install(cell, new javafx.scene.control.Tooltip(text));
+        }
         cell.setStyle(
                 "-fx-background-color:" + (isAlt ? "#fafcff" : "white") + ";" +
-                "-fx-text-fill:#475569; -fx-font-size:14;" +
+                "-fx-text-fill:#475569; -fx-font-size:13;" +
                 "-fx-border-color:#f1f5f9; -fx-border-width:0 0 1 0;"
         );
         return cell;
     }
 
-    private HBox createRoleTagCell(String roleStr, double width, boolean isAlt) {
+    private HBox createRoleTagCell(String roleStr, boolean isAlt) {
         Label tag = new Label(roleStr);
         String color = BLUE;
         String bg = "#eff6ff";
@@ -493,16 +545,17 @@ public class UserManagementPage extends AdminTheme {
                 "-fx-text-fill:" + color + ";" +
                 "-fx-background-color:" + bg + ";" +
                 "-fx-background-radius:6;" +
-                "-fx-padding:4 10 4 10;" +
-                "-fx-font-size:13;" +
+                "-fx-padding:3 8 3 8;" +
+                "-fx-font-size:12;" +
                 "-fx-font-weight:bold;"
         );
+        tag.setTextOverrun(javafx.scene.control.OverrunStyle.ELLIPSIS);
 
         HBox cell = new HBox(tag);
         cell.setAlignment(Pos.CENTER_LEFT);
-        cell.setMinWidth(width);
-        cell.setMinHeight(52);
-        cell.setPadding(new Insets(0, 12, 0, 12));
+        cell.setMaxWidth(Double.MAX_VALUE);
+        cell.setMinHeight(48);
+        cell.setPadding(new Insets(0, 6, 0, 6));
         cell.setStyle(
                 "-fx-background-color:" + (isAlt ? "#fafcff" : "white") + ";" +
                 "-fx-border-color:#f1f5f9; -fx-border-width:0 0 1 0;"
@@ -510,7 +563,7 @@ public class UserManagementPage extends AdminTheme {
         return cell;
     }
 
-    private HBox createStatusBadgeCell(String statusStr, double width, boolean isAlt) {
+    private HBox createStatusBadgeCell(String statusStr, boolean isAlt) {
         Label badge = new Label(statusStr);
         String textColor = "#16a34a";
         String bgColor = "#ecfdf5";
@@ -526,16 +579,17 @@ public class UserManagementPage extends AdminTheme {
                 "-fx-text-fill:" + textColor + ";" +
                 "-fx-background-color:" + bgColor + ";" +
                 "-fx-background-radius:6;" +
-                "-fx-padding:4 10 4 10;" +
-                "-fx-font-size:13;" +
+                "-fx-padding:3 8 3 8;" +
+                "-fx-font-size:12;" +
                 "-fx-font-weight:bold;"
         );
+        badge.setTextOverrun(javafx.scene.control.OverrunStyle.ELLIPSIS);
 
         HBox cell = new HBox(badge);
         cell.setAlignment(Pos.CENTER_LEFT);
-        cell.setMinWidth(width);
-        cell.setMinHeight(52);
-        cell.setPadding(new Insets(0, 12, 0, 12));
+        cell.setMaxWidth(Double.MAX_VALUE);
+        cell.setMinHeight(48);
+        cell.setPadding(new Insets(0, 6, 0, 6));
         cell.setStyle(
                 "-fx-background-color:" + (isAlt ? "#fafcff" : "white") + ";" +
                 "-fx-border-color:#f1f5f9; -fx-border-width:0 0 1 0;"
@@ -543,15 +597,15 @@ public class UserManagementPage extends AdminTheme {
         return cell;
     }
 
-    private HBox createDirectoryActionCell(int userIndex, double width, boolean isAlt) {
+    private HBox createDirectoryActionCell(int userIndex, boolean isAlt) {
         Button editBtn = new Button("Edit");
         editBtn.setStyle(
                 "-fx-background-color:#eff6ff;" +
                 "-fx-text-fill:" + BLUE + ";" +
-                "-fx-font-size:13;" +
+                "-fx-font-size:12;" +
                 "-fx-font-weight:bold;" +
                 "-fx-background-radius:4;" +
-                "-fx-padding:4 10;" +
+                "-fx-padding:3 8;" +
                 "-fx-cursor:hand;"
         );
         editBtn.setOnAction(e -> startEdit(userIndex));
@@ -560,18 +614,18 @@ public class UserManagementPage extends AdminTheme {
         moreBtn.setStyle(
                 "-fx-background-color:transparent;" +
                 "-fx-text-fill:#64748b;" +
-                "-fx-font-size:15;" +
+                "-fx-font-size:14;" +
                 "-fx-font-weight:bold;" +
-                "-fx-padding:2 6;" +
+                "-fx-padding:2 4;" +
                 "-fx-cursor:hand;"
         );
         moreBtn.setOnAction(e -> showUserActionPopup(userIndex, moreBtn));
 
-        HBox cell = new HBox(6, editBtn, moreBtn);
+        HBox cell = new HBox(4, editBtn, moreBtn);
         cell.setAlignment(Pos.CENTER_LEFT);
-        cell.setMinWidth(width);
-        cell.setMinHeight(52);
-        cell.setPadding(new Insets(0, 10, 0, 10));
+        cell.setMaxWidth(Double.MAX_VALUE);
+        cell.setMinHeight(48);
+        cell.setPadding(new Insets(0, 4, 0, 4));
         cell.setStyle(
                 "-fx-background-color:" + (isAlt ? "#fafcff" : "white") + ";" +
                 "-fx-border-color:#f1f5f9; -fx-border-width:0 0 1 0;"
@@ -612,10 +666,19 @@ public class UserManagementPage extends AdminTheme {
         );
         toggleStatusItem.setOnAction(e -> {
             popup.hide();
+            if ("Active".equalsIgnoreCase(user.status) && ("Admin".equalsIgnoreCase(user.role) || "babu@gmail.com".equalsIgnoreCase(user.email)) && countActiveAdmins() <= 1) {
+                showToast("Cannot deactivate or delete the only active system administrator.", false);
+                return;
+            }
             user.status = "Active".equals(user.status) ? "Deactivated" : "Active";
-            refreshTable();
-            refreshStats();
-            showToast("Updated " + user.name + " status to " + user.status, true);
+            String uid = "usr_" + Math.abs(user.email.toLowerCase().hashCode());
+            userDao.saveUserExtended(uid, user.email, user.name, "Dock Tech Operations", "+91 9800000000", user.role, user.status, null)
+                    .whenComplete((res, err) -> javafx.application.Platform.runLater(() -> {
+                        com.projectui.dao.UserDao.logActivity(user.name, user.email, "USER_UPDATED", "Account status updated to " + user.status + " by Admin");
+                        refreshTable();
+                        refreshStats();
+                        showToast("Updated " + user.name + " status to " + user.status, true);
+                    }));
         });
 
         Button resetPassItem = popupMenuItem("🔒 Reset User Password");
@@ -624,7 +687,48 @@ public class UserManagementPage extends AdminTheme {
             showToast("Password reset link dispatched to " + user.email, true);
         });
 
-        menu.getChildren().addAll(viewItem, editItem, toggleStatusItem, new Separator(), resetPassItem);
+        Button deleteUserItem = popupMenuItem("✕ Delete User");
+        deleteUserItem.setStyle(
+                "-fx-background-color:transparent;" +
+                "-fx-text-fill:#ef4444;" +
+                "-fx-font-size:14;" +
+                "-fx-padding:7 12;" +
+                "-fx-cursor:hand;"
+        );
+        deleteUserItem.setOnAction(e -> {
+            popup.hide();
+
+            // Single Admin Protection Guard
+            if ("Admin".equalsIgnoreCase(user.role) || "babu@gmail.com".equalsIgnoreCase(user.email)) {
+                showToast("Cannot delete the only system administrator.", false);
+                return;
+            }
+
+            // Confirmation Dialog
+            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
+            alert.setTitle("Delete User?");
+            alert.setHeaderText("Delete User?");
+            alert.setContentText("Are you sure you want to permanently delete this user? This action cannot be undone.");
+
+            javafx.scene.control.ButtonType deleteBtnType = new javafx.scene.control.ButtonType("Delete User", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+            javafx.scene.control.ButtonType cancelBtnType = new javafx.scene.control.ButtonType("Cancel", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
+            alert.getButtonTypes().setAll(deleteBtnType, cancelBtnType);
+
+            alert.showAndWait().ifPresent(type -> {
+                if (type == deleteBtnType) {
+                    userDao.deleteUserAccount(user.email).whenComplete((res, err) -> javafx.application.Platform.runLater(() -> {
+                        if (err != null) {
+                            showToast("Cannot delete the only system administrator.", false);
+                        } else {
+                            showToast("User deleted successfully.", true);
+                            loadLiveUsersFromFirestore();
+                        }
+                    }));
+                }
+            });
+        });
+
+        menu.getChildren().addAll(viewItem, editItem, toggleStatusItem, new Separator(), resetPassItem, deleteUserItem);
         popup.getContent().add(menu);
 
         Bounds bounds = anchor.localToScreen(anchor.getBoundsInLocal());
@@ -806,6 +910,7 @@ public class UserManagementPage extends AdminTheme {
         );
 
         Label label = new Label(name);
+        label.setMinWidth(160);
         label.setStyle(
                 "-fx-text-fill:" + (granted ? "#0f172a" : "#94a3b8") + ";" +
                 "-fx-font-size:13;" +
@@ -816,23 +921,27 @@ public class UserManagementPage extends AdminTheme {
         HBox.setHgrow(space, Priority.ALWAYS);
 
         Label statusTag = new Label(granted ? "Granted" : "Restricted");
+        statusTag.setMinWidth(75);
+        statusTag.setAlignment(Pos.CENTER);
         statusTag.setStyle(
-                "-fx-text-fill:" + (granted ? "#16a34a" : "#94a3b8") + ";" +
+                "-fx-text-fill:" + (granted ? "#16a34a" : "#64748b") + ";" +
                 "-fx-background-color:" + (granted ? "#ecfdf5" : "#f1f5f9") + ";" +
                 "-fx-background-radius:4;" +
-                "-fx-padding:2 8;" +
+                "-fx-padding:3 8;" +
                 "-fx-font-size:12;" +
                 "-fx-font-weight:bold;"
         );
 
-        HBox row = new HBox(6, check, label, space, statusTag);
+        HBox row = new HBox(8, check, label, space, statusTag);
         row.setAlignment(Pos.CENTER_LEFT);
-        row.setPadding(new Insets(2, 0, 2, 0));
+        row.setPadding(new Insets(3, 0, 3, 0));
+        row.setMaxWidth(Double.MAX_VALUE);
         return row;
     }
 
     private void startAdd() {
         editingIndex = -1;
+        selectedUserUid = null;
         formTitle.setText("Add New User");
         formSubtitle.setText("Register a new Dock Tech operator account");
         nameField.clear();
@@ -847,7 +956,7 @@ public class UserManagementPage extends AdminTheme {
             roleCombo.setValue("Customs Officer");
             renderCapabilities("Customs Officer");
         } else if ("Admin".equalsIgnoreCase(creatorRole) || "Administrator".equalsIgnoreCase(creatorRole)) {
-            roleCombo.getItems().setAll("Port Authority", "Exporter", "Importer");
+            roleCombo.getItems().setAll("Admin", "Port Authority", "Ship Captain", "Customs Officer", "Importer", "Exporter");
             roleCombo.setValue("Port Authority");
             renderCapabilities("Port Authority");
         } else {
@@ -862,10 +971,17 @@ public class UserManagementPage extends AdminTheme {
         nameField.requestFocus();
     }
 
+    private String selectedUserUid = null;
+
     private void startEdit(int index) {
         if (index < 0 || index >= users.size()) return;
         editingIndex = index;
         AdminDataStore.UserAccount user = users.get(index);
+        selectedUserUid = user.uid;
+        if (selectedUserUid == null || selectedUserUid.isBlank() || selectedUserUid.startsWith("usr_")) {
+            String realUid = com.projectui.dao.UserDao.getUidForEmail(user.email);
+            if (realUid != null && !realUid.isBlank()) selectedUserUid = realUid;
+        }
         formTitle.setText("Edit User Profile");
         formSubtitle.setText("Update credentials, role and status for " + user.name);
         nameField.setText(user.name);
@@ -881,6 +997,11 @@ public class UserManagementPage extends AdminTheme {
         if (index < 0 || index >= users.size()) return;
         editingIndex = index;
         AdminDataStore.UserAccount user = users.get(index);
+        selectedUserUid = user.uid;
+        if (selectedUserUid == null || selectedUserUid.isBlank() || selectedUserUid.startsWith("usr_")) {
+            String realUid = com.projectui.dao.UserDao.getUidForEmail(user.email);
+            if (realUid != null && !realUid.isBlank()) selectedUserUid = realUid;
+        }
         formTitle.setText("User Profile: " + user.name);
         formSubtitle.setText("Created: " + user.created + " • Last Active: " + user.lastLogin);
         nameField.setText(user.name);
@@ -932,35 +1053,102 @@ public class UserManagementPage extends AdminTheme {
             return;
         }
 
+        if ("Admin".equalsIgnoreCase(roleVal)) {
+            boolean adminExists = false;
+            for (AdminDataStore.UserAccount u : users) {
+                if (u != null && "Admin".equalsIgnoreCase(u.role) && !u.email.equalsIgnoreCase(emailVal)) {
+                    adminExists = true;
+                    break;
+                }
+            }
+            if (adminExists) {
+                showToast("Admin account already exists. Only one Admin account is allowed.", false);
+                return;
+            }
+        }
+
         if (editingIndex >= 0 && editingIndex < users.size()) {
             AdminDataStore.UserAccount old = users.get(editingIndex);
+            
+            // Single Active Admin Protection Guard
+            if ("Admin".equalsIgnoreCase(old.role) && (!"Admin".equalsIgnoreCase(roleVal) || !"Active".equalsIgnoreCase(statusVal)) && countActiveAdmins() <= 1) {
+                showToast("Cannot deactivate or delete the only active system administrator.", false);
+                return;
+            }
+
             old.name = nameVal;
             old.email = emailVal;
             old.role = roleVal;
             old.status = statusVal;
-            showToast("Successfully updated profile for: " + nameVal, true);
+
+            String targetUid = (selectedUserUid != null && !selectedUserUid.isBlank()) ? selectedUserUid : old.uid;
+            if (targetUid == null || targetUid.isBlank() || targetUid.startsWith("usr_")) {
+                String realUid = com.projectui.dao.UserDao.getUidForEmail(emailVal);
+                if (realUid != null && !realUid.isBlank()) targetUid = realUid;
+            }
+            if (targetUid == null || targetUid.isBlank()) {
+                targetUid = "usr_" + Math.abs(emailVal.toLowerCase().hashCode());
+            }
+
+            old.uid = targetUid;
+            saveBtn.setDisable(true);
+            showToast("Updating user profile...", true);
+
+            userDao.saveUserExtended(targetUid, emailVal, nameVal, "Dock Tech Operations", "+91 9800000000", roleVal, statusVal, null)
+                    .whenComplete((res, err) -> javafx.application.Platform.runLater(() -> {
+                        saveBtn.setDisable(false);
+                        if (err != null) {
+                            showToast(err.getMessage() != null && !err.getMessage().isBlank() ? err.getMessage() : "Unable to update user information.", false);
+                        } else {
+                            com.projectui.dao.UserDao.logActivity(nameVal, emailVal, "USER_UPDATED", "User information updated by Admin");
+                            showToast("User updated successfully.", true);
+                            loadLiveUsersFromFirestore();
+                        }
+                    }));
         } else {
             String phoneVal = "+91 98" + (int)(Math.random() * 89999999 + 10000000);
             userDao.provisionAccount(creatorRole, nameVal, emailVal, "Dock Tech Operations", phoneVal, roleVal, statusVal)
                 .whenComplete((creds, err) -> javafx.application.Platform.runLater(() -> {
-                    if (creds != null) {
+                    if (err != null) {
+                        showToast("Provision Error: " + err.getMessage(), false);
+                    } else if (creds != null) {
                         String tempPass = creds.get("tempPassword");
-                        showToast("✓ Account Provisioned! Login ID: " + emailVal + " | Temp Pass: " + tempPass + " | Role: " + roleVal, true);
-                    } else {
-                        showToast("Successfully registered user: " + nameVal, true);
+                        String uid = creds.get("uid");
+                        com.projectui.dao.UserDao.logActivity(nameVal, emailVal, "USER_CREATED", "User account created by Admin (" + roleVal + ")");
+                        showAccountCreatedPopup(nameVal, emailVal, roleVal, uid, tempPass);
+                        showToast("User account created successfully.", true);
+                        loadLiveUsersFromFirestore();
                     }
                 }));
-
-            AdminDataStore.UserAccount newUser = new AdminDataStore.UserAccount(
-                    nameVal, emailVal, roleVal, statusVal, now(), "Just now"
-            );
-            users.add(0, newUser);
-            editingIndex = 0;
         }
 
         refreshTable();
         refreshStats();
         startEdit(editingIndex);
+    }
+
+    private void showAccountCreatedPopup(String name, String email, String role, String uid, String tempPass) {
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.INFORMATION);
+        alert.setTitle("Account Created Successfully");
+        alert.setHeaderText("Account Created Successfully");
+        alert.setContentText(
+                "Name: " + name + "\n" +
+                "Email: " + email + "\n" +
+                "Role: " + role + "\n" +
+                "Account ID: " + (uid != null ? uid : "Generated") + "\n\n" +
+                "Temporary Password: " + (tempPass != null ? tempPass : "Dispatched")
+        );
+        alert.showAndWait();
+    }
+
+    private int countActiveAdmins() {
+        int activeAdmins = 0;
+        for (AdminDataStore.UserAccount u : users) {
+            if (u != null && "Admin".equalsIgnoreCase(u.role) && "Active".equalsIgnoreCase(u.status)) {
+                activeAdmins++;
+            }
+        }
+        return activeAdmins;
     }
 
     private void refreshStats() {
@@ -1005,6 +1193,7 @@ public class UserManagementPage extends AdminTheme {
         return queryMatches && roleMatches && statusMatches;
     }
 
+    @SuppressWarnings("unused")
     private String now() {
         return LocalDateTime.now().format(DATE_TIME);
     }
@@ -1027,6 +1216,32 @@ public class UserManagementPage extends AdminTheme {
         return row;
     }
 
+    private String getRelativeTime(String timeStr) {
+        if (timeStr == null || timeStr.isBlank() || "Never".equalsIgnoreCase(timeStr) || "Pending approval".equalsIgnoreCase(timeStr)) {
+            return "Never";
+        }
+        try {
+            LocalDateTime dt = null;
+            if (timeStr.contains("T")) {
+                dt = LocalDateTime.parse(timeStr);
+            } else if (timeStr.matches("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}")) {
+                dt = LocalDateTime.parse(timeStr.replace(" ", "T"));
+            }
+            if (dt != null) {
+                long seconds = java.time.Duration.between(dt, LocalDateTime.now()).getSeconds();
+                if (seconds < 60) return "Just now";
+                long mins = seconds / 60;
+                if (mins < 60) return mins + " mins ago";
+                long hrs = mins / 60;
+                if (hrs < 24) return hrs + (hrs == 1 ? " hr ago" : " hrs ago");
+                long days = hrs / 24;
+                if (days == 1) return "Yesterday";
+                return days + " days ago";
+            }
+        } catch (Exception ignored) {}
+        return "Just now";
+    }
+
     // Bottom Card 1: Recent User Activities (Spacious Audit & Access Trail)
     private VBox recentUserActivitiesCard() {
         Label title = new Label("Recent User Activities");
@@ -1036,14 +1251,26 @@ public class UserManagementPage extends AdminTheme {
         VBox titleBox = new VBox(2, title, subtitle);
 
         VBox logList = new VBox(8);
-        logList.getChildren().addAll(
-                activityAuditItem("Aarav Mehta", "Logged in to Admin Console", "2 mins ago", "#16a34a"),
-                activityAuditItem("John Smith", "Updated Port of Mumbai berth operational status", "15 mins ago", "#0b63ff"),
-                activityAuditItem("Alex Kumar", "Submitted registration request for Customs Officer", "45 mins ago", "#f59e0b"),
-                activityAuditItem("Capt. Rahul Patil", "Dispatched Container Vessel MV Ocean Star", "1 hr ago", "#0ea5e9"),
-                activityAuditItem("Meera Rao", "Exported Customs Declaration manifest CSV", "3 hrs ago", "#6366f1"),
-                activityAuditItem("Nisha Shah", "Account access status updated to Deactivated by Admin", "Yesterday", "#94a3b8")
-        );
+
+        java.util.List<java.util.Map<String, Object>> logs = com.projectui.dao.UserDao.getActivityLogs();
+        if (logs != null && !logs.isEmpty()) {
+            for (java.util.Map<String, Object> log : logs) {
+                String name = log.get("userName") != null ? log.get("userName").toString() : "Admin";
+                String desc = log.get("description") != null ? log.get("description").toString() : "System Action";
+                String ts = log.get("timestamp") != null ? log.get("timestamp").toString() : "";
+                String action = log.get("action") != null ? log.get("action").toString() : "";
+                String dotColor = "#16a34a";
+                if (action.contains("DELETE")) dotColor = "#ef4444";
+                else if (action.contains("UPDATE")) dotColor = "#0b63ff";
+
+                logList.getChildren().add(activityAuditItem(name, desc, getRelativeTime(ts), dotColor));
+            }
+        } else {
+            logList.getChildren().addAll(
+                    activityAuditItem("Babu", "Logged in to Admin Console", "Just now", "#16a34a"),
+                    activityAuditItem("Rajesh Varma", "Provisioned Port Authority account for Hazira", "10 mins ago", "#0b63ff")
+            );
+        }
 
         VBox card = new VBox(12, titleBox, new Separator(), logList);
         card.setPadding(new Insets(16));

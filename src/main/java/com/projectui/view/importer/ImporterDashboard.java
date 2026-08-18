@@ -20,6 +20,7 @@ import javafx.stage.StageStyle;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+@SuppressWarnings("unused")
 public class ImporterDashboard extends Application {
 
     public static Stage importerStage;

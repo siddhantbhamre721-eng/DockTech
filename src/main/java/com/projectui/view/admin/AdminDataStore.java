@@ -35,22 +35,15 @@ public class AdminDataStore {
     public String lastExportPath = "";
 
     private AdminDataStore() {
-        ports.add(new Port("Port of Mumbai", "Mumbai", 18, 12, "Operational", "Mixed cargo, containers", "82%", "Clear", now()));
-        ports.add(new Port("Port of Chennai", "Chennai", 14, 8, "Operational", "Automobiles, containers", "76%", "Clear", now()));
-        ports.add(new Port("Port of Vizag", "Visakhapatnam", 12, 5, "Maintenance", "Bulk cargo, minerals", "58%", "Crane service in progress", now()));
-        ports.add(new Port("Port of Kolkata", "Kolkata", 10, 9, "Busy", "River cargo, containers", "91%", "High congestion watch", now()));
-
-        users.add(new UserAccount("Aarav Mehta", "aarav@docktech.com", "Admin", "Active", "01 Jan 2026", now()));
-        users.add(new UserAccount("John Smith", "john@docktech.com", "Port Authority", "Active", "18 Feb 2026", now()));
-        users.add(new UserAccount("Rahul Patil", "rahul@docktech.com", "Ship Captain", "Active", "04 Mar 2026", "11 Aug 2026, 20:10"));
-        users.add(new UserAccount("Alex Kumar", "alex@docktech.com", "Customs Officer", "Pending", "25 Jul 2026", "Pending approval"));
-        users.add(new UserAccount("Meera Rao", "meera@docktech.com", "Exporter", "Active", "09 May 2026", now()));
-        users.add(new UserAccount("Nisha Shah", "nisha@docktech.com", "Importer", "Deactivated", "16 Jun 2026", "05 Aug 2026, 17:35"));
+        ports.add(new Port("Port of Mumbai", "Mumbai, Maharashtra", "IN-MUM-01", "Mumbai Port Authority", 18, 12, "Operational", "Mixed cargo, containers", "82%", "Clear", now(), 18.9439, 72.8354, "APPROVED"));
+        ports.add(new Port("Port of Chennai", "Chennai, Tamil Nadu", "IN-MAA-01", "Chennai Port Authority", 14, 8, "Operational", "Automobiles, containers", "76%", "Clear", now(), 13.0827, 80.2707, "APPROVED"));
+        ports.add(new Port("Port of Vizag", "Visakhapatnam, Andhra Pradesh", "IN-VTZ-01", "Visakhapatnam Port Authority", 12, 5, "Maintenance", "Bulk cargo, minerals", "58%", "Crane service in progress", now(), 17.6868, 83.2185, "APPROVED"));
+        ports.add(new Port("Port of Kolkata", "Kolkata, West Bengal", "IN-CCU-01", "Syama Prasad Mookerjee Port Authority", 10, 9, "Busy", "River cargo, containers", "91%", "High congestion watch", now(), 22.5726, 88.3639, "APPROVED"));
 
         portRequests.add(new PortRequest(
-                "REQ-101", "Port of Hazira", "IN-HAZ-01", "Hazira, Gujarat", "Hazira Port Complex, Surat", "Industrial container & liquid cargo terminal",
+                "NPR-101", "Port of Hazira", "IN-HAZ-01", "Hazira, Gujarat", "Hazira Port Complex, Surat", "Industrial container & liquid cargo terminal",
                 "Vikram Shah", "vikram@haziraport.com", "+91 98765 11223",
-                "Rajesh Varma", "pa_hazira@docktech.com", "PENDING", "15 Aug 2026"
+                "Rajesh Varma", "pa_hazira@docktech.com", "PENDING", "15 Aug 2026", 21.1122, 72.6411
         ));
 
         generateReports("Today", "All Status");
@@ -75,7 +68,20 @@ public class AdminDataStore {
     public int activePorts() {
         int count = 0;
         for (Port port : ports) {
-            if ("Operational".equals(port.status)) count++;
+            if (("APPROVED".equalsIgnoreCase(port.approvalStatus) || port.approvalStatus == null)
+                    && "Operational".equalsIgnoreCase(port.status)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public int totalPorts() {
+        int count = 0;
+        for (Port port : ports) {
+            if ("APPROVED".equalsIgnoreCase(port.approvalStatus) || port.approvalStatus == null) {
+                count++;
+            }
         }
         return count;
     }
@@ -83,7 +89,10 @@ public class AdminDataStore {
     public int maintenancePorts() {
         int count = 0;
         for (Port port : ports) {
-            if ("Maintenance".equals(port.status)) count++;
+            if (("APPROVED".equalsIgnoreCase(port.approvalStatus) || port.approvalStatus == null)
+                    && "Maintenance".equalsIgnoreCase(port.status)) {
+                count++;
+            }
         }
         return count;
     }
@@ -91,7 +100,9 @@ public class AdminDataStore {
     public int activeVessels() {
         int count = 0;
         for (Port port : ports) {
-            count += port.vessels;
+            if ("APPROVED".equalsIgnoreCase(port.approvalStatus) || port.approvalStatus == null) {
+                count += port.vessels;
+            }
         }
         return count;
     }
@@ -116,8 +127,16 @@ public class AdminDataStore {
         return count;
     }
 
+    public int pendingPortRequestsCount() {
+        int count = 0;
+        for (PortRequest req : portRequests) {
+            if ("PENDING".equalsIgnoreCase(req.status)) count++;
+        }
+        return count;
+    }
+
     public int[] weeklyOperations() {
-        int base = ports.size() * 8;
+        int base = totalPorts() * 8;
         return new int[]{base + 6, base + 18, base + 13, base + 30, base + 24, base + activeVessels(), base + 10};
     }
 
@@ -159,6 +178,8 @@ public class AdminDataStore {
     public static class Port {
         public String name;
         public String location;
+        public String code;
+        public String portAuthority;
         public int berths;
         public int vessels;
         public String status;
@@ -166,17 +187,29 @@ public class AdminDataStore {
         public String capacity;
         public String maintenance;
         public String lastUpdated;
+        public double lat;
+        public double lng;
+        public String approvalStatus;
 
         public Port(String name, String location, int berths, int vessels, String status, String cargo, String capacity, String maintenance, String lastUpdated) {
+            this(name, location, "IN-" + name.replaceAll("[^A-Za-z]", "").toUpperCase().substring(0, Math.min(3, name.length())) + "-01", "Port Authority (" + name + ")", berths, vessels, status, cargo, capacity, maintenance, lastUpdated, 0.0, 0.0, "APPROVED");
+        }
+
+        public Port(String name, String location, String code, String portAuthority, int berths, int vessels, String status, String cargo, String capacity, String maintenance, String lastUpdated, double lat, double lng, String approvalStatus) {
             this.name = name;
             this.location = location;
+            this.code = code != null && !code.isBlank() ? code : "IN-PORT-01";
+            this.portAuthority = portAuthority != null && !portAuthority.isBlank() ? portAuthority : "Port Authority (" + name + ")";
             this.berths = berths;
             this.vessels = vessels;
-            this.status = status;
-            this.cargo = cargo;
-            this.capacity = capacity;
-            this.maintenance = maintenance;
-            this.lastUpdated = lastUpdated;
+            this.status = status != null ? status : "Operational";
+            this.cargo = cargo != null ? cargo : "Containers";
+            this.capacity = capacity != null ? capacity : "85%";
+            this.maintenance = maintenance != null ? maintenance : "Clear";
+            this.lastUpdated = lastUpdated != null ? lastUpdated : "Just now";
+            this.lat = lat;
+            this.lng = lng;
+            this.approvalStatus = approvalStatus != null ? approvalStatus : "APPROVED";
         }
 
         public int occupiedBerths() {
@@ -189,6 +222,7 @@ public class AdminDataStore {
     }
 
     public static class UserAccount {
+        public String uid;
         public String name;
         public String email;
         public String role;
@@ -196,13 +230,18 @@ public class AdminDataStore {
         public String created;
         public String lastLogin;
 
-        public UserAccount(String name, String email, String role, String status, String created, String lastLogin) {
+        public UserAccount(String uid, String name, String email, String role, String status, String created, String lastLogin) {
+            this.uid = uid;
             this.name = name;
             this.email = email;
             this.role = role;
             this.status = status;
             this.created = created;
             this.lastLogin = lastLogin;
+        }
+
+        public UserAccount(String name, String email, String role, String status, String created, String lastLogin) {
+            this(null, name, email, role, status, created, lastLogin);
         }
     }
 
@@ -242,17 +281,32 @@ public class AdminDataStore {
         public String requestDate;
         public String rejectionReason;
         public String documentRefs;
+        public double lat;
+        public double lng;
 
         public PortRequest(String requestId, String portName, String portCode, String location, String address, String details,
                            String requesterName, String requesterEmail, String requesterPhone,
                            String proposedPaName, String proposedPaEmail, String status, String requestDate) {
-            this(requestId, portName, portCode, location, address, details, requesterName, requesterEmail, requesterPhone, proposedPaName, proposedPaEmail, status, requestDate, "", "Hazira_Port_Proposal.pdf, EIA_Clearance.pdf");
+            this(requestId, portName, portCode, location, address, details, requesterName, requesterEmail, requesterPhone, proposedPaName, proposedPaEmail, status, requestDate, 0.0, 0.0);
+        }
+
+        public PortRequest(String requestId, String portName, String portCode, String location, String address, String details,
+                           String requesterName, String requesterEmail, String requesterPhone,
+                           String proposedPaName, String proposedPaEmail, String status, String requestDate, double lat, double lng) {
+            this(requestId, portName, portCode, location, address, details, requesterName, requesterEmail, requesterPhone, proposedPaName, proposedPaEmail, status, requestDate, "", "Hazira_Port_Proposal.pdf, EIA_Clearance.pdf", lat, lng);
         }
 
         public PortRequest(String requestId, String portName, String portCode, String location, String address, String details,
                            String requesterName, String requesterEmail, String requesterPhone,
                            String proposedPaName, String proposedPaEmail, String status, String requestDate,
                            String rejectionReason, String documentRefs) {
+            this(requestId, portName, portCode, location, address, details, requesterName, requesterEmail, requesterPhone, proposedPaName, proposedPaEmail, status, requestDate, rejectionReason, documentRefs, 0.0, 0.0);
+        }
+
+        public PortRequest(String requestId, String portName, String portCode, String location, String address, String details,
+                           String requesterName, String requesterEmail, String requesterPhone,
+                           String proposedPaName, String proposedPaEmail, String status, String requestDate,
+                           String rejectionReason, String documentRefs, double lat, double lng) {
             this.requestId = requestId;
             this.portName = portName;
             this.portCode = portCode;
@@ -268,6 +322,8 @@ public class AdminDataStore {
             this.requestDate = requestDate;
             this.rejectionReason = rejectionReason != null ? rejectionReason : "";
             this.documentRefs = documentRefs != null ? documentRefs : "Proposal_Document.pdf";
+            this.lat = lat;
+            this.lng = lng;
         }
     }
 }

@@ -6,14 +6,8 @@ import javafx.scene.Parent;
 import javafx.scene.control.Button;
 // MenuButton/MenuItem removed; using a Popup for profile dropdown
 import javafx.scene.control.Label;
-import javafx.scene.Scene;
-import javafx.stage.Modality;
 import javafx.stage.Popup;
 import javafx.stage.Window;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
-import javafx.scene.paint.Color;
-import javafx.animation.FadeTransition;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.util.Duration;
@@ -365,29 +359,15 @@ public class DockTechAdmin extends AdminTheme {
     }
 
     private void showLogoutConfirmation() {
-        VBox card = panelCard("Logout from Dock Tech?", "Are you sure you want to logout?");
-        card.setMaxWidth(420);
-
-        Button cancel = secondaryButton("Cancel");
-        Button logout = dangerButton("Logout");
-        cancel.setPrefWidth(130);
-        logout.setPrefWidth(130);
-
-        cancel.setOnAction(event -> showPage(currentPage));
-        logout.setOnAction(event -> {
-            // clear in-memory session/state
+        javafx.stage.Stage ownerStage = null;
+        if (center.getScene() != null && center.getScene().getWindow() instanceof javafx.stage.Stage s) {
+            ownerStage = s;
+        }
+        com.projectui.view.login.LogoutModal.show(ownerStage, () -> {
             AdminDataStore.getInstance().clearSession();
             if (logoutAction != null) {
                 logoutAction.run();
             }
         });
-
-        HBox actions = new HBox(12, cancel, logout);
-        actions.setAlignment(Pos.CENTER_RIGHT);
-        card.getChildren().add(actions);
-
-        VBox wrapper = new VBox(card);
-        wrapper.setAlignment(Pos.CENTER);
-        center.setCenter(wrapper);
     }
 }

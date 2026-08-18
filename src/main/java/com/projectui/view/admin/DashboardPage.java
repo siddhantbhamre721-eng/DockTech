@@ -18,7 +18,13 @@ import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.SVGPath;
+import javafx.scene.shape.Polyline;
+import java.util.List;
+import java.util.ArrayList;
+import javafx.scene.Node;
+import javafx.scene.control.Separator;
 
+@SuppressWarnings("unused")
 public class DashboardPage extends AdminTheme {
 
     private final AdminDataStore store = AdminDataStore.getInstance();
@@ -27,24 +33,45 @@ public class DashboardPage extends AdminTheme {
     private Runnable alertsAction = () -> {};
     private Runnable reportAction = () -> {};
 
+    private static final List<DashboardPage> instances = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    public static void refreshAllDashboards() {
+        for (DashboardPage page : instances) {
+            page.refreshData();
+        }
+    }
+
+    private VBox pageContainer;
+
     public Parent getRoot() {
         return getRoot(() -> {}, () -> {}, () -> {}, () -> {});
     }
 
     public Parent getRoot(Runnable addPortAction, Runnable addUserAction, Runnable alertsAction, Runnable reportAction) {
+        if (!instances.contains(this)) instances.add(this);
         this.addPortAction = addPortAction;
         this.addUserAction = addUserAction;
         this.alertsAction = alertsAction;
         this.reportAction = reportAction;
-        VBox page = pageContent();
-        page.setSpacing(10);
+        pageContainer = pageContent();
+        pageContainer.setSpacing(10);
+        buildContent();
+        return pageContainer;
+    }
 
-        int pendingInspections = 14;
+    public void refreshData() {
+        if (pageContainer != null) {
+            pageContainer.getChildren().clear();
+            buildContent();
+        }
+    }
+
+    private void buildContent() {
+        int pendingInspections = store.pendingUsers() + store.pendingPortRequestsCount();
         HBox kpis = new HBox(12,
-            kpiCard("⚓", "Total Ports", String.valueOf(store.ports.size()), "All Registered", "#1d4ed8", "#eaf3ff"),
+            kpiCard("⚓", "Total Ports", String.valueOf(store.totalPorts()), "All Registered", "#1d4ed8", "#eaf3ff"),
             kpiCard("⬟", "Active Ports", String.valueOf(store.activePorts()), "Operational", "#0f9f6e", "#e7f8ef"),
             kpiCard("▴", "Active Vessels", String.valueOf(store.activeVessels()), "Currently in Port", "#6d4aff", "#f0edff"),
-            kpiCard("▥", "Cargo Handled", String.format("%,d MT", store.cargoHandled()), "Today", "#f97316", "#fff1e7"),
             kpiCard("!", "Pending Inspections", String.valueOf(pendingInspections), "Require Attention", "#e43f5a", "#ffecef")
         );
         kpis.getChildren().forEach(n -> {
@@ -68,145 +95,271 @@ public class DashboardPage extends AdminTheme {
         HBox bottomRow = new HBox(12);
         Region alerts = alertsCard();
         Region recent = recentActivityCard();
-        Region cargo = cargoStatsCard();
+        Region opsVessel = liveVesselMovementAndOperationsCard();
         HBox.setHgrow(alerts, Priority.ALWAYS);
         HBox.setHgrow(recent, Priority.ALWAYS);
-        HBox.setHgrow(cargo, Priority.ALWAYS);
+        HBox.setHgrow(opsVessel, Priority.ALWAYS);
         alerts.setMaxWidth(Double.MAX_VALUE);
         recent.setMaxWidth(Double.MAX_VALUE);
-        cargo.setMaxWidth(Double.MAX_VALUE);
-        bottomRow.getChildren().addAll(alerts, recent, cargo);
+        opsVessel.setMaxWidth(Double.MAX_VALUE);
+        bottomRow.getChildren().addAll(alerts, recent, opsVessel);
         bottomRow.getChildren().forEach(n -> HBox.setHgrow(n, Priority.ALWAYS));
 
-        page.getChildren().addAll(
+        pageContainer.getChildren().addAll(
             kpis,
             mainRow,
             bottomRow
         );
-
-        return page;
     }
 
-    private VBox portLocationMapCard() {
-        Label t = new Label("Port Network Overview");
-        t.setStyle("-fx-text-fill:#0f172a; -fx-font-size:16; -fx-font-weight:bold;");
-        Label sub = new Label("Real-time status of port operations across India");
-        sub.setStyle("-fx-text-fill:#475569; -fx-font-size:12;");
-        VBox copy = new VBox(2, t, sub);
-        Region space = new Region();
-        HBox.setHgrow(space, Priority.ALWAYS);
-        Button details = secondaryButton("View Details");
-        details.setOnAction(event -> addPortAction.run());
-        Label expand = new Label("↗");
-        expand.setStyle("-fx-text-fill:#0f172a; -fx-font-size:15; -fx-font-weight:bold;");
-        HBox top = new HBox(12, copy, space, details, expand);
-        top.setAlignment(Pos.CENTER_LEFT);
+    private Region portLocationMapCard() {
+        return new GeoTileMapCanvas(760, 245, false, addPortAction);
+    }
 
-        Pane map = new Pane();
-        map.setPrefSize(710, 315);
-        map.setMinHeight(315);
-        map.setStyle("-fx-background-color:linear-gradient(to bottom,#dff5ff,#b9e4fb 55%,#9fd6f4); -fx-background-radius:8; -fx-border-color:#cfe3f5; -fx-border-radius:8;");
+    private static String escapeJs(String str) {
+        if (str == null) return "";
+        return str.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ");
+    }
 
-        Rectangle water = new Rectangle(710, 315);
-        water.setArcWidth(16);
-        water.setArcHeight(16);
-        water.setStyle("-fx-fill:linear-gradient(to bottom,#dff7ff,#b5e4fa 58%,#94d0ef);");
+    private double[] realPortGeoCoordinates(String location) {
+        if (location == null) return new double[]{18.9439, 72.8354};
+        String loc = location.toLowerCase();
+        if (loc.contains("mumbai") || loc.contains("nhava") || loc.contains("jnpt")) return new double[]{18.9439, 72.8354};
+        if (loc.contains("chennai") || loc.contains("enore")) return new double[]{13.0827, 80.2707};
+        if (loc.contains("visakhapatnam") || loc.contains("vizag") || loc.contains("andhra")) return new double[]{17.6868, 83.2185};
+        if (loc.contains("kolkata") || loc.contains("haldia") || loc.contains("bengal")) return new double[]{22.5726, 88.3639};
+        if (loc.contains("hazira") || loc.contains("gujarat") || loc.contains("surat") || loc.contains("kandla")) return new double[]{21.1122, 72.6411};
+        return new double[]{18.9439, 72.8354};
+    }
 
-        map.getChildren().add(water);
-        for (int x = 56; x < 710; x += 68) {
-            Line grid = new Line(x, 0, x - 105, 315);
-            grid.setStyle("-fx-stroke:rgba(255,255,255,0.24); -fx-stroke-width:1;");
-            map.getChildren().add(grid);
+    private Line darkRouteLine(double startX, double startY, double endX, double endY) {
+        Line line = new Line(startX, startY, endX, endY);
+        line.setStyle("-fx-stroke:#0ea5e9; -fx-stroke-width:1.2; -fx-stroke-dash-array:6 4; -fx-opacity:0.45;");
+        return line;
+    }
+
+    private Button darkMapButton(String text) {
+        Button button = new Button(text);
+        button.setStyle("-fx-background-color:#0f1d30; -fx-text-fill:#38bdf8; -fx-font-size:13; -fx-font-weight:bold; -fx-background-radius:6; -fx-border-color:#1e293b; -fx-border-radius:6; -fx-min-width:30; -fx-min-height:30; -fx-padding:0; -fx-effect:dropshadow(gaussian, rgba(0,0,0,0.4), 8, 0, 0, 2); -fx-cursor:hand;");
+        return button;
+    }
+
+    private VBox darkMapInfoPanel(AdminDataStore.Port port) {
+        VBox panel = new VBox(6);
+        panel.setPrefWidth(240);
+        panel.setPadding(new Insets(12));
+        panel.setStyle("-fx-background-color:rgba(15,23,42,0.96); -fx-background-radius:12; -fx-border-color:#0284c7; -fx-border-radius:12; -fx-effect:dropshadow(gaussian, rgba(0,0,0,0.5), 14, 0, 0, 4);");
+        updateMapInfo(panel, port);
+        return panel;
+    }
+
+    public static class VesselCluster {
+        public double x;
+        public double y;
+        public final List<com.projectui.service.DigitrafficService.VesselData> vessels = new ArrayList<>();
+
+        public VesselCluster(double x, double y) {
+            this.x = x;
+            this.y = y;
         }
+    }
 
-        SVGPath india = new SVGPath();
-        india.setContent("M332 12 L385 23 L446 54 L511 55 L559 84 L602 113 L638 152 L619 192 L575 207 L530 224 L496 266 L439 292 L392 284 L356 242 L307 226 L260 244 L216 235 L192 197 L158 173 L125 148 L103 112 L133 82 L190 62 L247 43 Z");
-        india.setStyle("-fx-fill:linear-gradient(to bottom,#f8f7f1,#eee9dc); -fx-stroke:#c9d7cf; -fx-stroke-width:1.5;");
-        india.setLayoutX(28);
-        india.setLayoutY(0);
+    private List<VesselCluster> clusterVessels(List<com.projectui.service.DigitrafficService.VesselData> vessels, double clusterDistance) {
+        List<VesselCluster> clusters = new ArrayList<>();
+        for (com.projectui.service.DigitrafficService.VesselData v : vessels) {
+            double[] coords = vesselMapCoordinates(v.latitude, v.longitude, v.mmsi);
+            double vx = coords[0];
+            double vy = coords[1];
 
-        SVGPath coast = new SVGPath();
-        coast.setContent("M190 62 C164 93 148 135 158 173 C172 225 252 246 307 226 C337 245 361 271 392 284");
-        coast.setStyle("-fx-fill:transparent; -fx-stroke:#80b8dc; -fx-stroke-width:2;");
-        coast.setLayoutX(28);
-        coast.setLayoutY(0);
+            boolean added = false;
+            for (VesselCluster c : clusters) {
+                double dist = Math.hypot(c.x - vx, c.y - vy);
+                if (dist <= clusterDistance) {
+                    c.vessels.add(v);
+                    added = true;
+                    break;
+                }
+            }
 
-        Line route1 = routeLine(217, 128, 398, 172);
-        Line route2 = routeLine(398, 172, 516, 72);
-        Line route3 = routeLine(398, 172, 365, 245);
-        Line route4 = routeLine(217, 128, 365, 245);
-
-        Label arabian = new Label("Arabian Sea");
-        arabian.setStyle("-fx-text-fill:#0b63b6; -fx-font-size:12;");
-        arabian.setLayoutX(80);
-        arabian.setLayoutY(255);
-        Label bay = new Label("Bay of Bengal");
-        bay.setStyle("-fx-text-fill:#0b63b6; -fx-font-size:12;");
-        bay.setLayoutX(555);
-        bay.setLayoutY(248);
-
-        Button zoomIn = mapButton("+");
-        Button zoomOut = mapButton("-");
-        Button reset = mapButton("◎");
-        VBox controls = new VBox(8, zoomIn, zoomOut, reset);
-        controls.setLayoutX(12);
-        controls.setLayoutY(20);
-
-        VBox info = mapInfoPanel(firstMappedPort());
-        info.setLayoutX(498);
-        info.setLayoutY(18);
-        info.setVisible(false);
-        info.setMouseTransparent(true);
-
-        map.getChildren().addAll(india, coast, route1, route2, route3, route4, arabian, bay, controls);
-        int mappedPorts = 0;
-        for (AdminDataStore.Port port : store.ports) {
-            if (hasKnownMapPosition(port.location)) {
-                map.getChildren().add(portMarker(port, info));
-                mappedPorts++;
+            if (!added) {
+                VesselCluster newCluster = new VesselCluster(vx, vy);
+                newCluster.vessels.add(v);
+                clusters.add(newCluster);
             }
         }
-        if (mappedPorts == 0) {
-            Label emptyMap = new Label("No mapped Indian port locations available");
-            emptyMap.setStyle("-fx-text-fill:#64748b; -fx-font-size:12; -fx-font-weight:bold;");
-            emptyMap.setLayoutX(245);
-            emptyMap.setLayoutY(158);
-            map.getChildren().add(emptyMap);
+        return clusters;
+    }
+
+    private Node renderClusterOrVessel(VesselCluster cluster, VBox info, Pane mapPane) {
+        if (cluster.vessels.size() == 1) {
+            com.projectui.service.DigitrafficService.VesselData v = cluster.vessels.get(0);
+            return vesselSingleMarker(v, info, mapPane, cluster.x, cluster.y);
+        } else {
+            return vesselClusterMarker(cluster, info);
         }
-        map.getChildren().add(info);
+    }
 
-        final double[] scale = {1.0};
-        zoomIn.setOnAction(event -> {
-            scale[0] = Math.min(1.12, scale[0] + 0.04);
-            map.setScaleX(scale[0]);
-            map.setScaleY(scale[0]);
-        });
-        zoomOut.setOnAction(event -> {
-            scale[0] = Math.max(0.96, scale[0] - 0.04);
-            map.setScaleX(scale[0]);
-            map.setScaleY(scale[0]);
-        });
-        reset.setOnAction(event -> {
-            scale[0] = 1.0;
-            map.setScaleX(1);
-            map.setScaleY(1);
+    private Node vesselSingleMarker(com.projectui.service.DigitrafficService.VesselData vessel, VBox info, Pane mapPane, double vx, double vy) {
+        StackPane iconPane = new StackPane();
+        iconPane.setPrefSize(24, 24);
+        iconPane.setLayoutX(vx - 12);
+        iconPane.setLayoutY(vy - 12);
+        iconPane.setStyle("-fx-cursor:hand;");
+
+        String vColor = vessel.speedKnots > 10.0 ? "#06b6d4" : (vessel.speedKnots > 0.5 ? "#10b981" : "#f59e0b");
+
+        Circle bg = new Circle(10);
+        bg.setStyle("-fx-fill:" + vColor + "; -fx-stroke:#ffffff; -fx-stroke-width:1.5; -fx-effect:dropshadow(gaussian, " + vColor + ", 8, 0, 0, 2);");
+
+        Label arrow = new Label("▲");
+        arrow.setStyle("-fx-text-fill:white; -fx-font-size:9; -fx-font-weight:bold;");
+        arrow.setRotate(vessel.courseDegrees);
+
+        iconPane.getChildren().addAll(bg, arrow);
+
+        iconPane.setOnMouseClicked(event -> {
+            // Draw subtle vessel track trail
+            Polyline trail = new Polyline(
+                vx - 32 * Math.sin(Math.toRadians(vessel.courseDegrees)), vy + 32 * Math.cos(Math.toRadians(vessel.courseDegrees)),
+                vx - 16 * Math.sin(Math.toRadians(vessel.courseDegrees)), vy + 16 * Math.cos(Math.toRadians(vessel.courseDegrees)),
+                vx, vy
+            );
+            trail.setStyle("-fx-stroke:#06b6d4; -fx-stroke-width:2; -fx-stroke-dash-array:4 4; -fx-opacity:0.75;");
+            mapPane.getChildren().removeIf(n -> "vesselTrail".equals(n.getUserData()));
+            trail.setUserData("vesselTrail");
+            mapPane.getChildren().add(1, trail);
+
+            updateVesselMapInfo(info, vessel);
+            positionMapInfo(info, vx, vy);
+            info.setVisible(true);
         });
 
-        HBox legend = new HBox(14,
-                legendBadge("● Operational", "#16a34a"),
-                legendBadge("● Busy / High Congestion", "#e43f5a"),
-                legendBadge("● Maintenance", BLUE),
-                legendBadge("● Inactive", "#94a3b8")
+        iconPane.setOnMouseEntered(event -> {
+            iconPane.setScaleX(1.35);
+            iconPane.setScaleY(1.35);
+        });
+
+        iconPane.setOnMouseExited(event -> {
+            iconPane.setScaleX(1.0);
+            iconPane.setScaleY(1.0);
+        });
+
+        return iconPane;
+    }
+
+    private Node vesselClusterMarker(VesselCluster cluster, VBox info) {
+        StackPane clusterPane = new StackPane();
+        clusterPane.setPrefSize(26, 26);
+        clusterPane.setLayoutX(cluster.x - 13);
+        clusterPane.setLayoutY(cluster.y - 13);
+        clusterPane.setStyle("-fx-cursor:hand;");
+
+        Circle bg = new Circle(13);
+        bg.setStyle("-fx-fill:#0284c7; -fx-stroke:white; -fx-stroke-width:2; -fx-effect:dropshadow(gaussian, rgba(2,132,199,0.7), 10, 0, 0, 3);");
+
+        Label badge = new Label(String.valueOf(cluster.vessels.size()));
+        badge.setStyle("-fx-text-fill:white; -fx-font-size:11; -fx-font-weight:bold;");
+
+        clusterPane.getChildren().addAll(bg, badge);
+
+        clusterPane.setOnMouseClicked(event -> {
+            updateClusterMapInfo(info, cluster);
+            positionMapInfo(info, cluster.x, cluster.y);
+            info.setVisible(true);
+        });
+
+        clusterPane.setOnMouseEntered(event -> {
+            clusterPane.setScaleX(1.25);
+            clusterPane.setScaleY(1.25);
+        });
+
+        clusterPane.setOnMouseExited(event -> {
+            clusterPane.setScaleX(1.0);
+            clusterPane.setScaleY(1.0);
+        });
+
+        return clusterPane;
+    }
+
+    private void updateClusterMapInfo(VBox panel, VesselCluster cluster) {
+        panel.getChildren().clear();
+        Label title = new Label("⚓ Maritime Zone Cluster (" + cluster.vessels.size() + " Ships)");
+        title.setStyle("-fx-text-fill:#38bdf8; -fx-font-size:13; -fx-font-weight:bold;");
+
+        Label subtitle = new Label("Live AIS vessels operating in this sea sector");
+        subtitle.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:11;");
+
+        panel.getChildren().addAll(title, subtitle, new Separator());
+
+        int limit = Math.min(4, cluster.vessels.size());
+        for (int i = 0; i < limit; i++) {
+            com.projectui.service.DigitrafficService.VesselData v = cluster.vessels.get(i);
+            Label vRow = new Label("• " + v.name + " (" + v.shipType + ") → " + v.destination);
+            vRow.setStyle("-fx-text-fill:#f8fafc; -fx-font-size:11; -fx-font-weight:bold;");
+            panel.getChildren().add(vRow);
+        }
+        if (cluster.vessels.size() > limit) {
+            Label extra = new Label("+ " + (cluster.vessels.size() - limit) + " additional vessels in sector");
+            extra.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:10; -fx-italic:true;");
+            panel.getChildren().add(extra);
+        }
+    }
+
+    private void updateVesselMapInfo(VBox panel, com.projectui.service.DigitrafficService.VesselData vessel) {
+        panel.getChildren().clear();
+        if (vessel == null) {
+            Label empty = new Label("No vessel data available");
+            empty.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:12; -fx-font-weight:bold;");
+            panel.getChildren().add(empty);
+            return;
+        }
+
+        Label name = new Label("🚢 " + vessel.name);
+        name.setStyle("-fx-text-fill:#38bdf8; -fx-font-size:14; -fx-font-weight:bold;");
+        Label typeLabel = new Label(vessel.shipType + " • " + vessel.navStat);
+        typeLabel.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:11;");
+        Label statusLabel = new Label("🟢 LIVE AIS TRANSMISSION");
+        statusLabel.setStyle("-fx-text-fill:#10b981; -fx-font-size:10; -fx-font-weight:bold;");
+
+        panel.getChildren().addAll(
+                name,
+                typeLabel,
+                statusLabel,
+                new Separator(),
+                mapDarkInfoRow("MMSI", String.valueOf(vessel.mmsi)),
+                mapDarkInfoRow("IMO Number", vessel.imo),
+                mapDarkInfoRow("Call Sign", vessel.callSign),
+                mapDarkInfoRow("Destination", vessel.destination),
+                mapDarkInfoRow("Speed / SOG", String.format("%.1f kn", vessel.speedKnots)),
+                mapDarkInfoRow("Course / COG", String.format("%.0f°", vessel.courseDegrees)),
+                mapDarkInfoRow("Position", String.format("%.4f° N, %.4f° E", vessel.latitude, vessel.longitude)),
+                mapDarkInfoRow("Last Updated", vessel.lastUpdate)
         );
-        legend.setAlignment(Pos.CENTER_LEFT);
+    }
 
-        VBox card = new VBox(10);
-        card.setPadding(new Insets(14));
-        card.setStyle(cardStyle());
-        card.getChildren().addAll(top, new StackPane(map), legend);
-        card.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(card, Priority.ALWAYS);
-        return card;
+    private HBox mapDarkInfoRow(String labelText, String value) {
+        Label label = new Label(labelText);
+        label.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:11; -fx-font-weight:bold;");
+        Label valueLabel = new Label(value);
+        valueLabel.setStyle("-fx-text-fill:#f8fafc; -fx-font-size:11; -fx-font-weight:bold;");
+        valueLabel.setWrapText(true);
+        Region space = new Region();
+        HBox.setHgrow(space, Priority.ALWAYS);
+        HBox row = new HBox(8, label, space, valueLabel);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    private double[] vesselMapCoordinates(double lat, double lng, long mmsi) {
+        if (lat >= 5.0 && lat <= 27.0 && lng >= 65.0 && lng <= 95.0) {
+            double x = 40.0 + ((lng - 66.0) / 26.0) * 620.0;
+            double y = 295.0 - ((lat - 6.0) / 20.0) * 250.0;
+            return new double[]{Math.max(20, Math.min(640, x)), Math.max(20, Math.min(280, y))};
+        } else {
+            double x = 70.0 + (Math.abs(mmsi * 37) % 560);
+            double y = 50.0 + (Math.abs(mmsi * 17) % 220);
+            return new double[]{x, y};
+        }
     }
 
     private HBox portMarker(AdminDataStore.Port port, VBox info) {
@@ -434,6 +587,7 @@ public class DashboardPage extends AdminTheme {
 
         VBox rows = new VBox(0);
         for (AdminDataStore.Port port : store.ports) {
+            if (port.approvalStatus != null && !"APPROVED".equalsIgnoreCase(port.approvalStatus)) continue;
             String congestion = congestionStatus(port);
             rows.getChildren().add(statusLine(port, markerLabel(port.status, congestion), statusColor(port.status, congestion)));
         }
@@ -453,66 +607,141 @@ public class DashboardPage extends AdminTheme {
     }
 
     private VBox alertsCard() {
-        VBox card = new VBox(12);
+        VBox card = new VBox(10);
         card.setPadding(new Insets(14));
         card.setStyle(cardStyle());
         HBox top = cardHeader("Operational Alerts", "View All Alerts  →", alertsAction);
-        card.getChildren().addAll(
-            top,
-            alertLine("!", "Port Kolkata", "High congestion detected", "5 mins ago", "#e43f5a"),
-            alertLine("⌁", "Port of Vizag", "Crane service in progress", "15 mins ago", BLUE),
-            alertLine("▣", "14 Cargo Inspections", "Pending clearance", "25 mins ago", "#f97316"),
-            alertLine("⚓", "3 Vessels", "Delayed berth assignment", "40 mins ago", "#6d4aff")
-        );
+        card.getChildren().add(top);
+
+        int alertCount = 0;
+        for (AdminDataStore.Port p : store.ports) {
+            if ("APPROVED".equalsIgnoreCase(p.approvalStatus)) {
+                if ("Busy".equalsIgnoreCase(p.status)) {
+                    card.getChildren().add(alertLine("!", p.name, "High congestion watch active", "Live", "#e43f5a"));
+                    alertCount++;
+                } else if ("Maintenance".equalsIgnoreCase(p.status)) {
+                    card.getChildren().add(alertLine("⌁", p.name, p.maintenance != null && !p.maintenance.isBlank() ? p.maintenance : "Maintenance in progress", "Live", BLUE));
+                    alertCount++;
+                }
+            }
+        }
+
+        int pendingInspections = store.pendingUsers() + store.pendingPortRequestsCount();
+        if (pendingInspections > 0) {
+            card.getChildren().add(alertLine("▣", pendingInspections + " Inspections", "Pending admin verification & compliance check", "Action Required", "#f97316"));
+            alertCount++;
+        }
+
+        if (store.pendingPortRequestsCount() > 0) {
+            card.getChildren().add(alertLine("⚓", store.pendingPortRequestsCount() + " New Port Requests", "Pending Admin approval", "Action Required", "#6d4aff"));
+            alertCount++;
+        }
+
+        if (alertCount == 0) {
+            Label noAlerts = new Label("✓ All ports operational. No active alerts.");
+            noAlerts.setStyle("-fx-text-fill:#16a34a; -fx-font-size:12; -fx-font-weight:bold; -fx-padding:10;");
+            card.getChildren().add(noAlerts);
+        }
+
         card.setMaxWidth(Double.MAX_VALUE);
         return card;
     }
 
     private VBox recentActivityCard() {
-        VBox card = new VBox(11);
+        VBox card = new VBox(10);
         card.setPadding(new Insets(14));
         card.setStyle(cardStyle());
-        card.getChildren().addAll(
-            cardHeader("Recent Activity", "View All Activity  →", reportAction),
-            activityLine("⚓", "Oceanic Star", "Vessel arrived at Port of Mumbai", "11:02 AM", BLUE),
-            activityLine("▣", "Sea Voyager", "Cargo loading completed", "10:14 AM", "#16a34a"),
-            activityLine("▴", "MSC Atlantis", "Vessel departed from Port of Chennai", "09:48 AM", "#6d4aff"),
-            activityLine("⌁", "Crane Maintenance", "Maintenance completed at Port of Vizag", "07:15 AM", BLUE)
-        );
+        HBox top = cardHeader("Recent Activity", "View All Activity  →", reportAction);
+        card.getChildren().add(top);
+
+        int actCount = 0;
+        for (AdminDataStore.Port p : store.ports) {
+            if ("APPROVED".equalsIgnoreCase(p.approvalStatus) && actCount < 4) {
+                card.getChildren().add(activityLine("⚓", p.name, "Operational port status verified", p.lastUpdated != null ? p.lastUpdated : "Live", BLUE));
+                actCount++;
+            }
+        }
+
+        for (AdminDataStore.UserAccount u : store.users) {
+            if (actCount < 4) {
+                card.getChildren().add(activityLine("👤", u.name, "User account (" + u.role + ") active", u.lastLogin != null ? u.lastLogin : "Today", "#16a34a"));
+                actCount++;
+            }
+        }
+
+        if (actCount == 0) {
+            Label noAct = new Label("No recent system activity.");
+            noAct.setStyle("-fx-text-fill:#64748b; -fx-font-size:12; -fx-padding:10;");
+            card.getChildren().add(noAct);
+        }
+
         card.setMaxWidth(Double.MAX_VALUE);
         return card;
     }
 
-    private VBox cargoStatsCard() {
+    private VBox liveVesselMovementAndOperationsCard() {
         VBox card = new VBox(12);
         card.setPadding(new Insets(14));
         card.setStyle(cardStyle());
 
-        int total = store.cargoHandled();
-        int containers = Math.round(total * 0.50f);
-        int bulk = Math.round(total * 0.32f);
-        int minerals = Math.max(0, total - containers - bulk);
+        HBox header = cardHeader("Live Vessel & Port Ops", "Reports Center  →", reportAction);
 
-        StackPane donut = donutChart(total);
-        VBox legend = new VBox(11,
-                cargoLine("Containers", containers, total, "#1f74ff"),
-                cargoLine("Bulk Cargo", bulk, total, "#f97316"),
-                cargoLine("Minerals", minerals, total, "#35b779")
+        // Vessel movement statistics from VesselManager
+        java.util.Collection<com.projectui.service.VesselData> vessels = com.projectui.service.VesselManager.getInstance().getAllVessels();
+        int inPort = 0, arriving = 0, departing = 0, inTransit = 0;
+        for (com.projectui.service.VesselData v : vessels) {
+            String nav = v.navigationStatus != null ? v.navigationStatus.toLowerCase() : "";
+            double spd = v.speed;
+            if (nav.contains("moored") || nav.contains("docked") || nav.contains("port") || nav.contains("5")) {
+                inPort++;
+            } else if (nav.contains("anchor") || nav.contains("1") || spd <= 0.3) {
+                inPort++;
+            } else if (nav.contains("arriving") || (v.destination != null && !v.destination.isBlank() && spd > 2.0 && spd < 10.0)) {
+                arriving++;
+            } else if (nav.contains("departing") || (spd >= 10.0 && v.course > 180)) {
+                departing++;
+            } else {
+                inTransit++;
+            }
+        }
+
+        // Port operations statistics from AdminDataStore
+        int opPorts = store.activePorts();
+        int maintPorts = store.maintenancePorts();
+        int busyPorts = (int) store.ports.stream().filter(p -> "Busy".equalsIgnoreCase(p.status) && "APPROVED".equalsIgnoreCase(p.approvalStatus)).count();
+        int inactivePorts = (int) store.ports.stream().filter(p -> "Inactive".equalsIgnoreCase(p.status)).count();
+
+        VBox vSec = new VBox(6);
+        Label vHeader = new Label("LIVE VESSEL MOVEMENT");
+        vHeader.setStyle("-fx-text-fill:#64748b; -fx-font-size:11; -fx-font-weight:bold;");
+
+        HBox vRow = new HBox(8,
+                statusSummary("In Port", inPort, "#16a34a"),
+                statusSummary("Arriving", arriving, "#0ea5e9"),
+                statusSummary("Departing", departing, "#6366f1"),
+                statusSummary("In Transit", inTransit, "#0284c7")
         );
-        HBox middle = new HBox(14, donut, legend);
-        middle.setAlignment(Pos.CENTER_LEFT);
-        HBox.setHgrow(legend, Priority.ALWAYS);
+        vRow.setPadding(new Insets(8));
+        vRow.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#e2e8f0; -fx-border-radius:6; -fx-background-radius:6;");
+        vRow.getChildren().forEach(n -> HBox.setHgrow(n, Priority.ALWAYS));
+        vSec.getChildren().addAll(vHeader, vRow);
 
-        HBox footer = new HBox(16,
-                cargoFooter("+12.5%", "vs yesterday", "#16a34a"),
-                sparkline(),
-                cargoFooter(String.format("%,d MT", total), "Total Today", "#0f172a")
+        VBox pSec = new VBox(6);
+        Label pHeader = new Label("PORT OPERATIONS");
+        pHeader.setStyle("-fx-text-fill:#64748b; -fx-font-size:11; -fx-font-weight:bold;");
+
+        HBox pRow = new HBox(8,
+                statusSummary("Operational", opPorts, "#16a34a"),
+                statusSummary("Maintenance", maintPorts, BLUE),
+                statusSummary("High Congestion", busyPorts, "#ef4444"),
+                statusSummary("Inactive", inactivePorts, "#94a3b8")
         );
-        footer.setPadding(new Insets(10, 12, 10, 12));
-        footer.setAlignment(Pos.CENTER_LEFT);
-        footer.setStyle("-fx-background-color:#ffffff; -fx-border-color:#e5edf6; -fx-border-radius:8; -fx-background-radius:8;");
+        pRow.setPadding(new Insets(8));
+        pRow.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#e2e8f0; -fx-border-radius:6; -fx-background-radius:6;");
+        pRow.getChildren().forEach(n -> HBox.setHgrow(n, Priority.ALWAYS));
+        pSec.getChildren().addAll(pHeader, pRow);
 
-        card.getChildren().addAll(cardHeader("Cargo Statistics", "View Full Report  →", reportAction), middle, footer);
+        card.getChildren().addAll(header, vSec, pSec);
         card.setMaxWidth(Double.MAX_VALUE);
         return card;
     }

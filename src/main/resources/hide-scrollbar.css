@@ -1,0 +1,126 @@
+/* ==========================================================================
+   Global Scrollbar Hiding Stylesheet
+   Hides all visible scrollbar tracks, thumbs, buttons, and corners
+   across all JavaFX controls and web components, while keeping scrolling active.
+   ========================================================================== */
+
+/* JavaFX ScrollBars */
+.scroll-bar {
+    -fx-pref-width: 0px !important;
+    -fx-pref-height: 0px !important;
+    -fx-max-width: 0px !important;
+    -fx-max-height: 0px !important;
+    -fx-min-width: 0px !important;
+    -fx-min-height: 0px !important;
+    -fx-opacity: 0 !important;
+    -fx-background-color: transparent !important;
+    -fx-padding: 0 !important;
+}
+
+.scroll-bar:vertical,
+.scroll-bar:horizontal {
+    -fx-pref-width: 0px !important;
+    -fx-pref-height: 0px !important;
+    -fx-max-width: 0px !important;
+    -fx-max-height: 0px !important;
+    -fx-min-width: 0px !important;
+    -fx-min-height: 0px !important;
+    -fx-opacity: 0 !important;
+    -fx-background-color: transparent !important;
+    -fx-padding: 0 !important;
+}
+
+.scroll-bar .track,
+.scroll-bar .thumb,
+.scroll-bar .track-background,
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button,
+.scroll-bar .increment-arrow,
+.scroll-bar .decrement-arrow,
+.scroll-bar:vertical .track,
+.scroll-bar:vertical .thumb,
+.scroll-bar:vertical .track-background,
+.scroll-bar:vertical .increment-button,
+.scroll-bar:vertical .decrement-button,
+.scroll-bar:vertical .increment-arrow,
+.scroll-bar:vertical .decrement-arrow,
+.scroll-bar:horizontal .track,
+.scroll-bar:horizontal .thumb,
+.scroll-bar:horizontal .track-background,
+.scroll-bar:horizontal .increment-button,
+.scroll-bar:horizontal .decrement-button,
+.scroll-bar:horizontal .increment-arrow,
+.scroll-bar:horizontal .decrement-arrow {
+    -fx-background-color: transparent !important;
+    -fx-background-radius: 0 !important;
+    -fx-padding: 0 !important;
+    -fx-pref-width: 0px !important;
+    -fx-pref-height: 0px !important;
+    -fx-max-width: 0px !important;
+    -fx-max-height: 0px !important;
+    -fx-min-width: 0px !important;
+    -fx-min-height: 0px !important;
+    -fx-opacity: 0 !important;
+}
+
+.scroll-pane {
+    -fx-background-color: transparent;
+}
+
+.scroll-pane > .corner {
+    -fx-background-color: transparent !important;
+}
+
+.table-view .scroll-bar,
+.list-view .scroll-bar,
+.tree-view .scroll-bar,
+.text-area .scroll-bar,
+.combo-box-popup .scroll-bar,
+.choice-box-popup .scroll-bar {
+    -fx-pref-width: 0px !important;
+    -fx-pref-height: 0px !important;
+    -fx-max-width: 0px !important;
+    -fx-max-height: 0px !important;
+    -fx-min-width: 0px !important;
+    -fx-min-height: 0px !important;
+    -fx-opacity: 0 !important;
+    -fx-background-color: transparent !important;
+    -fx-padding: 0 !important;
+}
+
+.table-view .scroll-bar .track,
+.table-view .scroll-bar .thumb,
+.list-view .scroll-bar .track,
+.list-view .scroll-bar .thumb,
+.text-area .scroll-bar .track,
+.text-area .scroll-bar .thumb {
+    -fx-background-color: transparent !important;
+    -fx-opacity: 0 !important;
+}
+
+/* Standard Cross-Browser WebKit & Firefox CSS scrollbar hiding */
+* {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+}
+
+*::-webkit-scrollbar {
+    display: none !important;
+    width: 0px !important;
+    height: 0px !important;
+}
+
+*::-webkit-scrollbar-track {
+    display: none !important;
+    background: transparent !important;
+}
+
+*::-webkit-scrollbar-thumb {
+    display: none !important;
+    background: transparent !important;
+}
+
+*::-webkit-scrollbar-corner {
+    display: none !important;
+    background: transparent !important;
+}

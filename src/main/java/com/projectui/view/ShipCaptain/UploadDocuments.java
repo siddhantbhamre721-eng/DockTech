@@ -590,6 +590,7 @@ public class UploadDocuments {
                                 root,
                                 1450,
                                 850);
+                com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
         }
 
         // =========================================================

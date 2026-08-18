@@ -4,8 +4,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import com.projectui.view.admin.AdminDataStore;
-import com.projectui.view.admin.AdminDataStore.PortRequest;
-
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -34,6 +32,8 @@ public class RequestNewPortPage {
     private final TextField portNameField = createField("e.g. Port of Hazira");
     private final TextField portCodeField = createField("e.g. IN-HAZ-01");
     private final TextField locationField = createField("e.g. Hazira, Surat, Gujarat");
+    private final TextField latField = createField("e.g. 21.1122");
+    private final TextField lngField = createField("e.g. 72.6411");
     private final TextArea addressField = createTextArea("Enter port address and terminal location details...");
     private final TextField cargoTypeField = createField("e.g. Containers, Liquid Bulk, Automobiles");
     private final TextField capacityField = createField("e.g. 85%");
@@ -50,12 +50,23 @@ public class RequestNewPortPage {
     private final VBox stepContentContainer = new VBox(20);
     private final HBox stepperRow = new HBox(12);
 
+    private Label errorLabel;
+
+    {
+        locationField.focusedProperty().addListener((obs, oldVal, newVal) -> {
+            if (!newVal && !locationField.getText().trim().isEmpty()) {
+                if (latField.getText().trim().isEmpty() || lngField.getText().trim().isEmpty()) {
+                    handleGetCoordinates(null);
+                }
+            }
+        });
+    }
+
     public void show(Stage stage) {
         this.stage = stage;
 
         BorderPane root = new BorderPane();
 
-        // 1. Sidebar Navigation (Reusing exact application shell component)
         Map<String, Button> menuButtons = new LinkedHashMap<>();
 
         Button backLoginBtn = new Button("🔑  Back to Login");
@@ -71,7 +82,6 @@ public class RequestNewPortPage {
 
         VBox sidebar = DashboardLayoutHelper.createSidebar(stage, "Requester", "Request New Port", menuButtons);
 
-        // 2. Top Header (Reusing exact application shell component)
         HBox topHeader = DashboardLayoutHelper.createHeader(
                 stage,
                 "Request New Port",
@@ -81,12 +91,10 @@ public class RequestNewPortPage {
                 null
         );
 
-        // 3. Main Content Area (4-Step Guided Workflow)
         VBox content = new VBox(24);
         content.setPadding(new Insets(28, 32, 36, 32));
         content.setStyle("-fx-background-color: " + BG_COLOR + ";");
 
-        // Header Banner
         VBox headerBanner = new VBox(6);
         Label title = new Label("Establish a New Port");
         title.setStyle("-fx-font-size: 26px; -fx-font-weight: bold; -fx-text-fill: " + TEXT_PRIMARY + ";");
@@ -94,11 +102,14 @@ public class RequestNewPortPage {
         subtitle.setStyle("-fx-font-size: 14px; -fx-text-fill: " + TEXT_MUTED + ";");
         headerBanner.getChildren().addAll(title, subtitle);
 
-        // Render Stepper & Active Step View
+        errorLabel = new Label();
+        errorLabel.setStyle("-fx-text-fill:#ef4444; -fx-font-size:13px; -fx-font-weight:bold;");
+        errorLabel.setVisible(false);
+
         renderStepper();
         renderStepContent();
 
-        content.getChildren().addAll(headerBanner, stepperRow, stepContentContainer);
+        content.getChildren().addAll(headerBanner, errorLabel, stepperRow, stepContentContainer);
 
         ScrollPane scrollPane = new ScrollPane(content);
         scrollPane.setFitToWidth(true);
@@ -187,9 +198,20 @@ public class RequestNewPortPage {
         Label stepTitle = new Label("Step 1: Port Details");
         stepTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: " + TEXT_PRIMARY + ";");
 
+        Button getCoordsBtn = new Button("📍 Get Coordinates");
+        getCoordsBtn.setStyle("-fx-background-color: #0284c7; -fx-text-fill: white; -fx-font-size: 12px; -fx-font-weight: bold; -fx-padding: 8px 14px; -fx-background-radius: 6px; -fx-cursor: hand;");
+
+        HBox locationBox = new HBox(8, locationField, getCoordsBtn);
+        locationBox.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(locationField, Priority.ALWAYS);
+
+        getCoordsBtn.setOnAction(e -> handleGetCoordinates(getCoordsBtn));
+        locationField.setOnAction(e -> handleGetCoordinates(getCoordsBtn));
+
         VBox grid = new VBox(14,
                 new HBox(14, formGroup("Port Name *", portNameField), formGroup("Port Code", portCodeField)),
-                new HBox(14, formGroup("Location / City *", locationField), formGroup("Port Capacity (%)", capacityField)),
+                new HBox(14, formGroup("Location / City *", locationBox), formGroup("Port Capacity (%)", capacityField)),
+                new HBox(14, formGroup("Latitude (-90 to +90) *", latField), formGroup("Longitude (-180 to +180) *", lngField)),
                 formGroup("Cargo Handling Types", cargoTypeField),
                 formGroup("Port Address & Terminal Details *", addressField)
         );
@@ -206,9 +228,41 @@ public class RequestNewPortPage {
         Button nextBtn = new Button("Next: Port Authority Details →");
         nextBtn.setStyle(primaryBtnStyle());
         nextBtn.setOnAction(e -> {
-            if (portNameField.getText().trim().isEmpty() || locationField.getText().trim().isEmpty()) {
+            String pName = portNameField.getText().trim();
+            String pLoc = locationField.getText().trim();
+            if (pName.isEmpty() || pLoc.isEmpty()) {
+                showError("⚠️ Port Name and Location are required.");
                 return;
             }
+
+            String latText = latField.getText().trim();
+            String lngText = lngField.getText().trim();
+            if (latText.isEmpty() || lngText.isEmpty()) {
+                showError("⚠️ Please enter or click 'Get Coordinates' to retrieve Latitude and Longitude.");
+                return;
+            }
+            try {
+                double lat = Double.parseDouble(latText);
+                if (lat < -90.0 || lat > 90.0) {
+                    showError("⚠️ Latitude must be between -90 and +90 degrees.");
+                    return;
+                }
+            } catch (NumberFormatException ex) {
+                showError("⚠️ Invalid Latitude numeric format.");
+                return;
+            }
+            try {
+                double lng = Double.parseDouble(lngText);
+                if (lng < -180.0 || lng > 180.0) {
+                    showError("⚠️ Longitude must be between -180 and +180 degrees.");
+                    return;
+                }
+            } catch (NumberFormatException ex) {
+                showError("⚠️ Invalid Longitude numeric format.");
+                return;
+            }
+
+            clearError();
             currentStep = 2;
             renderStepper();
             renderStepContent();
@@ -317,6 +371,16 @@ public class RequestNewPortPage {
         String rEmail = reqEmailField.getText().trim().isEmpty() ? "vikram@haziraport.com" : reqEmailField.getText().trim();
         String rPhone = reqPhoneField.getText().trim().isEmpty() ? "+91 98123 45678" : reqPhoneField.getText().trim();
 
+        double lat = 21.1122;
+        double lng = 72.6411;
+        try {
+            if (!latField.getText().trim().isEmpty()) lat = Double.parseDouble(latField.getText().trim());
+            if (!lngField.getText().trim().isEmpty()) lng = Double.parseDouble(lngField.getText().trim());
+        } catch (Exception ignored) {}
+
+        final double finalLat = lat;
+        final double finalLng = lng;
+
         VBox summaryBox = new VBox(12);
         summaryBox.setPadding(new Insets(16));
         summaryBox.setStyle("-fx-background-color: #F8FAFC; -fx-border-color: #E2E8F0; -fx-border-radius: 10px; -fx-background-radius: 10px;");
@@ -324,6 +388,7 @@ public class RequestNewPortPage {
         summaryBox.getChildren().addAll(
                 summaryRow("⚓  Port Name & Code", pName + " (" + pCode + ")"),
                 summaryRow("📍  Location & Address", pLoc + " • " + pAddr),
+                summaryRow("🌐  Geographic Coordinates", String.format("%.4f° N, %.4f° E", finalLat, finalLng)),
                 summaryRow("🛡️  Proposed Port Authority", paName + " <" + paEmail + "> (" + paPhone + ")"),
                 summaryRow("👤  Requester Contact", rName + " <" + rEmail + "> (" + rPhone + ")"),
                 summaryRow("📄  Attached Documents", "3 Documents Verified & Attached")
@@ -351,6 +416,12 @@ public class RequestNewPortPage {
                     reqId, pName, pCode, pLoc, pAddr, "New Port Proposal",
                     rName, rEmail, rPhone, paName, paEmail, "Hazira_Proposal.pdf, EIA_Clearance.pdf"
             );
+
+            // Register in AdminDataStore with PENDING status
+            AdminDataStore store = AdminDataStore.getInstance();
+            store.ports.add(new AdminDataStore.Port(
+                    pName, pLoc, pCode, paName, 12, 0, "Operational", "Mixed Cargo, Containers", "100%", "Clear", store.now(), finalLat, finalLng, "PENDING"
+            ));
 
             card.getChildren().clear();
             VBox successBox = new VBox(16);
@@ -392,6 +463,57 @@ public class RequestNewPortPage {
         HBox btnRow = new HBox(12, backBtn, space, submitBtn);
 
         card.getChildren().addAll(stepTitle, summaryBox, notice, btnRow);
+    }
+
+    private void handleGetCoordinates(Button btn) {
+        String query = locationField.getText().trim();
+        if (query.isEmpty()) {
+            if (errorLabel != null) {
+                errorLabel.setStyle("-fx-text-fill:#ef4444; -fx-font-size:13px; -fx-font-weight:bold;");
+                showError("⚠️ Please enter a Location / City to find coordinates.");
+            }
+            return;
+        }
+
+        if (errorLabel != null) {
+            errorLabel.setStyle("-fx-text-fill:#0284c7; -fx-font-size:13px; -fx-font-weight:bold;");
+            showError("⏳ Finding coordinates for '" + query + "' via Geocoding API...");
+        }
+        if (btn != null) btn.setDisable(true);
+
+        com.projectui.service.GeocodingService.getInstance().searchPortLocation(query).whenComplete((locations, err) -> {
+            javafx.application.Platform.runLater(() -> {
+                if (btn != null) btn.setDisable(false);
+                if (err != null || locations == null || locations.isEmpty()) {
+                    if (errorLabel != null) {
+                        errorLabel.setStyle("-fx-text-fill:#ef4444; -fx-font-size:13px; -fx-font-weight:bold;");
+                        showError("⚠️ Location not found. Please enter a valid city or location (e.g. Gujarat, India).");
+                    }
+                } else {
+                    com.projectui.service.GeocodingService.GeocodedLocation loc = locations.get(0);
+                    latField.setText(String.format(java.util.Locale.US, "%.4f", loc.lat));
+                    lngField.setText(String.format(java.util.Locale.US, "%.4f", loc.lng));
+                    if (errorLabel != null) {
+                        errorLabel.setStyle("-fx-text-fill:#16a34a; -fx-font-size:13px; -fx-font-weight:bold;");
+                        showError("✓ Coordinates obtained: Lat " + String.format(java.util.Locale.US, "%.4f", loc.lat) + ", Lng " + String.format(java.util.Locale.US, "%.4f", loc.lng));
+                    }
+                }
+            });
+        });
+    }
+
+    private void showError(String msg) {
+        if (errorLabel != null) {
+            errorLabel.setText(msg);
+            errorLabel.setVisible(true);
+        }
+    }
+
+    private void clearError() {
+        if (errorLabel != null) {
+            errorLabel.setText("");
+            errorLabel.setVisible(false);
+        }
     }
 
     private HBox docCard(String name, String fileName, String status) {

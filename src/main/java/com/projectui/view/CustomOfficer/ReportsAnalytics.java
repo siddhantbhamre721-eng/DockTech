@@ -8,6 +8,7 @@ import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.*;
 
+@SuppressWarnings({"unchecked", "unused"})
 public class ReportsAnalytics {
 
     private final String TEXT = "#172033";

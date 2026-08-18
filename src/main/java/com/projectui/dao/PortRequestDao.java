@@ -1,9 +1,7 @@
 package com.projectui.dao;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -12,16 +10,111 @@ import com.google.cloud.firestore.Firestore;
 import com.projectui.view.admin.AdminDataStore;
 import com.projectui.view.admin.AdminDataStore.PortRequest;
 
+@SuppressWarnings({"null", "unchecked"})
 public class PortRequestDao extends Dao {
 
     private static final Map<String, Map<String, Object>> localRequestStore = new ConcurrentHashMap<>();
     private static int requestCounter = 3040;
+    private static final String PERSIST_FILE = System.getProperty("user.home") + "/.docktech_port_requests.properties";
 
     static {
         // Seed default sample request for immediate UI display
         seedRequest("NPR-101", "Port of Hazira", "IN-HAZ-01", "Hazira, Gujarat", "Hazira Port Complex, Surat",
                 "Industrial container & liquid cargo terminal", "Vikram Shah", "vikram@haziraport.com", "+91 98765 11223",
                 "Rajesh Varma", "pa_hazira@docktech.com", "PENDING", "15 Aug 2026", "", "Hazira_Proposal.pdf, EIA_Clearance.pdf");
+
+        // Restore persistent statuses from disk on startup
+        restoreLocalDiskStatuses();
+    }
+
+    public static void restoreLocalDiskStatuses() {
+        try {
+            java.io.File file = new java.io.File(PERSIST_FILE);
+            if (file.exists()) {
+                java.util.Properties props = new java.util.Properties();
+                try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
+                    props.load(in);
+                }
+                for (String reqId : props.stringPropertyNames()) {
+                    String status = props.getProperty(reqId);
+                    if (status != null && !status.isBlank()) {
+                        applyStatusToStores(reqId, status.toUpperCase().trim(), null);
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private static void saveLocalDiskStatus(String reqId, String status) {
+        try {
+            java.util.Properties props = new java.util.Properties();
+            java.io.File file = new java.io.File(PERSIST_FILE);
+            if (file.exists()) {
+                try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
+                    props.load(in);
+                } catch (Exception ignored) {}
+            }
+            if (reqId != null && status != null) {
+                props.setProperty(reqId, status.toUpperCase().trim());
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                    props.store(out, "DockTech Port Request Statuses");
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    public static void applyStatusToStores(String requestId, String statusVal, String rejectionReason) {
+        Map<String, Object> data = localRequestStore.get(requestId);
+        String targetPortName = data != null ? (String) data.get("portName") : null;
+
+        for (Map<String, Object> map : localRequestStore.values()) {
+            String id = (String) map.get("requestId");
+            String pName = (String) map.get("portName");
+            if ((id != null && requestId != null && id.equalsIgnoreCase(requestId)) ||
+                (pName != null && targetPortName != null && pName.equalsIgnoreCase(targetPortName))) {
+                map.put("status", statusVal);
+                if (rejectionReason != null) {
+                    map.put("rejectionReason", rejectionReason);
+                }
+                map.put("updatedAt", LocalDateTime.now().toString());
+            }
+        }
+
+        for (PortRequest req : AdminDataStore.getInstance().portRequests) {
+            if ((req.requestId != null && requestId != null && req.requestId.equalsIgnoreCase(requestId)) ||
+                (req.portName != null && targetPortName != null && req.portName.equalsIgnoreCase(targetPortName)) ||
+                (req.portName != null && requestId != null && req.portName.toLowerCase().contains(requestId.toLowerCase()))) {
+                req.status = statusVal;
+                if (rejectionReason != null) {
+                    req.rejectionReason = rejectionReason;
+                }
+            }
+        }
+    }
+
+    public void syncWithDatabase() {
+        restoreLocalDiskStatuses();
+        try {
+            Firestore db = db();
+            if (db != null) {
+                db.collection("port_requests").get().addListener(() -> {
+                    try {
+                        com.google.cloud.firestore.QuerySnapshot snap = db.collection("port_requests").get().get();
+                        if (snap != null && !snap.isEmpty()) {
+                            for (com.google.cloud.firestore.QueryDocumentSnapshot doc : snap.getDocuments()) {
+                                String reqId = doc.getId();
+                                String st = doc.getString("status");
+                                if (st != null && !st.isBlank()) {
+                                    String upper = st.toUpperCase().trim();
+                                    saveLocalDiskStatus(reqId, upper);
+                                    applyStatusToStores(reqId, upper, doc.getString("rejectionReason"));
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }, Runnable::run);
+            }
+        } catch (Exception ignored) {}
     }
 
     private static void seedRequest(String reqId, String portName, String portCode, String location, String address,
@@ -138,24 +231,44 @@ public class PortRequestDao extends Dao {
 
     public CompletableFuture<Boolean> updateRequestStatus(String requestId, String newStatus, String rejectionReason) {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
+        final String statusVal = newStatus != null ? newStatus.toUpperCase().trim() : "PENDING";
+
+        saveLocalDiskStatus(requestId, statusVal);
+        applyStatusToStores(requestId, statusVal, rejectionReason);
 
         Map<String, Object> data = localRequestStore.get(requestId);
-        if (data != null) {
-            data.put("status", newStatus);
-            if (rejectionReason != null) {
-                data.put("rejectionReason", rejectionReason);
+        if (data == null && requestId != null) {
+            for (Map<String, Object> map : localRequestStore.values()) {
+                String id = (String) map.get("requestId");
+                if (id != null && id.equalsIgnoreCase(requestId)) {
+                    data = map;
+                    break;
+                }
             }
-            data.put("updatedAt", LocalDateTime.now().toString());
+        }
+        String targetPortName = data != null ? (String) data.get("portName") : null;
+        for (Map<String, Object> map : localRequestStore.values()) {
+            String id = (String) map.get("requestId");
+            String pName = (String) map.get("portName");
+            if ((id != null && requestId != null && id.equalsIgnoreCase(requestId)) ||
+                (pName != null && targetPortName != null && pName.equalsIgnoreCase(targetPortName))) {
+                map.put("status", statusVal);
+                if (rejectionReason != null) {
+                    map.put("rejectionReason", rejectionReason);
+                }
+                map.put("updatedAt", LocalDateTime.now().toString());
+            }
         }
 
         // Update in AdminDataStore
         for (PortRequest req : AdminDataStore.getInstance().portRequests) {
-            if (req.requestId.equalsIgnoreCase(requestId)) {
-                req.status = newStatus;
+            if ((req.requestId != null && requestId != null && req.requestId.equalsIgnoreCase(requestId)) ||
+                (req.portName != null && targetPortName != null && req.portName.equalsIgnoreCase(targetPortName)) ||
+                (req.portName != null && requestId != null && req.portName.toLowerCase().contains(requestId.toLowerCase()))) {
+                req.status = statusVal;
                 if (rejectionReason != null) {
                     req.rejectionReason = rejectionReason;
                 }
-                break;
             }
         }
 
