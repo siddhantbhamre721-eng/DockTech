@@ -1,5 +1,6 @@
 package com.projectui.view.portauthority;
 
+import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
@@ -7,243 +8,195 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
-import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
 
-// =====================================================
-// CONTAINER ALLOCATION PAGE
-// =====================================================
+import com.projectui.controller.portauthority.ContainerController;
+import com.projectui.controller.portauthority.NotificationController;
+import com.projectui.model.portauthority.Container;
+
 
 public class ContainerAllocationPage {
 
-    // =====================================================
-    // MAIN PAGE
-    // =====================================================
-
-    private VBox root;
+    private VBox content;
 
 
     // =====================================================
-    // ALLOCATION DATA
+    // CONTAINER CONTROLLER
     // =====================================================
 
-    private ObservableList<String[]> allocationData =
+    private ContainerController containerController =
+            new ContainerController();
+
+
+    // =====================================================
+    // NOTIFICATION CONTROLLER
+    // =====================================================
+
+    private NotificationController notificationController =
+            new NotificationController();
+
+
+    // =====================================================
+    // LOCAL CONTAINER DATA
+    // =====================================================
+
+    private ObservableList<Container> containerData =
             FXCollections.observableArrayList();
 
 
     // =====================================================
-    // CONTAINER DATA
-    // =====================================================
-
-    private ObservableList<String[]> containerData =
-            FXCollections.observableArrayList();
-
-
-    // =====================================================
-    // SUMMARY LABELS
-    // These labels will be updated when allocation happens
+    // SUMMARY CARD VALUES
     // =====================================================
 
     private Label totalContainersValue;
+
     private Label allocatedValue;
+
     private Label availableValue;
+
     private Label pendingValue;
 
 
     // =====================================================
-    // CONSTRUCTOR
+    // CONTAINER CARD AREA
     // =====================================================
+
+    private VBox containerCards;
+
 
     public ContainerAllocationPage() {
 
-        root = new VBox();
 
-        root.setSpacing(20);
-        root.setPadding(new Insets(28));
+        // =====================================================
+        // MAIN CONTENT
+        // =====================================================
 
-        root.setStyle(
-                "-fx-background-color: #f3f8ff;"
+        content =
+                new VBox();
+
+        content.setSpacing(
+                20
+        );
+
+        content.setPadding(
+                new Insets(30)
+        );
+
+        content.setStyle(
+                "-fx-background-color:#f4f8fc;"
         );
 
 
-        // =================================================
+        // =====================================================
         // PAGE TITLE
-        // =================================================
+        // =====================================================
 
         Label title =
-                new Label("Container Allocation");
+                new Label(
+                        "Container Allocation"
+                );
 
-        title.setFont(
-                Font.font(
-                        "Arial",
-                        FontWeight.BOLD,
-                        28
-                )
-        );
-
-        title.setTextFill(
-                Color.web("#12203a")
+        title.setStyle(
+                "-fx-font-size:28px;" +
+                "-fx-font-weight:bold;" +
+                "-fx-text-fill:#14213d;"
         );
 
 
         Label subtitle =
                 new Label(
-                        "Allocate containers to cargo shipments and vessels."
+                        "Allocate containers to cargo and vessels."
                 );
 
-        subtitle.setFont(
-                Font.font(
-                        "Arial",
-                        14
-                )
-        );
-
-        subtitle.setTextFill(
-                Color.web("#7b879c")
+        subtitle.setStyle(
+                "-fx-font-size:14px;" +
+                "-fx-text-fill:#7d8da6;"
         );
 
 
-        VBox titleBox =
-                new VBox(
-                        5,
-                        title,
-                        subtitle
-                );
-
-
-        // =================================================
+        // =====================================================
         // SUMMARY CARDS
-        // =================================================
-
-        HBox summaryCards =
-                createSummaryCards();
-
-
-        // =================================================
-        // ALLOCATION FLOW
-        // =================================================
-
-        VBox allocationFlow =
-                createAllocationFlow();
-
-
-        // =================================================
-        // CONTAINER CARDS
-        // =================================================
-
-        HBox containerCards =
-                createContainerCards();
-
-
-        // =================================================
-        // ALLOCATION RECORDS
-        // =================================================
-
-        VBox allocationRecords =
-                createAllocationRecords();
-
-
-        // =================================================
-        // ADD EVERYTHING TO PAGE
-        // =================================================
-
-        root.getChildren().addAll(
-                titleBox,
-                summaryCards,
-                allocationFlow,
-                containerCards,
-                allocationRecords
-        );
-    }
-
-
-    // =====================================================
-    // GET PAGE CONTENT
-    // =====================================================
-
-    public VBox getContent() {
-
-        return root;
-    }
-
-
-    // =====================================================
-    // SUMMARY CARDS
-    // =====================================================
-
-    private HBox createSummaryCards() {
+        // =====================================================
 
         HBox cards =
                 new HBox();
 
-        cards.setSpacing(18);
+        cards.setSpacing(
+                15
+        );
 
-        cards.setFillHeight(true);
 
-
-        // -------------------------------------------------
+        // =====================================================
         // TOTAL CONTAINERS
-        // -------------------------------------------------
+        // =====================================================
 
         totalContainersValue =
-                new Label("8,760");
+                new Label("0");
+
 
         VBox totalCard =
-                createSummaryCard(
-                        "Total Containers",
+                createCard(
+                        "TOTAL CONTAINERS",
                         totalContainersValue,
-                        "Across all terminals",
-                        "#7b879c"
-                );
-
-
-        // -------------------------------------------------
-        // ALLOCATED
-        // -------------------------------------------------
-
-        allocatedValue =
-                new Label("6,420");
-
-        VBox allocatedCard =
-                createSummaryCard(
-                        "Allocated",
-                        allocatedValue,
-                        "73% utilization",
+                        "All registered containers",
                         "#00a878"
                 );
 
 
-        // -------------------------------------------------
-        // AVAILABLE
-        // -------------------------------------------------
+        // =====================================================
+        // ALLOCATED
+        // =====================================================
 
-        availableValue =
-                new Label("1,850");
+        allocatedValue =
+                new Label("0");
 
-        VBox availableCard =
-                createSummaryCard(
-                        "Available",
-                        availableValue,
-                        "Ready to allocate",
-                        "#2878f0"
+
+        VBox allocatedCard =
+                createCard(
+                        "ALLOCATED",
+                        allocatedValue,
+                        "Currently assigned",
+                        "#00a878"
                 );
 
 
-        // -------------------------------------------------
+        // =====================================================
+        // AVAILABLE
+        // =====================================================
+
+        availableValue =
+                new Label("0");
+
+
+        VBox availableCard =
+                createCard(
+                        "AVAILABLE",
+                        availableValue,
+                        "Ready for allocation",
+                        "#2779ff"
+                );
+
+
+        // =====================================================
         // PENDING ALLOCATION
-        // -------------------------------------------------
+        // =====================================================
 
         pendingValue =
-                new Label("490");
+                new Label("0");
+
 
         VBox pendingCard =
-                createSummaryCard(
-                        "Pending Allocation",
+                createCard(
+                        "PENDING ALLOCATION",
                         pendingValue,
-                        "Awaiting assignment",
+                        "Awaiting allocation",
                         "#ff8a00"
                 );
 
@@ -256,752 +209,146 @@ public class ContainerAllocationPage {
         );
 
 
-        // Make all cards equal width
-        for (Node card : cards.getChildren()) {
+        // =====================================================
+        // AVAILABLE CONTAINERS SECTION
+        // =====================================================
 
-            HBox.setHgrow(
-                    card,
-                    Priority.ALWAYS
-            );
-        }
+        VBox availableContainerBox =
+                new VBox();
 
-
-        return cards;
-    }
-
-
-    // =====================================================
-    // CREATE ONE SUMMARY CARD
-    // =====================================================
-
-    private VBox createSummaryCard(
-            String heading,
-            Label value,
-            String subtitle,
-            String subtitleColor
-    ) {
-
-        Label headingLabel =
-                new Label(heading.toUpperCase());
-
-        headingLabel.setFont(
-                Font.font(
-                        "Arial",
-                        FontWeight.NORMAL,
-                        13
-                )
+        availableContainerBox.setSpacing(
+                15
         );
 
-        headingLabel.setTextFill(
-                Color.web("#7b879c")
-        );
-
-
-        value.setFont(
-                Font.font(
-                        "Arial",
-                        FontWeight.BOLD,
-                        28
-                )
-        );
-
-        value.setTextFill(
-                Color.web("#12203a")
-        );
-
-
-        Label subtitleLabel =
-                new Label(subtitle);
-
-        subtitleLabel.setFont(
-                Font.font(
-                        "Arial",
-                        FontWeight.NORMAL,
-                        13
-                )
-        );
-
-        subtitleLabel.setTextFill(
-                Color.web(subtitleColor)
-        );
-
-
-        VBox card =
-                new VBox(
-                        10,
-                        headingLabel,
-                        value,
-                        subtitleLabel
-                );
-
-        card.setPadding(
+        availableContainerBox.setPadding(
                 new Insets(20)
         );
 
-        card.setPrefHeight(120);
-
-        card.setStyle(
-                "-fx-background-color: white;" +
-                "-fx-border-color: #dce5f0;" +
-                "-fx-border-radius: 10;" +
-                "-fx-background-radius: 10;"
+        availableContainerBox.setStyle(
+                "-fx-background-color:white;" +
+                "-fx-background-radius:10;" +
+                "-fx-border-color:#dfe7f1;" +
+                "-fx-border-radius:10;"
         );
 
 
-        return card;
-    }
+        Label availableTitle =
+                new Label(
+                        "Containers Available for Allocation"
+                );
+
+        availableTitle.setStyle(
+                "-fx-font-size:16px;" +
+                "-fx-font-weight:bold;" +
+                "-fx-text-fill:#14213d;"
+        );
 
 
-    // =====================================================
-    // ALLOCATION FLOW
-    // =====================================================
+        Label availableSubtitle =
+                new Label(
+                        "Select a container to allocate it to cargo and a vessel."
+                );
 
-    private VBox createAllocationFlow() {
+        availableSubtitle.setStyle(
+                "-fx-font-size:12px;" +
+                "-fx-text-fill:#7d8da6;"
+        );
 
-        VBox panel =
+
+        // =====================================================
+        // CONTAINER CARDS
+        // =====================================================
+
+        containerCards =
                 new VBox();
 
-        panel.setSpacing(18);
-
-        panel.setPadding(
-                new Insets(22)
-        );
-
-        panel.setStyle(
-                "-fx-background-color: white;" +
-                "-fx-border-color: #dce5f0;" +
-                "-fx-border-radius: 10;" +
-                "-fx-background-radius: 10;"
+        containerCards.setSpacing(
+                10
         );
 
 
-        // -------------------------------------------------
+        availableContainerBox.getChildren().addAll(
+                availableTitle,
+                availableSubtitle,
+                containerCards
+        );
+
+
+        // =====================================================
+        // ALLOCATION RECORDS SECTION
+        // =====================================================
+
+        VBox allocationBox =
+                new VBox();
+
+        allocationBox.setSpacing(
+                12
+        );
+
+        allocationBox.setPadding(
+                new Insets(20)
+        );
+
+        allocationBox.setStyle(
+                "-fx-background-color:white;" +
+                "-fx-background-radius:10;" +
+                "-fx-border-color:#dfe7f1;" +
+                "-fx-border-radius:10;"
+        );
+
+
+        // =====================================================
         // HEADER
-        // -------------------------------------------------
+        // =====================================================
 
-        HBox header =
+        HBox allocationHeader =
                 new HBox();
 
-        header.setAlignment(
+        allocationHeader.setAlignment(
                 Pos.CENTER_LEFT
         );
 
 
-        VBox headingBox =
-                new VBox(
-                        5
-                );
-
-
-        Label heading =
-                new Label(
-                        "Allocation Flow"
-                );
-
-        heading.setFont(
-                Font.font(
-                        "Arial",
-                        FontWeight.BOLD,
-                        18
-                )
-        );
-
-        heading.setTextFill(
-                Color.web("#12203a")
-        );
-
-
-        Label description =
-                new Label(
-                        "Follow the steps to allocate a container."
-                );
-
-        description.setTextFill(
-                Color.web("#7b879c")
-        );
-
-
-        headingBox.getChildren().addAll(
-                heading,
-                description
-        );
-
-
-        // -------------------------------------------------
-        // ALLOCATE BUTTON
-        // -------------------------------------------------
-
-        Button allocateButton =
-                new Button(
-                        "+  Allocate Container"
-                );
-
-        allocateButton.setStyle(
-                "-fx-background-color: #2878f0;" +
-                "-fx-text-fill: white;" +
-                "-fx-font-weight: bold;" +
-                "-fx-padding: 10 18 10 18;" +
-                "-fx-background-radius: 6;"
-        );
-
-
-        allocateButton.setOnAction(
-                event -> showAllocateDialog()
-        );
-
-
-        Region spacer =
-                new Region();
-
-        HBox.setHgrow(
-                spacer,
-                Priority.ALWAYS
-        );
-
-
-        header.getChildren().addAll(
-                headingBox,
-                spacer,
-                allocateButton
-        );
-
-
-        // -------------------------------------------------
-        // FLOW STEPS
-        // -------------------------------------------------
-
-        HBox flow =
-                new HBox();
-
-        flow.setSpacing(10);
-
-        flow.setAlignment(
-                Pos.CENTER
-        );
-
-
-        VBox step1 =
-                createFlowStep(
-                        "▣",
-                        "Select Cargo"
-                );
-
-
-        Label arrow1 =
-                createArrow();
-
-
-        VBox step2 =
-                createFlowStep(
-                        "▣",
-                        "Select Container"
-                );
-
-
-        Label arrow2 =
-                createArrow();
-
-
-        VBox step3 =
-                createFlowStep(
-                        "♙",
-                        "Select Ship"
-                );
-
-
-        Label arrow3 =
-                createArrow();
-
-
-        VBox step4 =
-                createFlowStep(
-                        "⌖",
-                        "Select Location"
-                );
-
-
-        Label arrow4 =
-                createArrow();
-
-
-        VBox step5 =
-                createFlowStep(
-                        "✓",
-                        "Allocate"
-                );
-
-
-        flow.getChildren().addAll(
-                step1,
-                arrow1,
-                step2,
-                arrow2,
-                step3,
-                arrow3,
-                step4,
-                arrow4,
-                step5
-        );
-
-
-        panel.getChildren().addAll(
-                header,
-                flow
-        );
-
-
-        return panel;
-    }
-
-
-    // =====================================================
-    // CREATE ONE FLOW STEP
-    // =====================================================
-
-    private VBox createFlowStep(
-            String icon,
-            String text
-    ) {
-
-        Label iconLabel =
-                new Label(icon);
-
-        iconLabel.setFont(
-                Font.font(
-                        "Arial",
-                        FontWeight.BOLD,
-                        24
-                )
-        );
-
-        iconLabel.setTextFill(
-                Color.web("#2878f0")
-        );
-
-
-        Label textLabel =
-                new Label(text);
-
-        textLabel.setFont(
-                Font.font(
-                        "Arial",
-                        FontWeight.BOLD,
-                        13
-                )
-        );
-
-        textLabel.setTextFill(
-                Color.web("#12203a")
-        );
-
-
-        VBox box =
-                new VBox(
-                        10,
-                        iconLabel,
-                        textLabel
-                );
-
-        box.setAlignment(
-                Pos.CENTER
-        );
-
-        box.setPrefSize(
-                130,
-                90
-        );
-
-        box.setStyle(
-                "-fx-background-color: #ffffff;" +
-                "-fx-border-color: #eef2f7;" +
-                "-fx-border-radius: 8;" +
-                "-fx-background-radius: 8;"
-        );
-
-
-        return box;
-    }
-
-
-    // =====================================================
-    // FLOW ARROW
-    // =====================================================
-
-    private Label createArrow() {
-
-        Label arrow =
-                new Label("→");
-
-        arrow.setFont(
-                Font.font(
-                        "Arial",
-                        FontWeight.BOLD,
-                        25
-                )
-        );
-
-        arrow.setTextFill(
-                Color.web("#2878f0")
-        );
-
-
-        return arrow;
-    }
-
-
-    // =====================================================
-    // CONTAINER CARDS
-    // =====================================================
-
-    private HBox createContainerCards() {
-
-        HBox cards =
-                new HBox();
-
-        cards.setSpacing(15);
-
-
-        // -------------------------------------------------
-        // CONTAINER 1
-        // -------------------------------------------------
-
-        VBox card1 =
-                createContainerCard(
-                        "CONT-1024",
-                        "40 ft Container",
-                        "CGO-1287",
-                        "Oceanic Star",
-                        "Terminal A",
-                        "Allocated"
-                );
-
-
-        // -------------------------------------------------
-        // CONTAINER 2
-        // -------------------------------------------------
-
-        VBox card2 =
-                createContainerCard(
-                        "CONT-1031",
-                        "20 ft Container",
-                        "—",
-                        "Unassigned",
-                        "Yard B",
-                        "Available"
-                );
-
-
-        // -------------------------------------------------
-        // CONTAINER 3
-        // -------------------------------------------------
-
-        VBox card3 =
-                createContainerCard(
-                        "CONT-1048",
-                        "40 ft Container",
-                        "CGO-1302",
-                        "Blue Marlin",
-                        "Berth 4",
-                        "In Transit"
-                );
-
-
-        // -------------------------------------------------
-        // CONTAINER 4
-        // -------------------------------------------------
-
-        VBox card4 =
-                createContainerCard(
-                        "CONT-1055",
-                        "45 ft Container",
-                        "CGO-1319",
-                        "Unassigned",
-                        "Gate 2",
-                        "Pending"
-                );
-
-
-        cards.getChildren().addAll(
-                card1,
-                card2,
-                card3,
-                card4
-        );
-
-
-        return cards;
-    }
-
-
-    // =====================================================
-    // CREATE ONE CONTAINER CARD
-    // =====================================================
-
-    private VBox createContainerCard(
-            String containerId,
-            String size,
-            String cargoId,
-            String ship,
-            String location,
-            String status
-    ) {
-
-        VBox card =
+        VBox allocationInfo =
                 new VBox();
 
-        card.setSpacing(8);
-
-        card.setPadding(
-                new Insets(16)
-        );
-
-        card.setPrefWidth(230);
-
-        card.setStyle(
-                "-fx-background-color: white;" +
-                "-fx-border-color: #dce5f0;" +
-                "-fx-border-radius: 10;" +
-                "-fx-background-radius: 10;"
+        allocationInfo.setSpacing(
+                3
         );
 
 
-        // -------------------------------------------------
-        // CONTAINER ID
-        // -------------------------------------------------
-
-        Label idLabel =
-                new Label(containerId);
-
-        idLabel.setFont(
-                Font.font(
-                        "Arial",
-                        FontWeight.BOLD,
-                        15
-                )
-        );
-
-        idLabel.setTextFill(
-                Color.web("#12203a")
-        );
-
-
-        // -------------------------------------------------
-        // SIZE
-        // -------------------------------------------------
-
-        Label sizeLabel =
-                new Label(size);
-
-        sizeLabel.setTextFill(
-                Color.web("#7b879c")
-        );
-
-
-        // -------------------------------------------------
-        // CARGO
-        // -------------------------------------------------
-
-        Label cargoLabel =
-                new Label(
-                        "Cargo: " + cargoId
-                );
-
-
-        // -------------------------------------------------
-        // SHIP
-        // -------------------------------------------------
-
-        Label shipLabel =
-                new Label(
-                        "Ship: " + ship
-                );
-
-
-        // -------------------------------------------------
-        // LOCATION
-        // -------------------------------------------------
-
-        Label locationLabel =
-                new Label(
-                        "Location: " + location
-                );
-
-
-        // -------------------------------------------------
-        // STATUS
-        // -------------------------------------------------
-
-        Label statusLabel =
-                new Label(status);
-
-        statusLabel.setPadding(
-                new Insets(
-                        5,
-                        10,
-                        5,
-                        10
-                )
-        );
-
-
-        String statusColor =
-                "#2878f0";
-
-
-        if (status.equals("Allocated")) {
-
-            statusColor = "#00a878";
-
-        } else if (status.equals("In Transit")) {
-
-            statusColor = "#ff8a00";
-
-        } else if (status.equals("Pending")) {
-
-            statusColor = "#8a8f98";
-        }
-
-
-        statusLabel.setTextFill(
-                Color.web(statusColor)
-        );
-
-        statusLabel.setStyle(
-                "-fx-background-color: #f2f5f9;" +
-                "-fx-background-radius: 10;"
-        );
-
-
-        card.getChildren().addAll(
-                idLabel,
-                sizeLabel,
-                cargoLabel,
-                shipLabel,
-                locationLabel,
-                statusLabel
-        );
-
-
-        return card;
-    }
-
-
-    // =====================================================
-    // ALLOCATION RECORDS
-    // =====================================================
-
-    private VBox createAllocationRecords() {
-
-        VBox panel =
-                new VBox();
-
-        panel.setSpacing(15);
-
-        panel.setPadding(
-                new Insets(22)
-        );
-
-        panel.setStyle(
-                "-fx-background-color: white;" +
-                "-fx-border-color: #dce5f0;" +
-                "-fx-border-radius: 10;" +
-                "-fx-background-radius: 10;"
-        );
-
-
-        // -------------------------------------------------
-        // HEADER
-        // -------------------------------------------------
-
-        HBox header =
-                new HBox();
-
-        header.setAlignment(
-                Pos.CENTER_LEFT
-        );
-
-
-        VBox headingBox =
-                new VBox(
-                        5
-                );
-
-
-        Label heading =
+        Label allocationTitle =
                 new Label(
                         "Allocation Records"
                 );
 
-        heading.setFont(
-                Font.font(
-                        "Arial",
-                        FontWeight.BOLD,
-                        18
-                )
+        allocationTitle.setStyle(
+                "-fx-font-size:16px;" +
+                "-fx-font-weight:bold;" +
+                "-fx-text-fill:#14213d;"
         );
 
 
-        Label description =
+        Label allocationSubtitle =
                 new Label(
-                        "Manage current container allocations."
+                        "View and manage container allocations."
                 );
 
-        description.setTextFill(
-                Color.web("#7b879c")
+        allocationSubtitle.setStyle(
+                "-fx-font-size:12px;" +
+                "-fx-text-fill:#7d8da6;"
         );
 
 
-        headingBox.getChildren().addAll(
-                heading,
-                description
+        allocationInfo.getChildren().addAll(
+                allocationTitle,
+                allocationSubtitle
         );
 
 
-        Region spacer =
-                new Region();
-
-        HBox.setHgrow(
-                spacer,
-                Priority.ALWAYS
-        );
-
-
-        Button allocateButton =
-                new Button(
-                        "+  Allocate Container"
-                );
-
-
-        allocateButton.setStyle(
-                "-fx-background-color: #2878f0;" +
-                "-fx-text-fill: white;" +
-                "-fx-font-weight: bold;" +
-                "-fx-padding: 10 18 10 18;" +
-                "-fx-background-radius: 6;"
-        );
-
-
-        allocateButton.setOnAction(
-                event -> showAllocateDialog()
-        );
-
-
-        header.getChildren().addAll(
-                headingBox,
-                spacer,
-                allocateButton
-        );
-
-
-        // =================================================
-        // SEARCH AND FILTER
-        // =================================================
-
-        HBox filters =
-                new HBox();
-
-        filters.setSpacing(10);
-
+        // =====================================================
+        // SEARCH FIELD
+        // =====================================================
 
         TextField searchField =
                 new TextField();
@@ -1010,16 +357,22 @@ public class ContainerAllocationPage {
                 "Search Container..."
         );
 
-        searchField.setPrefWidth(220);
+        searchField.setPrefWidth(
+                200
+        );
 
+
+        // =====================================================
+        // STATUS FILTER
+        // =====================================================
 
         ComboBox<String> statusFilter =
                 new ComboBox<>();
 
         statusFilter.getItems().addAll(
                 "All Statuses",
-                "Allocated",
                 "Available",
+                "Allocated",
                 "In Transit",
                 "Pending"
         );
@@ -1029,219 +382,1157 @@ public class ContainerAllocationPage {
         );
 
 
-        filters.getChildren().addAll(
-                searchField,
-                statusFilter
+        // =====================================================
+        // ALLOCATE BUTTON
+        // =====================================================
+
+        Button allocateButton =
+                new Button(
+                        "+ Allocate Container"
+                );
+
+
+        HBox headerSpace =
+                new HBox();
+
+        HBox.setHgrow(
+                headerSpace,
+                javafx.scene.layout.Priority.ALWAYS
         );
 
 
-        // =================================================
-        // TABLE
-        // =================================================
+        HBox controls =
+                new HBox(
+                        10,
+                        searchField,
+                        statusFilter,
+                        allocateButton
+                );
 
-        TableView<String[]> table =
+        controls.setAlignment(
+                Pos.CENTER_RIGHT
+        );
+
+
+        allocationHeader.getChildren().addAll(
+                allocationInfo,
+                headerSpace,
+                controls
+        );
+
+
+        // =====================================================
+        // ALLOCATION TABLE
+        // =====================================================
+
+        TableView<Container> table =
                 new TableView<>();
 
-        table.setPrefHeight(280);
+
+        // =====================================================
+        // TABLE VISUAL STYLE
+        // =====================================================
+
+        table.setFixedCellSize(
+                38
+        );
+
+        table.setPrefHeight(
+                360
+        );
+
+        table.setStyle(
+                "-fx-background-color:transparent;" +
+                "-fx-border-color:transparent;" +
+                "-fx-table-cell-border-color:transparent;" +
+                "-fx-font-size:10;"
+        );
 
 
-        // -------------------------------------------------
+        // =====================================================
         // TABLE COLUMNS
-        // -------------------------------------------------
+        // =====================================================
 
-        TableColumn<String[], String> containerId =
+        TableColumn<Container, String> containerId =
                 createColumn(
                         "Container ID",
                         110,
-                        0
+                        Container::getContainerId
                 );
 
 
-        TableColumn<String[], String> cargoId =
+        TableColumn<Container, String> cargoId =
                 createColumn(
                         "Cargo ID",
-                        90,
-                        1
+                        100,
+                        Container::getCargoId
                 );
 
 
-        TableColumn<String[], String> ship =
+        TableColumn<Container, String> ship =
                 createColumn(
                         "Ship",
                         130,
-                        2
+                        Container::getShip
                 );
 
 
-        TableColumn<String[], String> type =
+        TableColumn<Container, String> type =
                 createColumn(
                         "Type",
-                        80,
-                        3
+                        100,
+                        Container::getType
                 );
 
 
-        TableColumn<String[], String> location =
+        TableColumn<Container, String> size =
+                createColumn(
+                        "Size",
+                        80,
+                        Container::getSize
+                );
+
+
+        TableColumn<Container, String> weight =
+                createColumn(
+                        "Weight",
+                        90,
+                        Container::getWeight
+                );
+
+
+        TableColumn<Container, String> location =
                 createColumn(
                         "Location",
-                        110,
-                        4
+                        120,
+                        Container::getLocation
                 );
 
 
-        TableColumn<String[], String> date =
+        TableColumn<Container, String> allocationDate =
                 createColumn(
                         "Allocation Date",
-                        110,
-                        5
+                        120,
+                        Container::getAllocationDate
                 );
 
 
-        TableColumn<String[], String> status =
+        TableColumn<Container, String> status =
                 createColumn(
                         "Status",
                         110,
-                        6
+                        Container::getStatus
                 );
 
 
-        // =================================================
+        // =====================================================
         // ACTION COLUMN
-        // =================================================
+        // =====================================================
 
-        TableColumn<String[], String> action =
+        TableColumn<Container, String> action =
                 new TableColumn<>(
                         "Action"
                 );
 
-        action.setPrefWidth(150);
+        action.setPrefWidth(
+                180
+        );
 
 
         action.setCellFactory(
                 column ->
-                        new TableCell<String[], String>() {
-
-                            private final Button reallocateButton =
-                                    new Button("Reallocate");
-
-                            private final Button viewButton =
-                                    new Button("View");
+                        new TableCell<Container, String>() {
 
 
-                            {
-
-                                // ---------------------------------
-                                // VIEW BUTTON
-                                // ---------------------------------
-
-                                viewButton.setOnAction(
-                                        event -> {
-
-                                            String[] record =
-                                                    getTableView()
-                                                            .getItems()
-                                                            .get(getIndex());
+                                private final Button viewButton =
+                                        new Button(
+                                                "View"
+                                        );
 
 
-                                            Alert alert =
-                                                    new Alert(
-                                                            Alert.AlertType.INFORMATION
-                                                    );
+                                private final Button reallocateButton =
+                                        new Button(
+                                                "Reallocate"
+                                        );
 
 
-                                            alert.setTitle(
-                                                    "Allocation Details"
-                                            );
+                                {
+                                        // =============================================
+                                        // ACTION BUTTON STYLING
+                                        // =============================================
+
+                                        viewButton.setStyle(
+                                                "-fx-background-color:#f1f5f9;" +
+                                                "-fx-text-fill:#1e293b;" +
+                                                "-fx-font-size:9;" +
+                                                "-fx-font-weight:bold;" +
+                                                "-fx-background-radius:5;" +
+                                                "-fx-border-color:#cbd5e1;" +
+                                                "-fx-border-radius:5;" +
+                                                "-fx-padding:4 8 4 8;" +
+                                                "-fx-cursor:hand;"
+                                        );
 
 
-                                            alert.setHeaderText(
-                                                    "Allocation Details"
-                                            );
+                                        reallocateButton.setStyle(
+                                                "-fx-background-color:#eff6ff;" +
+                                                "-fx-text-fill:#1d4ed8;" +
+                                                "-fx-font-size:9;" +
+                                                "-fx-font-weight:bold;" +
+                                                "-fx-background-radius:5;" +
+                                                "-fx-border-color:#bfdbfe;" +
+                                                "-fx-border-radius:5;" +
+                                                "-fx-padding:4 8 4 8;" +
+                                                "-fx-cursor:hand;"
+                                        );
 
 
-                                            alert.setContentText(
-                                                    "Container ID: " + record[0] + "\n" +
-                                                    "Cargo ID: " + record[1] + "\n" +
-                                                    "Ship: " + record[2] + "\n" +
-                                                    "Type: " + record[3] + "\n" +
-                                                    "Location: " + record[4] + "\n" +
-                                                    "Allocation Date: " + record[5] + "\n" +
-                                                    "Status: " + record[6]
-                                            );
+                                        // =============================================
+                                        // VIEW
+                                        // =============================================
 
+                                        viewButton.setOnAction(
+                                                event -> {
 
-                                            alert.showAndWait();
-                                        }
-                                );
-
-
-                                // ---------------------------------
-                                // REALLOCATE BUTTON
-                                // ---------------------------------
-
-                                reallocateButton.setOnAction(
-                                        event -> {
-
-                                            String[] record =
-                                                    getTableView()
-                                                            .getItems()
-                                                            .get(getIndex());
-
-
-                                            TextInputDialog dialog =
-                                                    new TextInputDialog(
-                                                            record[4]
-                                                    );
-
-
-                                            dialog.setTitle(
-                                                    "Reallocate Container"
-                                            );
-
-
-                                            dialog.setHeaderText(
-                                                    "Change Container Location"
-                                            );
-
-
-                                            dialog.setContentText(
-                                                    "New Location:"
-                                            );
-
-
-                                            dialog.showAndWait()
-                                                    .ifPresent(
-                                                            newLocation -> {
-
-                                                                if (
-                                                                        newLocation
-                                                                                .trim()
-                                                                                .isEmpty()
-                                                                ) {
-
-                                                                    showError(
-                                                                            "Location cannot be empty."
+                                                    Container container =
+                                                            getTableView()
+                                                                    .getItems()
+                                                                    .get(
+                                                                            getIndex()
                                                                     );
 
-                                                                    return;
-                                                                }
 
-
-                                                                record[4] =
-                                                                        newLocation.trim();
-
-
-                                                                table.refresh();
-                                                            }
+                                                    showContainerDetails(
+                                                            container
                                                     );
-                                        }
-                                );
-                            }
+                                                }
+                                        );
 
+
+                                        // =============================================
+                                        // REALLOCATE
+                                        // =============================================
+
+                                        reallocateButton.setOnAction(
+                                                event -> {
+
+                                                    Container container =
+                                                            getTableView()
+                                                                    .getItems()
+                                                                    .get(
+                                                                            getIndex()
+                                                                    );
+
+
+                                                    showAllocationDialog(
+                                                            container,
+                                                            table
+                                                    );
+                                                }
+                                        );
+                                }
+
+
+                                @Override
+                                protected void updateItem(
+                                        String item,
+                                        boolean empty
+                                ) {
+
+                                    super.updateItem(
+                                            item,
+                                            empty
+                                    );
+
+
+                                    if (empty) {
+
+                                        setGraphic(
+                                                null
+                                        );
+
+                                        setText(
+                                                null
+                                        );
+
+                                    } else {
+
+                                        HBox buttons =
+                                                new HBox(
+                                                        5,
+                                                        viewButton,
+                                                        reallocateButton
+                                                );
+
+
+                                        buttons.setAlignment(
+                                                Pos.CENTER_LEFT
+                                        );
+
+
+                                        setGraphic(
+                                                buttons
+                                        );
+
+                                        setText(
+                                                null
+                                        );
+
+
+                                        setStyle(
+                                                "-fx-background-color:white;" +
+                                                "-fx-border-color:transparent transparent #e8edf2 transparent;" +
+                                                "-fx-padding:0 4 0 4;"
+                                        );
+                                    }
+                                }
+                        }
+        );
+
+
+        // =====================================================
+        // COLUMN VISUAL STYLING
+        // =====================================================
+
+        styleAllocationColumn(
+                containerId
+        );
+
+        styleAllocationColumn(
+                cargoId
+        );
+
+        styleAllocationColumn(
+                type
+        );
+
+        styleAllocationColumn(
+                size
+        );
+
+        styleAllocationColumn(
+                weight
+        );
+
+        styleAllocationColumn(
+                location
+        );
+
+        styleAllocationColumn(
+                allocationDate
+        );
+
+
+        // =====================================================
+        // CONTAINER ID STYLE
+        // =====================================================
+
+        styleAllocationBoldColumn(
+                containerId
+        );
+
+
+        // =====================================================
+        // CARGO ID STYLE
+        // =====================================================
+
+        styleAllocationBoldColumn(
+                cargoId
+        );
+
+
+        // =====================================================
+        // SHIP STYLE
+        // =====================================================
+
+        styleAllocationBoldColumn(
+                ship
+        );
+
+
+        // =====================================================
+        // STATUS BADGES
+        // =====================================================
+
+        status.setCellFactory(
+                column -> new TableCell<Container, String>() {
+
+                    private final Label statusLabel =
+                            new Label();
+
+
+                    @Override
+                    protected void updateItem(
+                            String item,
+                            boolean empty
+                    ) {
+
+                        super.updateItem(
+                                item,
+                                empty
+                        );
+
+
+                        if (empty || item == null) {
+
+                            setGraphic(
+                                    null
+                            );
+
+                            setText(
+                                    null
+                            );
+
+                            return;
+                        }
+
+
+                        statusLabel.setText(
+                                item
+                        );
+
+
+                        // =============================================
+                        // ALLOCATED
+                        // =============================================
+
+                        if (item.equalsIgnoreCase(
+                                "Allocated"
+                        )) {
+
+                            statusLabel.setStyle(
+                                    "-fx-background-color:#dcfce7;" +
+                                    "-fx-text-fill:#15803d;" +
+                                    "-fx-background-radius:12;" +
+                                    "-fx-font-size:9;" +
+                                    "-fx-font-weight:bold;" +
+                                    "-fx-padding:4 9 4 9;"
+                            );
+
+
+                        // =============================================
+                        // AVAILABLE
+                        // =============================================
+
+                        } else if (item.equalsIgnoreCase(
+                                "Available"
+                        )) {
+
+                            statusLabel.setStyle(
+                                    "-fx-background-color:#dbeafe;" +
+                                    "-fx-text-fill:#2563eb;" +
+                                    "-fx-background-radius:12;" +
+                                    "-fx-font-size:9;" +
+                                    "-fx-font-weight:bold;" +
+                                    "-fx-padding:4 9 4 9;"
+                            );
+
+
+                        // =============================================
+                        // PENDING
+                        // =============================================
+
+                        } else if (item.equalsIgnoreCase(
+                                "Pending"
+                        )) {
+
+                            statusLabel.setStyle(
+                                    "-fx-background-color:#ffedd5;" +
+                                    "-fx-text-fill:#ea580c;" +
+                                    "-fx-background-radius:12;" +
+                                    "-fx-font-size:9;" +
+                                    "-fx-font-weight:bold;" +
+                                    "-fx-padding:4 9 4 9;"
+                            );
+
+
+                        // =============================================
+                        // IN TRANSIT
+                        // =============================================
+
+                        } else if (item.equalsIgnoreCase(
+                                "In Transit"
+                        )) {
+
+                            statusLabel.setStyle(
+                                    "-fx-background-color:#e0f2fe;" +
+                                    "-fx-text-fill:#0369a1;" +
+                                    "-fx-background-radius:12;" +
+                                    "-fx-font-size:9;" +
+                                    "-fx-font-weight:bold;" +
+                                    "-fx-padding:4 9 4 9;"
+                            );
+
+
+                        // =============================================
+                        // DEFAULT
+                        // =============================================
+
+                        } else {
+
+                            statusLabel.setStyle(
+                                    "-fx-background-color:#f1f5f9;" +
+                                    "-fx-text-fill:#475569;" +
+                                    "-fx-background-radius:12;" +
+                                    "-fx-font-size:9;" +
+                                    "-fx-font-weight:bold;" +
+                                    "-fx-padding:4 9 4 9;"
+                            );
+                        }
+
+
+                        setGraphic(
+                                statusLabel
+                        );
+
+
+                        setText(
+                                null
+                        );
+
+
+                        setAlignment(
+                                Pos.CENTER
+                        );
+
+
+                        setStyle(
+                                "-fx-background-color:white;" +
+                                "-fx-border-color:transparent transparent #e8edf2 transparent;"
+                        );
+                    }
+                }
+        );
+
+
+        // =====================================================
+        // ADD COLUMNS TO TABLE
+        // =====================================================
+
+        table.getColumns().addAll(
+
+                containerId,
+                cargoId,
+                ship,
+                type,
+                size,
+                weight,
+                location,
+                allocationDate,
+                status,
+                action
+        );
+
+
+        // =====================================================
+        // MODERN TABLE HEADER
+        // =====================================================
+
+        table.skinProperty().addListener(
+                (observable, oldSkin, newSkin) -> {
+
+                    if (newSkin != null) {
+
+                        javafx.application.Platform.runLater(
+                                () ->
+                                        styleAllocationTableHeader(
+                                                table
+                                        )
+                        );
+                    }
+                }
+        );
+
+
+        // =====================================================
+        // LOAD CONTAINERS FROM FIREBASE
+        // =====================================================
+
+        List<Container> containers =
+                containerController.getContainers();
+
+
+        // =====================================================
+        // ADD FIREBASE DATA TO LOCAL LIST
+        // =====================================================
+
+        containerData.addAll(
+                containers
+        );
+
+
+        // =====================================================
+        // FILTERED DATA
+        // =====================================================
+
+        FilteredList<Container> filteredData =
+                new FilteredList<>(
+                        containerData,
+                        container -> true
+                );
+
+
+        table.setItems(
+                filteredData
+        );
+
+
+        // =====================================================
+        // INITIAL STATISTICS
+        // =====================================================
+
+        refreshStatistics();
+
+
+        // =====================================================
+        // INITIAL CONTAINER CARDS
+        // =====================================================
+
+        refreshContainerCards();
+
+
+        // =====================================================
+        // SEARCH FILTER
+        // =====================================================
+
+        searchField.textProperty().addListener(
+                (observable, oldValue, newValue) -> {
+
+                    updateFilter(
+                            filteredData,
+                            searchField.getText(),
+                            statusFilter.getValue()
+                    );
+                }
+        );
+
+
+        // =====================================================
+        // STATUS FILTER
+        // =====================================================
+
+        statusFilter.valueProperty().addListener(
+                (observable, oldValue, newValue) -> {
+
+                    updateFilter(
+                            filteredData,
+                            searchField.getText(),
+                            statusFilter.getValue()
+                    );
+                }
+        );
+
+
+        // =====================================================
+        // ALLOCATE CONTAINER BUTTON
+        // =====================================================
+
+        allocateButton.setOnAction(
+                event -> {
+
+                    showAllocationDialog(
+                            null,
+                            table
+                    );
+                }
+        );
+
+
+        // =====================================================
+        // ADD TABLE TO SECTION
+        // =====================================================
+
+        allocationBox.getChildren().addAll(
+                allocationHeader,
+                table
+        );
+
+
+        // =====================================================
+        // ADD EVERYTHING TO MAIN CONTENT
+        // =====================================================
+
+        content.getChildren().addAll(
+
+                title,
+                subtitle,
+
+                cards,
+
+                availableContainerBox,
+
+                allocationBox
+        );
+    }
+
+
+    // =====================================================
+    // CREATE SUMMARY CARD
+    // =====================================================
+
+    private VBox createCard(
+
+            String title,
+            Label valueLabel,
+            String description,
+            String descriptionColor
+
+    ) {
+
+        VBox card =
+                new VBox();
+
+        card.setSpacing(
+                10
+        );
+
+        card.setPadding(
+                new Insets(20)
+        );
+
+        card.setPrefWidth(
+                220
+        );
+
+        card.setPrefHeight(
+                110
+        );
+
+        card.setStyle(
+                "-fx-background-color:white;" +
+                "-fx-background-radius:10;" +
+                "-fx-border-color:#dfe7f1;" +
+                "-fx-border-radius:10;"
+        );
+
+
+        Label titleLabel =
+                new Label(
+                        title
+                );
+
+        titleLabel.setStyle(
+                "-fx-font-size:12px;" +
+                "-fx-text-fill:#777777;"
+        );
+
+
+        valueLabel.setStyle(
+                "-fx-font-size:25px;" +
+                "-fx-font-weight:bold;" +
+                "-fx-text-fill:#14213d;"
+        );
+
+
+        Label descriptionLabel =
+                new Label(
+                        description
+                );
+
+        descriptionLabel.setStyle(
+                "-fx-font-size:12px;" +
+                "-fx-text-fill:" +
+                descriptionColor + ";"
+        );
+
+
+        card.getChildren().addAll(
+                titleLabel,
+                valueLabel,
+                descriptionLabel
+        );
+
+
+        return card;
+    }
+
+
+    // =====================================================
+    // REFRESH STATISTICS
+    // =====================================================
+
+    private void refreshStatistics() {
+
+        int total =
+                containerData.size();
+
+
+        int allocated =
+                0;
+
+
+        int available =
+                0;
+
+
+        int pending =
+                0;
+
+
+        // =================================================
+        // COUNT BY STATUS
+        // =================================================
+
+        for (Container container : containerData) {
+
+            if (container == null) {
+                continue;
+            }
+
+
+            String status =
+                    container.getStatus();
+
+
+            if (status == null) {
+                continue;
+            }
+
+
+            switch (status) {
+
+                case "Allocated":
+
+                    allocated++;
+
+                    break;
+
+
+                case "Available":
+
+                    available++;
+
+                    break;
+
+
+                case "Pending":
+
+                    pending++;
+
+                    break;
+            }
+        }
+
+
+        // =================================================
+        // UPDATE CARDS
+        // =================================================
+
+        totalContainersValue.setText(
+                String.valueOf(total)
+        );
+
+
+        allocatedValue.setText(
+                String.valueOf(allocated)
+        );
+
+
+        availableValue.setText(
+                String.valueOf(available)
+        );
+
+
+        pendingValue.setText(
+                String.valueOf(pending)
+        );
+    }
+
+
+    // =====================================================
+    // REFRESH CONTAINER CARDS
+    // =====================================================
+
+    private void refreshContainerCards() {
+
+        containerCards.getChildren().clear();
+
+
+        // =================================================
+        // ONLY SHOW AVAILABLE/PENDING CONTAINERS
+        // =================================================
+
+        int displayed =
+                0;
+
+
+        for (Container container : containerData) {
+
+            if (container == null) {
+                continue;
+            }
+
+
+            String status =
+                    container.getStatus();
+
+
+            if (!"Available".equals(status)
+                    &&
+                    !"Pending".equals(status)) {
+
+                continue;
+            }
+
+
+            containerCards.getChildren().add(
+                    createContainerCard(
+                            container
+                    )
+            );
+
+
+            displayed++;
+
+
+            // Keep the section compact.
+            if (displayed >= 5) {
+                break;
+            }
+        }
+
+
+        // =================================================
+        // NO AVAILABLE CONTAINERS
+        // =================================================
+
+        if (displayed == 0) {
+
+            Label emptyLabel =
+                    new Label(
+                            "No containers are currently available for allocation."
+                    );
+
+
+            emptyLabel.setStyle(
+                    "-fx-font-size:13px;" +
+                    "-fx-text-fill:#7d8da6;"
+            );
+
+
+            containerCards.getChildren().add(
+                    emptyLabel
+            );
+        }
+    }
+
+
+    // =====================================================
+    // CREATE CONTAINER CARD
+    // =====================================================
+
+    private HBox createContainerCard(
+            Container container
+    ) {
+
+        HBox card =
+                new HBox();
+
+
+        card.setSpacing(
+                15
+        );
+
+
+        card.setAlignment(
+                Pos.CENTER_LEFT
+        );
+
+
+        card.setPadding(
+                new Insets(12)
+        );
+
+
+        card.setStyle(
+                "-fx-background-color:#f8fafc;" +
+                "-fx-background-radius:8;" +
+                "-fx-border-color:#e1e8f0;" +
+                "-fx-border-radius:8;"
+        );
+
+
+        VBox info =
+                new VBox();
+
+
+        info.setSpacing(
+                4
+        );
+
+
+        Label id =
+                new Label(
+                        container.getContainerId()
+                );
+
+
+        id.setStyle(
+                "-fx-font-size:14px;" +
+                "-fx-font-weight:bold;" +
+                "-fx-text-fill:#14213d;"
+        );
+
+
+        Label details =
+                new Label(
+
+                        safeValue(container.getType())
+                        + "  |  "
+                        + safeValue(container.getSize())
+                        + "  |  "
+                        + safeValue(container.getWeight())
+                        + "  |  "
+                        + safeValue(container.getLocation())
+
+                );
+
+
+        details.setStyle(
+                "-fx-font-size:12px;" +
+                "-fx-text-fill:#7d8da6;"
+        );
+
+
+        info.getChildren().addAll(
+                id,
+                details
+        );
+
+
+        HBox spacer =
+                new HBox();
+
+
+        HBox.setHgrow(
+                spacer,
+                javafx.scene.layout.Priority.ALWAYS
+        );
+
+
+        Button allocateButton =
+                new Button(
+                        "Allocate"
+                );
+
+
+        allocateButton.setOnAction(
+                event -> {
+
+                    showAllocationDialog(
+                            container,
+                            null
+                    );
+                }
+        );
+
+
+        card.getChildren().addAll(
+                info,
+                spacer,
+                allocateButton
+        );
+
+
+        return card;
+    }
+
+
+    // =====================================================
+    // SHOW ALLOCATION DIALOG
+    // =====================================================
+
+    private void showAllocationDialog(
+
+            Container selectedContainer,
+
+            TableView<Container> table
+
+    ) {
+
+        Dialog<ButtonType> dialog =
+                new Dialog<>();
+
+
+        boolean isReallocation =
+                selectedContainer != null
+                &&
+                "Allocated".equals(
+                        selectedContainer.getStatus()
+                );
+
+
+        if (isReallocation) {
+
+            dialog.setTitle(
+                    "Reallocate Container"
+            );
+
+            dialog.setHeaderText(
+                    "Reallocate Container "
+                    + selectedContainer.getContainerId()
+            );
+
+        } else {
+
+            dialog.setTitle(
+                    "Allocate Container"
+            );
+
+            dialog.setHeaderText(
+                    "Allocate Container"
+            );
+        }
+
+
+        // =====================================================
+        // CONTAINER SELECTION
+        // =====================================================
+
+        ComboBox<Container> containerBox =
+                new ComboBox<>();
+
+
+        containerBox.setPrefWidth(
+                250
+        );
+
+
+        // =================================================
+        // ONLY AVAILABLE/PENDING CONTAINERS
+        // =================================================
+
+        for (Container container : containerData) {
+
+            if (container == null) {
+                continue;
+            }
+
+
+            if ("Available".equals(
+                    container.getStatus()
+            )
+                    ||
+                    "Pending".equals(
+                            container.getStatus()
+                    )
+                    ||
+                    container == selectedContainer) {
+
+                containerBox.getItems().add(
+                        container
+                );
+            }
+        }
+
+
+        containerBox.setCellFactory(
+                listView ->
+                        new ListCell<Container>() {
 
                             @Override
                             protected void updateItem(
-                                    String item,
+                                    Container item,
                                     boolean empty
                             ) {
 
@@ -1251,21 +1542,25 @@ public class ContainerAllocationPage {
                                 );
 
 
-                                if (empty) {
+                                if (empty || item == null) {
 
-                                    setGraphic(null);
+                                    setText(
+                                            null
+                                    );
 
                                 } else {
 
-                                    HBox buttons =
-                                            new HBox(
-                                                    5,
-                                                    reallocateButton,
-                                                    viewButton
-                                            );
+                                    setText(
 
-                                    setGraphic(
-                                            buttons
+                                            item.getContainerId()
+                                            + " - "
+                                            + safeValue(
+                                                    item.getType()
+                                            )
+                                            + " - "
+                                            + safeValue(
+                                                    item.getSize()
+                                            )
                                     );
                                 }
                             }
@@ -1273,134 +1568,641 @@ public class ContainerAllocationPage {
         );
 
 
-        table.getColumns().addAll(
-                containerId,
-                cargoId,
-                ship,
-                type,
-                location,
-                date,
-                status,
-                action
-        );
+        containerBox.setButtonCell(
+                new ListCell<Container>() {
+
+                    @Override
+                    protected void updateItem(
+                            Container item,
+                            boolean empty
+                    ) {
+
+                        super.updateItem(
+                                item,
+                                empty
+                        );
 
 
-        // =================================================
-        // SAMPLE ALLOCATION DATA
-        // =================================================
+                        if (empty || item == null) {
 
-        allocationData.addAll(
+                            setText(
+                                    null
+                            );
 
-                new String[]{
-                        "CONT-1024",
-                        "CGO-1287",
-                        "Oceanic Star",
-                        "40 ft",
-                        "Terminal A",
-                        "12 Feb 2026",
-                        "Allocated"
-                },
+                        } else {
 
-                new String[]{
-                        "CONT-1031",
-                        "—",
-                        "Unassigned",
-                        "20 ft",
-                        "Yard B",
-                        "—",
-                        "Available"
-                },
-
-                new String[]{
-                        "CONT-1048",
-                        "CGO-1302",
-                        "Blue Marlin",
-                        "40 ft",
-                        "Berth 4",
-                        "13 Feb 2026",
-                        "In Transit"
-                },
-
-                new String[]{
-                        "CONT-1055",
-                        "CGO-1319",
-                        "Unassigned",
-                        "45 ft",
-                        "Gate 2",
-                        "—",
-                        "Pending"
+                            setText(
+                                    item.getContainerId()
+                            );
+                        }
+                    }
                 }
         );
 
 
+        if (selectedContainer != null) {
+
+            containerBox.setValue(
+                    selectedContainer
+            );
+
+        } else if (!containerBox.getItems().isEmpty()) {
+
+            containerBox.setValue(
+                    containerBox.getItems().get(0)
+            );
+        }
+
+
+        // =====================================================
+        // CARGO
+        // =====================================================
+
+        TextField cargoIdField =
+                new TextField();
+
+
+        cargoIdField.setPromptText(
+                "Cargo ID"
+        );
+
+
+        // =====================================================
+        // SHIP
+        // =====================================================
+
+        TextField shipField =
+                new TextField();
+
+
+        shipField.setPromptText(
+                "Ship"
+        );
+
+
+        // =====================================================
+        // LOCATION
+        // =====================================================
+
+        TextField locationField =
+                new TextField();
+
+
+        locationField.setPromptText(
+                "Location"
+        );
+
+
+        // =====================================================
+        // ALLOCATION DATE PICKER
+        // =====================================================
+
+        DatePicker allocationDatePicker =
+                new DatePicker();
+
+
         // =================================================
-        // FILTERED LIST
+        // NEW ALLOCATION
         // =================================================
 
-        FilteredList<String[]> filteredData =
-                new FilteredList<>(
-                        allocationData
-                );
+        allocationDatePicker.setValue(
+                LocalDate.now()
+        );
 
 
-        table.setItems(
-                filteredData
+        // =====================================================
+        // STATUS
+        // =====================================================
+
+        ComboBox<String> statusBox =
+                new ComboBox<>();
+
+
+        statusBox.getItems().addAll(
+                "Allocated",
+                "Pending"
+        );
+
+
+        statusBox.setValue(
+                "Allocated"
         );
 
 
         // =================================================
-        // SEARCH FUNCTIONALITY
+        // IF REALLOCATION
         // =================================================
 
-        searchField.textProperty()
-                .addListener(
-                        (observable, oldValue, newValue) -> {
+        if (selectedContainer != null) {
 
-                            updateAllocationFilter(
-                                    filteredData,
-                                    searchField.getText(),
-                                    statusFilter.getValue()
-                            );
-                        }
+            cargoIdField.setText(
+                    safeValueForField(
+                            selectedContainer.getCargoId()
+                    )
+            );
+
+
+            shipField.setText(
+                    safeValueForField(
+                            selectedContainer.getShip()
+                    )
+            );
+
+
+            locationField.setText(
+                    safeValueForField(
+                            selectedContainer.getLocation()
+                    )
+            );
+
+
+            // =============================================
+            // LOAD EXISTING ALLOCATION DATE
+            // =============================================
+
+            String existingDate =
+                    selectedContainer.getAllocationDate();
+
+
+            if (existingDate != null
+                    &&
+                    !existingDate.isEmpty()) {
+
+                try {
+
+                    allocationDatePicker.setValue(
+                            LocalDate.parse(
+                                    existingDate
+                            )
+                    );
+
+                } catch (Exception e) {
+
+                    allocationDatePicker.setValue(
+                            LocalDate.now()
+                    );
+                }
+            }
+
+
+            // =============================================
+            // LOAD EXISTING STATUS
+            // =============================================
+
+            if ("Pending".equals(
+                    selectedContainer.getStatus()
+            )) {
+
+                statusBox.setValue(
+                        "Pending"
                 );
+            }
+        }
 
 
-        // =================================================
-        // STATUS FILTER FUNCTIONALITY
-        // =================================================
+        // =====================================================
+        // FORM
+        // =====================================================
 
-        statusFilter.valueProperty()
-                .addListener(
-                        (observable, oldValue, newValue) -> {
-
-                            updateAllocationFilter(
-                                    filteredData,
-                                    searchField.getText(),
-                                    statusFilter.getValue()
-                            );
-                        }
-                );
+        GridPane grid =
+                new GridPane();
 
 
-        panel.getChildren().addAll(
-                header,
-                filters,
-                table
+        grid.setHgap(
+                10
         );
 
 
-        return panel;
+        grid.setVgap(
+                12
+        );
+
+
+        grid.setPadding(
+                new Insets(20)
+        );
+
+
+        grid.add(
+                new Label("Container:"),
+                0,
+                0
+        );
+
+
+        grid.add(
+                containerBox,
+                1,
+                0
+        );
+
+
+        grid.add(
+                new Label("Cargo ID:"),
+                0,
+                1
+        );
+
+
+        grid.add(
+                cargoIdField,
+                1,
+                1
+        );
+
+
+        grid.add(
+                new Label("Ship:"),
+                0,
+                2
+        );
+
+
+        grid.add(
+                shipField,
+                1,
+                2
+        );
+
+
+        grid.add(
+                new Label("Location:"),
+                0,
+                3
+        );
+
+
+        grid.add(
+                locationField,
+                1,
+                3
+        );
+
+
+        // =====================================================
+        // DATE PICKER IN FORM
+        // =====================================================
+
+        grid.add(
+                new Label("Allocation Date:"),
+                0,
+                4
+        );
+
+
+        grid.add(
+                allocationDatePicker,
+                1,
+                4
+        );
+
+
+        grid.add(
+                new Label("Status:"),
+                0,
+                5
+        );
+
+
+        grid.add(
+                statusBox,
+                1,
+                5
+        );
+
+
+        dialog.getDialogPane().setContent(
+                grid
+        );
+
+
+        ButtonType saveButton =
+                new ButtonType(
+                        "Save",
+                        ButtonBar.ButtonData.OK_DONE
+                );
+
+
+        ButtonType cancelButton =
+                new ButtonType(
+                        "Cancel",
+                        ButtonBar.ButtonData.CANCEL_CLOSE
+                );
+
+
+        dialog.getDialogPane()
+                .getButtonTypes()
+                .addAll(
+                        saveButton,
+                        cancelButton
+                );
+
+
+        // =====================================================
+        // SAVE ALLOCATION
+        // =====================================================
+
+        dialog.setResultConverter(
+                button -> {
+
+                    if (button != saveButton) {
+                        return button;
+                    }
+
+
+                    // =============================================
+                    // VALIDATE CONTAINER
+                    // =============================================
+
+                    Container container =
+                            containerBox.getValue();
+
+
+                    if (container == null) {
+
+                        showWarning(
+                                "Please select a container."
+                        );
+
+                        return null;
+                    }
+
+
+                    // =============================================
+                    // VALIDATE REQUIRED FIELDS
+                    // =============================================
+
+                    String cargoId =
+                            cargoIdField
+                                    .getText()
+                                    .trim();
+
+
+                    String ship =
+                            shipField
+                                    .getText()
+                                    .trim();
+
+
+                    String location =
+                            locationField
+                                    .getText()
+                                    .trim();
+
+
+                    if (cargoId.isEmpty()
+                            ||
+                            ship.isEmpty()
+                            ||
+                            location.isEmpty()) {
+
+                        showWarning(
+                                "Please fill in Cargo ID, Ship and Location."
+                        );
+
+                        return null;
+                    }
+
+
+                    // =============================================
+                    // VALIDATE DATE
+                    // =============================================
+
+                    LocalDate selectedDate =
+                            allocationDatePicker.getValue();
+
+
+                    if (selectedDate == null) {
+
+                        showWarning(
+                                "Please select an allocation date."
+                        );
+
+                        return null;
+                    }
+
+
+                    // =============================================
+                    // UPDATE CONTAINER
+                    // =============================================
+
+                    container.setCargoId(
+                            cargoId
+                    );
+
+
+                    container.setShip(
+                            ship
+                    );
+
+
+                    container.setLocation(
+                            location
+                    );
+
+
+                    container.setStatus(
+                            statusBox.getValue()
+                    );
+
+
+                    // =============================================
+                    // SAVE SELECTED DATE
+                    // =============================================
+
+                    container.setAllocationDate(
+                            selectedDate.toString()
+                    );
+
+
+                    // =============================================
+                    // UPDATE FIREBASE
+                    // =============================================
+
+                    containerController.updateContainer(
+                            container
+                    );
+
+
+                    // =============================================
+                    // CREATE NOTIFICATION
+                    // =============================================
+
+                    if (isReallocation) {
+
+                        notificationController.createNotification(
+
+                                "Container reallocated",
+
+                                container.getContainerId()
+                                        +
+                                        " was reallocated successfully.",
+
+                                "EDIT"
+                        );
+
+                    } else {
+
+                        notificationController.createNotification(
+
+                                "Container allocated",
+
+                                container.getContainerId()
+                                        +
+                                        " was allocated successfully.",
+
+                                "ADD"
+                        );
+                    }
+
+
+                    // =============================================
+                    // REFRESH TABLE
+                    // =============================================
+
+                    if (table != null) {
+
+                        table.refresh();
+                    }
+
+
+                    // =============================================
+                    // REFRESH CARDS
+                    // =============================================
+
+                    refreshStatistics();
+
+
+                    refreshContainerCards();
+
+
+                    // =============================================
+                    // SUCCESS MESSAGE
+                    // =============================================
+
+                    showSuccess(
+
+                            isReallocation
+                                    ? "Container reallocated successfully."
+                                    : "Container allocated successfully."
+                    );
+
+
+                    return button;
+                }
+        );
+
+
+        dialog.showAndWait();
     }
 
 
     // =====================================================
-    // FILTER ALLOCATION RECORDS
+    // SHOW CONTAINER DETAILS
     // =====================================================
 
-    private void updateAllocationFilter(
-            FilteredList<String[]> filteredData,
+    private void showContainerDetails(
+            Container container
+    ) {
+
+        Alert alert =
+                new Alert(
+                        Alert.AlertType.INFORMATION
+                );
+
+
+        alert.setTitle(
+                "Container Details"
+        );
+
+
+        alert.setHeaderText(
+                "Container "
+                + container.getContainerId()
+        );
+
+
+        alert.setContentText(
+
+                "Container ID: "
+                + safeValue(
+                        container.getContainerId()
+                )
+
+                + "\n\n"
+
+                + "Cargo ID: "
+                + safeValue(
+                        container.getCargoId()
+                )
+
+                + "\n\n"
+
+                + "Ship: "
+                + safeValue(
+                        container.getShip()
+                )
+
+                + "\n\n"
+
+                + "Type: "
+                + safeValue(
+                        container.getType()
+                )
+
+                + "\n\n"
+
+                + "Size: "
+                + safeValue(
+                        container.getSize()
+                )
+
+                + "\n\n"
+
+                + "Weight: "
+                + safeValue(
+                        container.getWeight()
+                )
+
+                + "\n\n"
+
+                + "Location: "
+                + safeValue(
+                        container.getLocation()
+                )
+
+                + "\n\n"
+
+                + "Allocation Date: "
+                + safeValue(
+                        container.getAllocationDate()
+                )
+
+                + "\n\n"
+
+                + "Status: "
+                + safeValue(
+                        container.getStatus()
+                )
+        );
+
+
+        alert.showAndWait();
+    }
+
+
+    // =====================================================
+    // UPDATE SEARCH + STATUS FILTER
+    // =====================================================
+
+    private void updateFilter(
+
+            FilteredList<Container> filteredData,
+
             String searchText,
+
             String selectedStatus
+
     ) {
 
         String search =
@@ -1410,48 +2212,218 @@ public class ContainerAllocationPage {
 
 
         filteredData.setPredicate(
-                record -> {
+                container -> {
 
-                    // -----------------------------------------
+                    // =============================================
                     // SEARCH
-                    // -----------------------------------------
+                    // =============================================
 
                     boolean matchesSearch =
-                            search.isEmpty();
+
+                            contains(
+                                    container.getContainerId(),
+                                    search
+                            )
+
+                            ||
+
+                            contains(
+                                    container.getCargoId(),
+                                    search
+                            )
+
+                            ||
+
+                            contains(
+                                    container.getShip(),
+                                    search
+                            )
+
+                            ||
+
+                            contains(
+                                    container.getType(),
+                                    search
+                            )
+
+                            ||
+
+                            contains(
+                                    container.getSize(),
+                                    search
+                            )
+
+                            ||
+
+                            contains(
+                                    container.getWeight(),
+                                    search
+                            )
+
+                            ||
+
+                            contains(
+                                    container.getLocation(),
+                                    search
+                            )
+
+                            ||
+
+                            contains(
+                                    container.getStatus(),
+                                    search
+                            );
 
 
-                    if (!matchesSearch) {
-
-                        for (String value : record) {
-
-                            if (
-                                    value
-                                            .toLowerCase()
-                                            .contains(search)
-                            ) {
-
-                                matchesSearch = true;
-
-                                break;
-                            }
-                        }
-                    }
-
-
-                    // -----------------------------------------
+                    // =============================================
                     // STATUS FILTER
-                    // -----------------------------------------
+                    // =============================================
 
                     boolean matchesStatus =
-                            selectedStatus == null ||
-                            selectedStatus.equals("All Statuses") ||
-                            record[6].equals(selectedStatus);
+
+                            selectedStatus == null
+
+                            ||
+
+                            selectedStatus.equals(
+                                    "All Statuses"
+                            )
+
+                            ||
+
+                            selectedStatus.equals(
+                                    container.getStatus()
+                            );
 
 
-                    return matchesSearch &&
-                           matchesStatus;
+                    return matchesSearch
+                            &&
+                            matchesStatus;
                 }
         );
+    }
+
+
+    // =====================================================
+    // SAFE STRING SEARCH
+    // =====================================================
+
+    private boolean contains(
+            String value,
+            String search
+    ) {
+
+        if (value == null) {
+            return false;
+        }
+
+
+        return value
+                .toLowerCase()
+                .contains(search);
+    }
+
+
+    // =====================================================
+    // SAFE STRING VALUE
+    // =====================================================
+
+    private String safeValue(
+            String value
+    ) {
+
+        if (value == null
+                ||
+                value.isEmpty()) {
+
+            return "—";
+        }
+
+
+        return value;
+    }
+
+
+    // =====================================================
+    // SAFE FIELD VALUE
+    // =====================================================
+
+    private String safeValueForField(
+            String value
+    ) {
+
+        if (value == null) {
+            return "";
+        }
+
+
+        return value;
+    }
+
+
+    // =====================================================
+    // SHOW WARNING
+    // =====================================================
+
+    private void showWarning(
+            String message
+    ) {
+
+        Alert alert =
+                new Alert(
+                        Alert.AlertType.WARNING
+                );
+
+
+        alert.setTitle(
+                "Warning"
+        );
+
+
+        alert.setHeaderText(
+                null
+        );
+
+
+        alert.setContentText(
+                message
+        );
+
+
+        alert.showAndWait();
+    }
+
+
+    // =====================================================
+    // SHOW SUCCESS
+    // =====================================================
+
+    private void showSuccess(
+            String message
+    ) {
+
+        Alert alert =
+                new Alert(
+                        Alert.AlertType.INFORMATION
+                );
+
+
+        alert.setTitle(
+                "Success"
+        );
+
+
+        alert.setHeaderText(
+                null
+        );
+
+
+        alert.setContentText(
+                message
+        );
+
+
+        alert.showAndWait();
     }
 
 
@@ -1459,13 +2431,15 @@ public class ContainerAllocationPage {
     // CREATE TABLE COLUMN
     // =====================================================
 
-    private TableColumn<String[], String> createColumn(
+    private TableColumn<Container, String> createColumn(
+
             String title,
             double width,
-            int index
+            Function<Container, String> getter
+
     ) {
 
-        TableColumn<String[], String> column =
+        TableColumn<Container, String> column =
                 new TableColumn<>(
                         title
                 );
@@ -1477,15 +2451,14 @@ public class ContainerAllocationPage {
 
 
         column.setCellValueFactory(
-                data -> {
-
-                    String[] row =
-                            data.getValue();
-
-                    return new javafx.beans.property.SimpleStringProperty(
-                            row[index]
-                    );
-                }
+                data ->
+                        new SimpleStringProperty(
+                                safeValue(
+                                        getter.apply(
+                                                data.getValue()
+                                        )
+                                )
+                        )
         );
 
 
@@ -1494,417 +2467,210 @@ public class ContainerAllocationPage {
 
 
     // =====================================================
-    // ALLOCATE CONTAINER DIALOG
+    // STYLE NORMAL TABLE COLUMN
     // =====================================================
 
-    private void showAllocateDialog() {
-
-        Dialog<ButtonType> dialog =
-                new Dialog<>();
-
-
-        dialog.setTitle(
-                "Allocate Container"
-        );
-
-
-        dialog.setHeaderText(
-                "Allocate Container"
-        );
-
-
-        // =================================================
-        // FORM FIELDS
-        // =================================================
-
-        TextField containerField =
-                new TextField();
-
-        containerField.setPromptText(
-                "Container ID"
-        );
-
-
-        TextField cargoField =
-                new TextField();
-
-        cargoField.setPromptText(
-                "Cargo ID"
-        );
-
-
-        TextField shipField =
-                new TextField();
-
-        shipField.setPromptText(
-                "Ship"
-        );
-
-
-        TextField typeField =
-                new TextField();
-
-        typeField.setPromptText(
-                "Type"
-        );
-
-
-        TextField locationField =
-                new TextField();
-
-        locationField.setPromptText(
-                "Location"
-        );
-
-
-        DatePicker datePicker =
-                new DatePicker();
-
-
-        // =================================================
-        // FORM LAYOUT
-        // =================================================
-
-        GridPane form =
-                new GridPane();
-
-        form.setHgap(10);
-
-        form.setVgap(12);
-
-        form.setPadding(
-                new Insets(15)
-        );
-
-
-        form.add(
-                new Label("Container ID:"),
-                0,
-                0
-        );
-
-        form.add(
-                containerField,
-                1,
-                0
-        );
-
-
-        form.add(
-                new Label("Cargo ID:"),
-                0,
-                1
-        );
-
-        form.add(
-                cargoField,
-                1,
-                1
-        );
-
-
-        form.add(
-                new Label("Ship:"),
-                0,
-                2
-        );
-
-        form.add(
-                shipField,
-                1,
-                2
-        );
-
-
-        form.add(
-                new Label("Type:"),
-                0,
-                3
-        );
-
-        form.add(
-                typeField,
-                1,
-                3
-        );
-
-
-        form.add(
-                new Label("Location:"),
-                0,
-                4
-        );
-
-        form.add(
-                locationField,
-                1,
-                4
-        );
-
-
-        form.add(
-                new Label("Allocation Date:"),
-                0,
-                5
-        );
-
-        form.add(
-                datePicker,
-                1,
-                5
-        );
-
-
-        dialog.getDialogPane()
-                .setContent(
-                        form
-                );
-
-
-        dialog.getDialogPane()
-                .getButtonTypes()
-                .addAll(
-                        ButtonType.OK,
-                        ButtonType.CANCEL
-                );
-
-
-        // =================================================
-        // OK BUTTON
-        // =================================================
-
-        Button okButton =
-                (Button) dialog.getDialogPane()
-                        .lookupButton(
-                                ButtonType.OK
-                        );
-
-
-        okButton.addEventFilter(
-                javafx.event.ActionEvent.ACTION,
-                event -> {
-
-                    // -----------------------------------------
-                    // VALIDATE EMPTY FIELDS
-                    // -----------------------------------------
-
-                    if (
-                            containerField
-                                    .getText()
-                                    .trim()
-                                    .isEmpty() ||
-
-                            cargoField
-                                    .getText()
-                                    .trim()
-                                    .isEmpty() ||
-
-                            shipField
-                                    .getText()
-                                    .trim()
-                                    .isEmpty() ||
-
-                            typeField
-                                    .getText()
-                                    .trim()
-                                    .isEmpty() ||
-
-                            locationField
-                                    .getText()
-                                    .trim()
-                                    .isEmpty() ||
-
-                            datePicker.getValue() == null
-                    ) {
-
-                        showError(
-                                "Please fill all fields."
-                        );
-
-
-                        event.consume();
-
-                        return;
-                    }
-
-
-                    // -----------------------------------------
-                    // ADD NEW ALLOCATION
-                    // -----------------------------------------
-
-                    String date =
-                            datePicker
-                                    .getValue()
-                                    .format(
-                                            java.time.format.DateTimeFormatter
-                                                    .ofPattern(
-                                                            "dd MMM yyyy"
-                                                    )
-                                    );
-
-
-                    allocationData.add( 0,
-                            new String[]{
-                                    containerField.getText().trim(),
-
-                                    cargoField.getText().trim(),
-
-                                    shipField.getText().trim(),
-
-                                    typeField.getText().trim(),
-
-                                    locationField.getText().trim(),
-
-                                    date,
-
-                                    "Allocated"
-                            }
-                    );
-
-
-                    // -----------------------------------------
-                    // UPDATE SUMMARY VALUES
-                    // -----------------------------------------
-
-                    updateSummaryAfterAllocation();
-
-
-                    // -----------------------------------------
-                    // SUCCESS MESSAGE
-                    // -----------------------------------------
-
-                    Alert alert =
-                            new Alert(
-                                    Alert.AlertType.INFORMATION
-                            );
-
-
-                    alert.setTitle(
-                            "Allocation Successful"
-                    );
-
-
-                    alert.setHeaderText(
-                            "Container Allocated"
-                    );
-
-
-                    alert.setContentText(
-                            "Container " +
-                            containerField
-                                    .getText()
-                                    .trim() +
-                            " has been allocated successfully."
-                    );
-
-
-                    alert.showAndWait();
-                }
-        );
-
-
-        dialog.showAndWait();
-    }
-
-
-    // =====================================================
-    // UPDATE SUMMARY AFTER ALLOCATION
-    // =====================================================
-
-    private void updateSummaryAfterAllocation() {
-
-        int allocated =
-                Integer.parseInt(
-                        allocatedValue
-                                .getText()
-                                .replace(",", "")
-                );
-
-
-        int available =
-                Integer.parseInt(
-                        availableValue
-                                .getText()
-                                .replace(",", "")
-                );
-
-
-        int pending =
-                Integer.parseInt(
-                        pendingValue
-                                .getText()
-                                .replace(",", "")
-                );
-
-
-        if (available > 0) {
-
-            available--;
-
-            allocated++;
-        }
-
-
-        if (pending > 0) {
-
-            pending--;
-        }
-
-
-        allocatedValue.setText(
-                String.format(
-                        "%,d",
-                        allocated
-                )
-        );
-
-
-        availableValue.setText(
-                String.format(
-                        "%,d",
-                        available
-                )
-        );
-
-
-        pendingValue.setText(
-                String.format(
-                        "%,d",
-                        pending
-                )
-        );
-    }
-
-
-    // =====================================================
-    // ERROR MESSAGE
-    // =====================================================
-
-    private void showError(
-            String message
+    private void styleAllocationColumn(
+            TableColumn<Container, String> column
     ) {
 
-        Alert alert =
-                new Alert(
-                        Alert.AlertType.ERROR
+        column.setCellFactory(
+                col -> new TableCell<Container, String>() {
+
+                    @Override
+                    protected void updateItem(
+                            String item,
+                            boolean empty
+                    ) {
+
+                        super.updateItem(
+                                item,
+                                empty
+                        );
+
+
+                        if (empty || item == null) {
+
+                            setText(
+                                    null
+                            );
+
+                            return;
+                        }
+
+
+                        setText(
+                                item
+                        );
+
+
+                        setStyle(
+                                "-fx-background-color:white;" +
+                                "-fx-text-fill:#475569;" +
+                                "-fx-font-size:10;" +
+                                "-fx-border-color:transparent transparent #e8edf2 transparent;" +
+                                "-fx-padding:0 8 0 8;"
+                        );
+
+
+                        setAlignment(
+                                Pos.CENTER_LEFT
+                        );
+                    }
+                }
+        );
+    }
+
+
+    // =====================================================
+    // STYLE BOLD TABLE COLUMN
+    // =====================================================
+
+    private void styleAllocationBoldColumn(
+            TableColumn<Container, String> column
+    ) {
+
+        column.setCellFactory(
+                col -> new TableCell<Container, String>() {
+
+                    @Override
+                    protected void updateItem(
+                            String item,
+                            boolean empty
+                    ) {
+
+                        super.updateItem(
+                                item,
+                                empty
+                        );
+
+
+                        if (empty || item == null) {
+
+                            setText(
+                                    null
+                            );
+
+                            return;
+                        }
+
+
+                        setText(
+                                item
+                        );
+
+
+                        setStyle(
+                                "-fx-background-color:white;" +
+                                "-fx-text-fill:#1e293b;" +
+                                "-fx-font-size:10;" +
+                                "-fx-font-weight:bold;" +
+                                "-fx-border-color:transparent transparent #e8edf2 transparent;" +
+                                "-fx-padding:0 8 0 8;"
+                        );
+
+
+                        setAlignment(
+                                Pos.CENTER_LEFT
+                        );
+                    }
+                }
+        );
+    }
+
+
+    // =====================================================
+    // MODERN TABLE HEADER STYLE
+    // =====================================================
+
+    private void styleAllocationTableHeader(
+            TableView<Container> table
+    ) {
+
+        table.applyCss();
+
+
+        // =================================================
+        // HEADER BACKGROUND
+        // =================================================
+
+        Node headerBackground =
+                table.lookup(
+                        ".column-header-background"
                 );
 
 
-        alert.setTitle(
-                "Invalid Input"
-        );
+        if (headerBackground != null) {
+
+            headerBackground.setStyle(
+                    "-fx-background-color:#f1f5f9;" +
+                    "-fx-background-radius:0;" +
+                    "-fx-border-color:transparent;"
+            );
+        }
 
 
-        alert.setHeaderText(
-                "Please check your input"
-        );
+        // =================================================
+        // INDIVIDUAL HEADERS
+        // =================================================
+
+        for (
+                Node node :
+                table.lookupAll(".column-header")
+        ) {
+
+            node.setStyle(
+                    "-fx-background-color:#f1f5f9;" +
+                    "-fx-border-color:transparent transparent #e2e8f0 transparent;" +
+                    "-fx-background-radius:0;"
+            );
+        }
 
 
-        alert.setContentText(
-                message
-        );
+        // =================================================
+        // HEADER TEXT
+        // =================================================
+
+        for (
+                Node node :
+                table.lookupAll(".column-header .label")
+        ) {
+
+            node.setStyle(
+                    "-fx-text-fill:#334155;" +
+                    "-fx-font-size:10;" +
+                    "-fx-font-weight:bold;" +
+                    "-fx-background-color:transparent;"
+            );
+        }
 
 
-        alert.showAndWait();
+        // =================================================
+        // EMPTY HEADER AREA
+        // =================================================
+
+        Node filler =
+                table.lookup(
+                        ".filler"
+                );
+
+
+        if (filler != null) {
+
+            filler.setStyle(
+                    "-fx-background-color:#f1f5f9;" +
+                    "-fx-border-color:transparent;"
+            );
+        }
+    }
+
+
+    // =====================================================
+    // GET PAGE CONTENT
+    // =====================================================
+
+    public VBox getContent() {
+
+        return content;
     }
 }

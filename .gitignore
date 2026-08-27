@@ -1,5 +1,0 @@
-# Maven
-target/
-
-# Firebase credentials
-src/main/resources/dockteck-firebase.json

@@ -1,27 +1,82 @@
 package com.projectui.view.portauthority;
 
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
+
+import com.projectui.controller.portauthority.ContainerController;
+import com.projectui.controller.portauthority.NotificationController;
+import com.projectui.model.portauthority.Container;
 
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.transformation.FilteredList;
+
 
 public class ContainerManagementPage {
 
     private VBox content;
 
-    private ObservableList<String[]> containerData =
-                                        FXCollections.observableArrayList();
+    private ObservableList<Container> containerData =
+            FXCollections.observableArrayList();
+
+
+    // =====================================================
+    // CONTAINER CONTROLLER
+    // =====================================================
+
+    private ContainerController containerController =
+            new ContainerController();
+
+
+    // =====================================================
+    // NOTIFICATION CONTROLLER
+    // =====================================================
+
+    private NotificationController notificationController =
+            new NotificationController();
+
+
+    // =====================================================
+    // SUMMARY CARD VALUES
+    // =====================================================
+
+    private Label totalContainersValue;
+
+    private Label availableValue;
+
+    private Label allocatedValue;
+
+    private Label inTransitValue;
+
+    private Label pendingValue;
+
+
+    // =====================================================
+    // STATUS DISTRIBUTION VALUES
+    // =====================================================
+
+    private Label allocatedStatusValue;
+
+    private Label availableStatusValue;
+
+    private Label transitStatusValue;
+
+    private Label pendingStatusValue;
+
 
     public ContainerManagementPage() {
+
 
         // =====================================================
         // MAIN CONTENT
@@ -77,39 +132,83 @@ public class ContainerManagementPage {
         cards.setSpacing(15);
 
 
+        // =====================================================
+        // TOTAL CONTAINERS
+        // =====================================================
+
+        totalContainersValue =
+                new Label("0");
+
         VBox totalCard =
                 createCard(
                         "TOTAL CONTAINERS",
-                        "8,760",
+                        totalContainersValue,
                         "All registered units",
                         "#00a878"
                 );
 
 
+        // =====================================================
+        // AVAILABLE
+        // =====================================================
+
+        availableValue =
+                new Label("0");
+
         VBox availableCard =
                 createCard(
                         "AVAILABLE",
-                        "1,850",
+                        availableValue,
                         "Ready for allocation",
                         "#2779ff"
                 );
 
 
+        // =====================================================
+        // ALLOCATED
+        // =====================================================
+
+        allocatedValue =
+                new Label("0");
+
         VBox allocatedCard =
                 createCard(
                         "ALLOCATED",
-                        "6,420",
+                        allocatedValue,
                         "Assigned to cargo",
                         "#00a878"
                 );
 
 
+        // =====================================================
+        // IN TRANSIT
+        // =====================================================
+
+        inTransitValue =
+                new Label("0");
+
         VBox transitCard =
                 createCard(
                         "IN TRANSIT",
-                        "320",
+                        inTransitValue,
                         "Currently moving",
                         "#ff8a00"
+                );
+
+
+        // =====================================================
+        // PENDING
+        // =====================================================
+
+        pendingValue =
+                new Label("0");
+
+        VBox pendingCard =
+                createCard(
+                        "PENDING",
+                        pendingValue,
+                        "Awaiting processing",
+                        "#d1f421"
                 );
 
 
@@ -117,7 +216,8 @@ public class ContainerManagementPage {
                 totalCard,
                 availableCard,
                 allocatedCard,
-                transitCard
+                transitCard,
+                pendingCard
         );
 
 
@@ -165,9 +265,9 @@ public class ContainerManagementPage {
         );
 
 
-        // -----------------------------------------------------
+        // =====================================================
         // STATUS BAR
-        // -----------------------------------------------------
+        // =====================================================
 
         HBox statusBar =
                 new HBox();
@@ -177,17 +277,17 @@ public class ContainerManagementPage {
 
         HBox allocatedPart =
                 createStatusPart(
-                        "73%",
+                        "",
                         "#00b67a",
-                        600
+                        0
                 );
 
 
         HBox availablePart =
                 createStatusPart(
-                        "21%",
+                        "",
                         "#2779ff",
-                        175
+                        0
                 );
 
 
@@ -195,7 +295,7 @@ public class ContainerManagementPage {
                 createStatusPart(
                         "",
                         "#ff8a00",
-                        30
+                        0
                 );
 
 
@@ -203,7 +303,7 @@ public class ContainerManagementPage {
                 createStatusPart(
                         "",
                         "#9ca3af",
-                        15
+                        0
                 );
 
 
@@ -215,9 +315,22 @@ public class ContainerManagementPage {
         );
 
 
-        // -----------------------------------------------------
-        // STATUS VALUES
-        // -----------------------------------------------------
+        // =====================================================
+        // STATUS DISTRIBUTION VALUES
+        // =====================================================
+
+        allocatedStatusValue =
+                new Label("0");
+
+        availableStatusValue =
+                new Label("0");
+
+        transitStatusValue =
+                new Label("0");
+
+        pendingStatusValue =
+                new Label("0");
+
 
         HBox statusValues =
                 new HBox();
@@ -228,25 +341,25 @@ public class ContainerManagementPage {
         statusValues.getChildren().addAll(
 
                 createStatusValue(
-                        "6,420",
+                        allocatedStatusValue,
                         "Allocated",
                         "#00a878"
                 ),
 
                 createStatusValue(
-                        "1,850",
+                        availableStatusValue,
                         "Available",
                         "#2779ff"
                 ),
 
                 createStatusValue(
-                        "320",
+                        transitStatusValue,
                         "In Transit",
                         "#ff8a00"
                 ),
 
                 createStatusValue(
-                        "170",
+                        pendingStatusValue,
                         "Pending",
                         "#777777"
                 )
@@ -282,9 +395,9 @@ public class ContainerManagementPage {
         );
 
 
-        // -----------------------------------------------------
+        // =====================================================
         // INVENTORY HEADER
-        // -----------------------------------------------------
+        // =====================================================
 
         HBox inventoryHeader =
                 new HBox();
@@ -329,9 +442,9 @@ public class ContainerManagementPage {
         );
 
 
-        // -----------------------------------------------------
+        // =====================================================
         // SEARCH
-        // -----------------------------------------------------
+        // =====================================================
 
         TextField searchField =
                 new TextField();
@@ -345,9 +458,9 @@ public class ContainerManagementPage {
         );
 
 
-        // -----------------------------------------------------
+        // =====================================================
         // STATUS FILTER
-        // -----------------------------------------------------
+        // =====================================================
 
         ComboBox<String> statusFilter =
                 new ComboBox<>();
@@ -365,30 +478,37 @@ public class ContainerManagementPage {
         );
 
 
-        // -----------------------------------------------------
+        // =====================================================
         // ADD CONTAINER BUTTON
-        // -----------------------------------------------------
+        // =====================================================
 
         Button addContainerButton =
                 new Button(
                         "+ Add Container"
                 );
-        
+
+
+        // =====================================================
+        // ADD CONTAINER ACTION
+        // =====================================================
 
         addContainerButton.setOnAction(e -> {
 
                 Dialog<ButtonType> dialog =
                         new Dialog<>();
 
-                dialog.setTitle("Add Container");
+                dialog.setTitle(
+                        "Add Container"
+                );
+
                 dialog.setHeaderText(
                         "Register New Container"
                 );
 
 
-                // =====================================================
+                // =================================================
                 // FORM FIELDS
-                // =====================================================
+                // =================================================
 
                 TextField cargoIdField =
                         new TextField();
@@ -422,6 +542,14 @@ public class ContainerManagementPage {
                 );
 
 
+                TextField weightField =
+                        new TextField();
+
+                weightField.setPromptText(
+                        "Weight (e.g. 28 T)"
+                );
+
+
                 ComboBox<String> typeField =
                         new ComboBox<>();
 
@@ -452,9 +580,9 @@ public class ContainerManagementPage {
                 );
 
 
-                // =====================================================
+                // =================================================
                 // FORM
-                // =====================================================
+                // =================================================
 
                 VBox form =
                         new VBox(10);
@@ -481,6 +609,9 @@ public class ContainerManagementPage {
                         new Label("Size:"),
                         sizeField,
 
+                        new Label("Weight:"),
+                        weightField,
+
                         new Label("Status:"),
                         containerStatusField
                 );
@@ -491,9 +622,9 @@ public class ContainerManagementPage {
                 );
 
 
-                // =====================================================
+                // =================================================
                 // BUTTONS
-                // =====================================================
+                // =================================================
 
                 dialog.getDialogPane()
                         .getButtonTypes()
@@ -503,9 +634,9 @@ public class ContainerManagementPage {
                         );
 
 
-                // =====================================================
+                // =================================================
                 // SHOW DIALOG
-                // =====================================================
+                // =================================================
 
                 Optional<ButtonType> result =
                         dialog.showAndWait();
@@ -530,20 +661,42 @@ public class ContainerManagementPage {
                         String size =
                                 sizeField.getText().trim();
 
+                        String weight =
+                                weightField.getText().trim();
+
                         String containerStatus =
                                 containerStatusField.getValue();
+
+
+                        // =================================================
+                        // VALIDATION
+                        // =================================================
 
                         if (ship.isEmpty() ||
                                 cargoId.isEmpty() ||
                                 location.isEmpty() ||
                                 size.isEmpty() ||
+                                weight.isEmpty() ||
                                 type == null ||
                                 containerStatus == null) {
 
-                                Alert alert = new Alert(Alert.AlertType.WARNING);
-                                alert.setTitle("Missing Information");
-                                alert.setHeaderText("Incomplete Container Details");
-                                alert.setContentText("Please fill in all the fields before adding the container.");
+                                Alert alert =
+                                        new Alert(
+                                                Alert.AlertType.WARNING
+                                        );
+
+                                alert.setTitle(
+                                        "Missing Information"
+                                );
+
+                                alert.setHeaderText(
+                                        "Incomplete Container Details"
+                                );
+
+                                alert.setContentText(
+                                        "Please fill in all the fields before adding the container."
+                                );
+
                                 alert.showAndWait();
 
                                 return;
@@ -555,29 +708,73 @@ public class ContainerManagementPage {
                         // =================================================
 
                         String containerId =
-                                "CONT-" +
-                                (1025 + containerData.size());
+                                generateContainerId();
 
 
                         // =================================================
-                        // ADD NEW CONTAINER
+                        // CREATE NEW CONTAINER
+                        // =================================================
+
+                        Container container =
+                                new Container(
+
+                                        containerId,
+                                        type,
+                                        cargoId,
+                                        ship,
+                                        location,
+                                        size,
+                                        weight,
+                                        containerStatus
+                                );
+
+
+                        // =================================================
+                        // SAVE TO FIREBASE
+                        // =================================================
+
+                        containerController.saveContainer(
+                                container
+                        );
+
+
+                        // =================================================
+                        // CREATE NOTIFICATION
+                        // =================================================
+
+                        notificationController.createNotification(
+
+                                "Container registered",
+
+                                container.getContainerId()
+                                        +
+                                        " was added successfully.",
+
+                                "ADD"
+                        );
+
+
+                        // =================================================
+                        // ADD TO LOCAL LIST
                         // =================================================
 
                         containerData.add(
+                                container
+                        );
 
-                                new String[]{
-                                        containerId,
-                                        type,
-                                        cargoId.isEmpty()
-                                                ? "—"
-                                                : cargoId,
-                                        ship.isEmpty()
-                                                ? "—"
-                                                : ship,
-                                        location,
-                                        size,
-                                        containerStatus
-                                }
+
+                        // =================================================
+                        // REFRESH STATISTICS
+                        // =================================================
+
+                        refreshStatistics(
+
+                                containerData,
+
+                                allocatedPart,
+                                availablePart,
+                                transitPart,
+                                pendingPart
                         );
                 }
         });
@@ -616,323 +813,1004 @@ public class ContainerManagementPage {
         // CONTAINER TABLE
         // =====================================================
 
-        TableView<String[]> table =
+        TableView<Container> table =
                 new TableView<>();
 
-        table.setPrefHeight(
-                350
+
+        // =====================================================
+        // MODERN TABLE BASE STYLE
+        // =====================================================
+
+        table.setPrefHeight(360);
+
+        table.setMinHeight(360);
+
+        table.setMaxHeight(360);
+
+        table.setFixedCellSize(38);
+
+        table.setStyle(
+                "-fx-background-color:transparent;" +
+                "-fx-border-color:transparent;" +
+                "-fx-table-cell-border-color:transparent;" +
+                "-fx-font-size:10;"
         );
 
 
-        TableColumn<String[], String> containerId =
+        // =====================================================
+        // TABLE COLUMNS
+        // =====================================================
+
+        TableColumn<Container, String> containerId =
                 createColumn(
                         "Container ID",
                         120,
-                        0
+                        Container::getContainerId
                 );
 
 
-        TableColumn<String[], String> type =
+        TableColumn<Container, String> type =
                 createColumn(
                         "Type",
                         110,
-                        1
+                        Container::getType
                 );
 
 
-        TableColumn<String[], String> cargoId =
+        TableColumn<Container, String> cargoId =
                 createColumn(
                         "Cargo ID",
                         100,
-                        2
+                        Container::getCargoId
                 );
 
 
-        TableColumn<String[], String> ship =
+        TableColumn<Container, String> ship =
                 createColumn(
                         "Ship",
                         130,
-                        3
+                        Container::getShip
                 );
 
 
-        TableColumn<String[], String> location =
+        TableColumn<Container, String> location =
                 createColumn(
                         "Location",
                         120,
-                        4
+                        Container::getLocation
                 );
 
 
-        TableColumn<String[], String> size =
+        TableColumn<Container, String> size =
                 createColumn(
                         "Size",
                         80,
-                        5
+                        Container::getSize
                 );
 
 
-        TableColumn<String[], String> status =
+        TableColumn<Container, String> weight =
+                createColumn(
+                        "Weight",
+                        90,
+                        Container::getWeight
+                );
+
+
+        TableColumn<Container, String> status =
                 createColumn(
                         "Status",
                         120,
-                        6
+                        Container::getStatus
                 );
+
+
+        // =====================================================
+        // STYLE NORMAL COLUMNS
+        // =====================================================
+
+        styleContainerColumn(type);
+
+        styleContainerColumn(cargoId);
+
+        styleContainerColumn(location);
+
+        styleContainerColumn(size);
+
+        styleContainerColumn(weight);
+
+
+        // =====================================================
+        // CONTAINER ID STYLE
+        // =====================================================
+
+        containerId.setCellFactory(
+                column -> new TableCell<Container, String>() {
+
+                    @Override
+                    protected void updateItem(
+                            String item,
+                            boolean empty
+                    ) {
+
+                        super.updateItem(
+                                item,
+                                empty
+                        );
+
+
+                        if (empty || item == null) {
+
+                            setText(null);
+
+                            return;
+                        }
+
+
+                        setText(item);
+
+
+                        setStyle(
+                                "-fx-background-color:white;" +
+                                "-fx-text-fill:#334155;" +
+                                "-fx-font-size:10;" +
+                                "-fx-font-weight:bold;" +
+                                "-fx-border-color:transparent transparent #e8edf2 transparent;" +
+                                "-fx-padding:0 8 0 8;"
+                        );
+
+
+                        setAlignment(
+                                Pos.CENTER_LEFT
+                        );
+                    }
+                }
+        );
+
+
+        // =====================================================
+        // SHIP STYLE
+        // =====================================================
+
+        ship.setCellFactory(
+                column -> new TableCell<Container, String>() {
+
+                    @Override
+                    protected void updateItem(
+                            String item,
+                            boolean empty
+                    ) {
+
+                        super.updateItem(
+                                item,
+                                empty
+                        );
+
+
+                        if (empty || item == null) {
+
+                            setText(null);
+
+                            return;
+                        }
+
+
+                        setText(item);
+
+
+                        setStyle(
+                                "-fx-background-color:white;" +
+                                "-fx-text-fill:#334155;" +
+                                "-fx-font-size:10;" +
+                                "-fx-font-weight:bold;" +
+                                "-fx-border-color:transparent transparent #e8edf2 transparent;" +
+                                "-fx-padding:0 8 0 8;"
+                        );
+
+
+                        setAlignment(
+                                Pos.CENTER_LEFT
+                        );
+                    }
+                }
+        );
+
+
+        // =====================================================
+        // STATUS BADGES
+        // =====================================================
+
+        status.setCellFactory(
+                column -> new TableCell<Container, String>() {
+
+                    private final Label statusLabel =
+                            new Label();
+
+
+                    @Override
+                    protected void updateItem(
+                            String item,
+                            boolean empty
+                    ) {
+
+                        super.updateItem(
+                                item,
+                                empty
+                        );
+
+
+                        if (empty || item == null) {
+
+                            setGraphic(null);
+
+                            setText(null);
+
+                            return;
+                        }
+
+
+                        statusLabel.setText(item);
+
+
+                        // =============================================
+                        // AVAILABLE
+                        // =============================================
+
+                        if (item.equalsIgnoreCase("Available")) {
+
+                            statusLabel.setStyle(
+                                    "-fx-background-color:#dbeafe;" +
+                                    "-fx-text-fill:#2563eb;" +
+                                    "-fx-background-radius:12;" +
+                                    "-fx-font-size:9;" +
+                                    "-fx-font-weight:bold;" +
+                                    "-fx-padding:4 9 4 9;"
+                            );
+                        }
+
+
+                        // =============================================
+                        // ALLOCATED
+                        // =============================================
+
+                        else if (item.equalsIgnoreCase("Allocated")) {
+
+                            statusLabel.setStyle(
+                                    "-fx-background-color:#dcfce7;" +
+                                    "-fx-text-fill:#15803d;" +
+                                    "-fx-background-radius:12;" +
+                                    "-fx-font-size:9;" +
+                                    "-fx-font-weight:bold;" +
+                                    "-fx-padding:4 9 4 9;"
+                            );
+                        }
+
+
+                        // =============================================
+                        // IN TRANSIT
+                        // =============================================
+
+                        else if (item.equalsIgnoreCase("In Transit")) {
+
+                            statusLabel.setStyle(
+                                    "-fx-background-color:#ffedd5;" +
+                                    "-fx-text-fill:#ea580c;" +
+                                    "-fx-background-radius:12;" +
+                                    "-fx-font-size:9;" +
+                                    "-fx-font-weight:bold;" +
+                                    "-fx-padding:4 9 4 9;"
+                            );
+                        }
+
+
+                        // =============================================
+                        // PENDING
+                        // =============================================
+
+                        else if (item.equalsIgnoreCase("Pending")) {
+
+                            statusLabel.setStyle(
+                                    "-fx-background-color:#f1f5f9;" +
+                                    "-fx-text-fill:#64748b;" +
+                                    "-fx-background-radius:12;" +
+                                    "-fx-font-size:9;" +
+                                    "-fx-font-weight:bold;" +
+                                    "-fx-padding:4 9 4 9;"
+                            );
+                        }
+
+
+                        // =============================================
+                        // DEFAULT
+                        // =============================================
+
+                        else {
+
+                            statusLabel.setStyle(
+                                    "-fx-background-color:#f1f5f9;" +
+                                    "-fx-text-fill:#475569;" +
+                                    "-fx-background-radius:12;" +
+                                    "-fx-font-size:9;" +
+                                    "-fx-font-weight:bold;" +
+                                    "-fx-padding:4 9 4 9;"
+                            );
+                        }
+
+
+                        setGraphic(
+                                statusLabel
+                        );
+
+                        setText(null);
+
+                        setAlignment(
+                                Pos.CENTER
+                        );
+
+
+                        setStyle(
+                                "-fx-background-color:white;" +
+                                "-fx-border-color:transparent transparent #e8edf2 transparent;"
+                        );
+                    }
+                }
+        );
+
 
         // =====================================================
         // ACTION COLUMN
         // =====================================================
 
-        TableColumn<String[], String> action =
+        TableColumn<Container, String> action =
                 new TableColumn<>("Action");
 
-        action.setPrefWidth(150);
 
-        action.setCellFactory(column -> new TableCell<String[], String>() {
-
-        private final Button viewButton = new Button("View");
-        private final Button editButton = new Button("Edit");
-
-        {
-                // =====================================================
-                // VIEW BUTTON
-                // =====================================================
-
-                viewButton.setOnAction(event -> {
-
-                String[] container =
-                        getTableView().getItems().get(getIndex());
-
-                Alert alert =
-                        new Alert(Alert.AlertType.INFORMATION);
-
-                alert.setTitle("Container Details");
-                alert.setHeaderText("Container Details");
-
-                alert.setContentText(
-                        "Container ID: " + container[0] + "\n" +
-                        "Type: " + container[1] + "\n" +
-                        "Cargo ID: " + container[2] + "\n" +
-                        "Ship: " + container[3] + "\n" +
-                        "Location: " + container[4] + "\n" +
-                        "Size: " + container[5] + "\n" +
-                        "Status: " + container[6]
-                );
-
-                alert.showAndWait();
-                });
+        action.setPrefWidth(
+                210
+        );
 
 
-                // =====================================================
-                // EDIT BUTTON
-                // =====================================================
-
-                editButton.setOnAction(event -> {
-
-                        String[] container =
-                                getTableView().getItems().get(getIndex());
-
-                        // =====================================================
-                        // EDIT FIELDS
-                        // =====================================================
-
-                        TextField cargoIdField =
-                                new TextField(container[2]);
-
-                        TextField shipField =
-                                new TextField(container[3]);
-
-                        TextField locationField =
-                                new TextField(container[4]);
-
-                        TextField sizeField =
-                                new TextField(container[5]);
-
-                        ComboBox<String> typeBox =
-                                new ComboBox<>();
-
-                        typeBox.getItems().addAll(
-                                "Dry Cargo",
-                                "Reefer",
-                                "Tank",
-                                "Flat Rack"
-                        );
-
-                        typeBox.setValue(container[1]);
+        action.setCellFactory(
+                column ->
+                        new TableCell<Container, String>() {
 
 
-                        ComboBox<String> statusBox =
-                                new ComboBox<>();
-
-                        statusBox.getItems().addAll(
-                                "Allocated",
-                                "Available",
-                                "In Transit",
-                                "Pending"
-                        );
-
-                        statusBox.setValue(container[6]);
+                                private final Button viewButton =
+                                        new Button("View");
 
 
-                        // =====================================================
-                        // GRID
-                        // =====================================================
-
-                        GridPane grid =
-                                new GridPane();
-
-                        grid.setHgap(10);
-                        grid.setVgap(10);
-
-                        grid.add(new Label("Type:"), 0, 0);
-                        grid.add(typeBox, 1, 0);
-
-                        grid.add(new Label("Cargo ID:"), 0, 1);
-                        grid.add(cargoIdField, 1, 1);
-
-                        grid.add(new Label("Ship:"), 0, 2);
-                        grid.add(shipField, 1, 2);
-
-                        grid.add(new Label("Location:"), 0, 3);
-                        grid.add(locationField, 1, 3);
-
-                        grid.add(new Label("Size:"), 0, 4);
-                        grid.add(sizeField, 1, 4);
-
-                        grid.add(new Label("Status:"), 0, 5);
-                        grid.add(statusBox, 1, 5);
+                                private final Button editButton =
+                                        new Button("Edit");
 
 
-                        // =====================================================
-                        // DIALOG
-                        // =====================================================
-
-                        Dialog<ButtonType> dialog =
-                                new Dialog<>();
-
-                        dialog.setTitle("Edit Container");
-                        dialog.setHeaderText("Edit Container Details");
-
-                        ButtonType okButton =
-                                new ButtonType(
-                                        "OK",
-                                        ButtonBar.ButtonData.OK_DONE
-                                );
-
-                        ButtonType cancelButton =
-                                new ButtonType(
-                                        "Cancel",
-                                        ButtonBar.ButtonData.CANCEL_CLOSE
-                                );
-
-                        dialog.getDialogPane()
-                                .getButtonTypes()
-                                .addAll(
-                                        okButton,
-                                        cancelButton
-                                );
-
-                        dialog.getDialogPane()
-                                .setContent(grid);
+                                private final Button deleteButton =
+                                        new Button("Delete");
 
 
-                        // =====================================================
-                        // SAVE CHANGES
-                        // =====================================================
+                                {
+                                        // =================================================
+                                        // VIEW BUTTON STYLE
+                                        // =================================================
 
-                        dialog.setResultConverter(button -> {
-
-                                if (button == okButton) {
-
-                                String cargoId =
-                                        cargoIdField.getText().trim();
-
-                                String ship =
-                                        shipField.getText().trim();
-
-                                String location =
-                                        locationField.getText().trim();
-
-                                String size =
-                                        sizeField.getText().trim();
-
-                                String type =
-                                        typeBox.getValue();
-
-                                String status =
-                                        statusBox.getValue();
+                                        viewButton.setStyle(
+                                                "-fx-background-color:#f1f5f9;" +
+                                                "-fx-text-fill:#1e293b;" +
+                                                "-fx-font-size:9;" +
+                                                "-fx-font-weight:bold;" +
+                                                "-fx-background-radius:5;" +
+                                                "-fx-border-color:#cbd5e1;" +
+                                                "-fx-border-radius:5;" +
+                                                "-fx-padding:4 8 4 8;" +
+                                                "-fx-cursor:hand;"
+                                        );
 
 
-                                // Validation
+                                        // =================================================
+                                        // EDIT BUTTON STYLE
+                                        // =================================================
 
-                                if (cargoId.isEmpty() ||
-                                        ship.isEmpty() ||
-                                        location.isEmpty() ||
-                                        size.isEmpty() ||
-                                        type == null ||
-                                        status == null) {
+                                        editButton.setStyle(
+                                                "-fx-background-color:#eff6ff;" +
+                                                "-fx-text-fill:#1d4ed8;" +
+                                                "-fx-font-size:9;" +
+                                                "-fx-font-weight:bold;" +
+                                                "-fx-background-radius:5;" +
+                                                "-fx-border-color:#bfdbfe;" +
+                                                "-fx-border-radius:5;" +
+                                                "-fx-padding:4 8 4 8;" +
+                                                "-fx-cursor:hand;"
+                                        );
 
-                                        Alert alert =
-                                                new Alert(
-                                                        Alert.AlertType.WARNING
+
+                                        // =================================================
+                                        // DELETE BUTTON STYLE
+                                        // =================================================
+
+                                        deleteButton.setStyle(
+                                                "-fx-background-color:#fff1f2;" +
+                                                "-fx-text-fill:#dc2626;" +
+                                                "-fx-font-size:9;" +
+                                                "-fx-font-weight:bold;" +
+                                                "-fx-background-radius:5;" +
+                                                "-fx-border-color:#fecdd3;" +
+                                                "-fx-border-radius:5;" +
+                                                "-fx-padding:4 8 4 8;" +
+                                                "-fx-cursor:hand;"
+                                        );
+
+
+                                        // =================================================
+                                        // VIEW BUTTON
+                                        // =================================================
+
+                                        viewButton.setOnAction(event -> {
+
+                                                Container container =
+                                                        getTableView()
+                                                                .getItems()
+                                                                .get(getIndex());
+
+
+                                                Alert alert =
+                                                        new Alert(
+                                                                Alert.AlertType.INFORMATION
+                                                        );
+
+
+                                                alert.setTitle(
+                                                        "Container Details"
                                                 );
 
-                                        alert.setTitle("Missing Information");
-                                        alert.setHeaderText(
-                                                "Incomplete Container Details"
-                                        );
-                                        alert.setContentText(
-                                                "Please fill in all the fields."
-                                        );
 
-                                        alert.showAndWait();
+                                                alert.setHeaderText(
+                                                        "Container Details"
+                                                );
 
-                                        return null;
+
+                                                alert.setContentText(
+
+                                                        "Container ID: "
+                                                        + container.getContainerId()
+                                                        + "\n"
+
+                                                        + "Type: "
+                                                        + container.getType()
+                                                        + "\n"
+
+                                                        + "Cargo ID: "
+                                                        + container.getCargoId()
+                                                        + "\n"
+
+                                                        + "Ship: "
+                                                        + container.getShip()
+                                                        + "\n"
+
+                                                        + "Location: "
+                                                        + container.getLocation()
+                                                        + "\n"
+
+                                                        + "Size: "
+                                                        + container.getSize()
+                                                        + "\n"
+
+                                                        + "Weight: "
+                                                        + container.getWeight()
+                                                        + "\n"
+
+                                                        + "Status: "
+                                                        + container.getStatus()
+                                                );
+
+
+                                                alert.showAndWait();
+                                        });
+
+
+                                        // =================================================
+                                        // EDIT BUTTON
+                                        // =================================================
+
+                                        editButton.setOnAction(event -> {
+
+                                                Container container =
+                                                        getTableView()
+                                                                .getItems()
+                                                                .get(getIndex());
+
+
+                                                // =================================================
+                                                // EDIT FIELDS
+                                                // =================================================
+
+                                                TextField cargoIdField =
+                                                        new TextField(
+                                                                container.getCargoId()
+                                                        );
+
+
+                                                TextField shipField =
+                                                        new TextField(
+                                                                container.getShip()
+                                                        );
+
+
+                                                TextField locationField =
+                                                        new TextField(
+                                                                container.getLocation()
+                                                        );
+
+
+                                                TextField sizeField =
+                                                        new TextField(
+                                                                container.getSize()
+                                                        );
+
+
+                                                TextField weightField =
+                                                        new TextField(
+                                                                container.getWeight()
+                                                        );
+
+
+                                                ComboBox<String> typeBox =
+                                                        new ComboBox<>();
+
+
+                                                typeBox.getItems().addAll(
+                                                        "Dry Cargo",
+                                                        "Reefer",
+                                                        "Tank",
+                                                        "Flat Rack"
+                                                );
+
+
+                                                typeBox.setValue(
+                                                        container.getType()
+                                                );
+
+
+                                                ComboBox<String> statusBox =
+                                                        new ComboBox<>();
+
+
+                                                statusBox.getItems().addAll(
+                                                        "Allocated",
+                                                        "Available",
+                                                        "In Transit",
+                                                        "Pending"
+                                                );
+
+
+                                                statusBox.setValue(
+                                                        container.getStatus()
+                                                );
+
+
+                                                // =================================================
+                                                // GRID
+                                                // =================================================
+
+                                                GridPane grid =
+                                                        new GridPane();
+
+                                                grid.setHgap(10);
+
+                                                grid.setVgap(10);
+
+
+                                                grid.add(
+                                                        new Label("Type:"),
+                                                        0,
+                                                        0
+                                                );
+
+
+                                                grid.add(
+                                                        typeBox,
+                                                        1,
+                                                        0
+                                                );
+
+
+                                                grid.add(
+                                                        new Label("Cargo ID:"),
+                                                        0,
+                                                        1
+                                                );
+
+
+                                                grid.add(
+                                                        cargoIdField,
+                                                        1,
+                                                        1
+                                                );
+
+
+                                                grid.add(
+                                                        new Label("Ship:"),
+                                                        0,
+                                                        2
+                                                );
+
+
+                                                grid.add(
+                                                        shipField,
+                                                        1,
+                                                        2
+                                                );
+
+
+                                                grid.add(
+                                                        new Label("Location:"),
+                                                        0,
+                                                        3
+                                                );
+
+
+                                                grid.add(
+                                                        locationField,
+                                                        1,
+                                                        3
+                                                );
+
+
+                                                grid.add(
+                                                        new Label("Size:"),
+                                                        0,
+                                                        4
+                                                );
+
+
+                                                grid.add(
+                                                        sizeField,
+                                                        1,
+                                                        4
+                                                );
+
+
+                                                grid.add(
+                                                        new Label("Weight:"),
+                                                        0,
+                                                        5
+                                                );
+
+
+                                                grid.add(
+                                                        weightField,
+                                                        1,
+                                                        5
+                                                );
+
+
+                                                grid.add(
+                                                        new Label("Status:"),
+                                                        0,
+                                                        6
+                                                );
+
+
+                                                grid.add(
+                                                        statusBox,
+                                                        1,
+                                                        6
+                                                );
+
+
+                                                // =================================================
+                                                // DIALOG
+                                                // =================================================
+
+                                                Dialog<ButtonType> dialog =
+                                                        new Dialog<>();
+
+
+                                                dialog.setTitle(
+                                                        "Edit Container"
+                                                );
+
+
+                                                dialog.setHeaderText(
+                                                        "Edit Container Details"
+                                                );
+
+
+                                                ButtonType okButton =
+                                                        new ButtonType(
+                                                                "OK",
+                                                                ButtonBar.ButtonData.OK_DONE
+                                                        );
+
+
+                                                ButtonType cancelButton =
+                                                        new ButtonType(
+                                                                "Cancel",
+                                                                ButtonBar.ButtonData.CANCEL_CLOSE
+                                                        );
+
+
+                                                dialog.getDialogPane()
+                                                        .getButtonTypes()
+                                                        .addAll(
+                                                                okButton,
+                                                                cancelButton
+                                                        );
+
+
+                                                dialog.getDialogPane()
+                                                        .setContent(
+                                                                grid
+                                                        );
+
+
+                                                // =================================================
+                                                // SAVE CHANGES
+                                                // =================================================
+
+                                                dialog.setResultConverter(button -> {
+
+                                                        if (button == okButton) {
+
+
+                                                                String cargoId =
+                                                                        cargoIdField
+                                                                                .getText()
+                                                                                .trim();
+
+
+                                                                String ship =
+                                                                        shipField
+                                                                                .getText()
+                                                                                .trim();
+
+
+                                                                String location =
+                                                                        locationField
+                                                                                .getText()
+                                                                                .trim();
+
+
+                                                                String size =
+                                                                        sizeField
+                                                                                .getText()
+                                                                                .trim();
+
+
+                                                                String weight =
+                                                                        weightField
+                                                                                .getText()
+                                                                                .trim();
+
+
+                                                                String type =
+                                                                        typeBox.getValue();
+
+
+                                                                String containerStatus =
+                                                                        statusBox.getValue();
+
+
+                                                                // =============================================
+                                                                // VALIDATION
+                                                                // =============================================
+
+                                                                if (cargoId.isEmpty() ||
+                                                                        ship.isEmpty() ||
+                                                                        location.isEmpty() ||
+                                                                        size.isEmpty() ||
+                                                                        weight.isEmpty() ||
+                                                                        type == null ||
+                                                                        containerStatus == null) {
+
+
+                                                                        Alert alert =
+                                                                                new Alert(
+                                                                                        Alert.AlertType.WARNING
+                                                                                );
+
+
+                                                                        alert.setTitle(
+                                                                                "Missing Information"
+                                                                        );
+
+
+                                                                        alert.setHeaderText(
+                                                                                "Incomplete Container Details"
+                                                                        );
+
+
+                                                                        alert.setContentText(
+                                                                                "Please fill in all the fields."
+                                                                        );
+
+
+                                                                        alert.showAndWait();
+
+
+                                                                        return null;
+                                                                }
+
+
+                                                                // =============================================
+                                                                // UPDATE CONTAINER OBJECT
+                                                                // =============================================
+
+                                                                container.setType(
+                                                                        type
+                                                                );
+
+
+                                                                container.setCargoId(
+                                                                        cargoId
+                                                                );
+
+
+                                                                container.setShip(
+                                                                        ship
+                                                                );
+
+
+                                                                container.setLocation(
+                                                                        location
+                                                                );
+
+
+                                                                container.setSize(
+                                                                        size
+                                                                );
+
+
+                                                                container.setWeight(
+                                                                        weight
+                                                                );
+
+
+                                                                container.setStatus(
+                                                                        containerStatus
+                                                                );
+
+
+                                                                // =============================================
+                                                                // UPDATE FIREBASE
+                                                                // =============================================
+
+                                                                containerController.updateContainer(
+                                                                        container
+                                                                );
+
+
+                                                                // =============================================
+                                                                // CREATE NOTIFICATION
+                                                                // =============================================
+
+                                                                notificationController.createNotification(
+
+                                                                        "Container record updated",
+
+                                                                        container.getContainerId()
+                                                                                +
+                                                                                " was updated successfully.",
+
+                                                                        "EDIT"
+                                                                );
+
+
+                                                                // =============================================
+                                                                // REFRESH TABLE
+                                                                // =============================================
+
+                                                                getTableView()
+                                                                        .refresh();
+
+
+                                                                // =============================================
+                                                                // REFRESH STATISTICS
+                                                                // =============================================
+
+                                                                refreshStatistics(
+
+                                                                        containerData,
+
+                                                                        allocatedPart,
+                                                                        availablePart,
+                                                                        transitPart,
+                                                                        pendingPart
+                                                                );
+                                                        }
+
+
+                                                        return button;
+                                                });
+
+
+                                                dialog.showAndWait();
+                                        });
+
+
+                                        // =================================================
+                                        // DELETE BUTTON
+                                        // =================================================
+
+                                        deleteButton.setOnAction(event -> {
+
+                                                Container container =
+                                                        getTableView()
+                                                                .getItems()
+                                                                .get(getIndex());
+
+
+                                                showDeleteConfirmation(
+
+                                                        container,
+
+                                                        table,
+
+                                                        allocatedPart,
+                                                        availablePart,
+                                                        transitPart,
+                                                        pendingPart
+                                                );
+                                        });
                                 }
 
 
-                                // Update container
+                                @Override
+                                protected void updateItem(
+                                        String item,
+                                        boolean empty
+                                ) {
 
-                                container[1] = type;
-                                container[2] = cargoId;
-                                container[3] = ship;
-                                container[4] = location;
-                                container[5] = size;
-                                container[6] = status;
+                                        super.updateItem(
+                                                item,
+                                                empty
+                                        );
 
-                                getTableView().refresh();
+
+                                        if (empty) {
+
+                                                setGraphic(
+                                                        null
+                                                );
+
+
+                                                setText(
+                                                        null
+                                                );
+
+                                        } else {
+
+                                                HBox buttons =
+                                                        new HBox(
+                                                                5,
+                                                                viewButton,
+                                                                editButton,
+                                                                deleteButton
+                                                        );
+
+
+                                                buttons.setAlignment(
+                                                        Pos.CENTER_LEFT
+                                                );
+
+
+                                                setGraphic(
+                                                        buttons
+                                                );
+
+
+                                                setStyle(
+                                                        "-fx-background-color:white;" +
+                                                        "-fx-border-color:transparent transparent #e8edf2 transparent;" +
+                                                        "-fx-padding:0 4 0 4;"
+                                                );
+                                        }
                                 }
-
-                                return button;
-                        });
-
-                        dialog.showAndWait();
-                        });
-        }
+                        }
+        );
 
 
-        @Override
-        protected void updateItem(String item, boolean empty) {
-
-                super.updateItem(item, empty);
-
-                if (empty) {
-
-                setGraphic(null);
-
-                } else {
-
-                HBox buttons =
-                        new HBox(
-                                5,
-                                viewButton,
-                                editButton
-                        );
-
-                setGraphic(buttons);
-                }
-        }
-        });
+        // =====================================================
+        // ADD COLUMNS TO TABLE
+        // =====================================================
 
         table.getColumns().addAll(
                 containerId,
@@ -941,103 +1819,82 @@ public class ContainerManagementPage {
                 ship,
                 location,
                 size,
+                weight,
                 status,
                 action
         );
 
 
         // =====================================================
-        // SAMPLE CONTAINER DATA
+        // MODERN TABLE HEADER
         // =====================================================
 
+        table.skinProperty().addListener(
+                (observable, oldSkin, newSkin) -> {
 
+                    if (newSkin != null) {
 
-        containerData.addAll(
+                        Platform.runLater(() -> {
 
-                new String[]{
-                        "CONT-1024",
-                        "Dry Cargo",
-                        "CGO-1287",
-                        "Oceanic Star",
-                        "Terminal A",
-                        "40 ft",
-                        "Allocated"
-                },
-
-                new String[]{
-                        "CONT-1058",
-                        "Reefer",
-                        "—",
-                        "—",
-                        "Yard B-12",
-                        "20 ft",
-                        "Available"
-                },
-
-                new String[]{
-                        "CONT-1091",
-                        "Tank",
-                        "CGO-1342",
-                        "Nordic Wave",
-                        "Gate 4",
-                        "40 ft",
-                        "In Transit"
-                },
-
-                new String[]{
-                        "CONT-1127",
-                        "Dry Cargo",
-                        "CGO-1298",
-                        "Atlantic Pride",
-                        "Terminal C",
-                        "40 ft",
-                        "Allocated"
-                },
-
-                new String[]{
-                        "CONT-1163",
-                        "Flat Rack",
-                        "—",
-                        "—",
-                        "Yard A-04",
-                        "20 ft",
-                        "Available"
-                },
-
-                new String[]{
-                        "CONT-1205",
-                        "Reefer",
-                        "CGO-1401",
-                        "Pacific Dawn",
-                        "Gate 2",
-                        "40 ft",
-                        "In Transit"
-                },
-
-                new String[]{
-                        "CONT-1248",
-                        "Dry Cargo",
-                        "CGO-1355",
-                        "Oceanic Star",
-                        "Terminal A",
-                        "20 ft",
-                        "Allocated"
+                            styleContainerTableHeader(
+                                    table
+                            );
+                        });
+                    }
                 }
         );
 
 
-        FilteredList<String[]> filteredData =
-        new FilteredList<>(
-                containerData,
-                data -> true
+        // =====================================================
+        // LOAD CONTAINERS FROM FIREBASE
+        // =====================================================
+
+        List<Container> containers =
+                containerController.getContainers();
+
+
+        // =====================================================
+        // ADD FIREBASE DATA TO LOCAL LIST
+        // =====================================================
+
+        containerData.addAll(
+                containers
         );
 
-        table.setItems( 
+
+        // =====================================================
+        // INITIAL STATISTICS
+        // =====================================================
+
+        refreshStatistics(
+
+                containerData,
+
+                allocatedPart,
+                availablePart,
+                transitPart,
+                pendingPart
+        );
+
+
+        // =====================================================
+        // FILTERED DATA
+        // =====================================================
+
+        FilteredList<Container> filteredData =
+                new FilteredList<>(
+                        containerData,
+                        data -> true
+                );
+
+
+        table.setItems(
                 filteredData
         );
 
+
         // =====================================================
-        // SEARCH + STATUS FILTER
+        // SEARCH FILTER
         // =====================================================
 
         searchField.textProperty().addListener(
@@ -1052,6 +1909,10 @@ public class ContainerManagementPage {
         );
 
 
+        // =====================================================
+        // STATUS FILTER
+        // =====================================================
+
         statusFilter.valueProperty().addListener(
                 (observable, oldValue, newValue) -> {
 
@@ -1065,7 +1926,7 @@ public class ContainerManagementPage {
 
 
         // =====================================================
-        // ADD TABLE
+        // INVENTORY BOX
         // =====================================================
 
         inventoryBox.getChildren().addAll(
@@ -1093,10 +1954,12 @@ public class ContainerManagementPage {
     // =====================================================
 
     private VBox createCard(
+
             String title,
-            String value,
+            Label valueLabel,
             String description,
             String descriptionColor
+
     ) {
 
         VBox card =
@@ -1133,9 +1996,6 @@ public class ContainerManagementPage {
         );
 
 
-        Label valueLabel =
-                new Label(value);
-
         valueLabel.setStyle(
                 "-fx-font-size:25px;" +
                 "-fx-font-weight:bold;" +
@@ -1169,21 +2029,26 @@ public class ContainerManagementPage {
     // =====================================================
 
     private HBox createStatusPart(
+
             String text,
             String backgroundColor,
             double width
+
     ) {
 
         HBox part =
                 new HBox();
 
+
         part.setPrefWidth(
                 width
         );
 
+
         part.setAlignment(
                 Pos.CENTER
         );
+
 
         part.setStyle(
                 "-fx-background-color:" +
@@ -1191,21 +2056,22 @@ public class ContainerManagementPage {
         );
 
 
-        if (!text.isEmpty()) {
+        Label percent =
+                new Label(
+                        text
+                );
 
-            Label percent =
-                    new Label(text);
 
-            percent.setStyle(
-                    "-fx-text-fill:white;" +
-                    "-fx-font-weight:bold;" +
-                    "-fx-font-size:11px;"
-            );
+        percent.setStyle(
+                "-fx-text-fill:white;" +
+                "-fx-font-weight:bold;" +
+                "-fx-font-size:11px;"
+        );
 
-            part.getChildren().add(
-                    percent
-            );
-        }
+
+        part.getChildren().add(
+                percent
+        );
 
 
         return part;
@@ -1217,16 +2083,16 @@ public class ContainerManagementPage {
     // =====================================================
 
     private VBox createStatusValue(
-            String value,
+
+            Label number,
             String title,
             String valueColor
+
     ) {
 
         VBox box =
                 new VBox();
 
-        Label number =
-                new Label(value);
 
         number.setStyle(
                 "-fx-font-size:18px;" +
@@ -1256,84 +2122,907 @@ public class ContainerManagementPage {
 
 
     // =====================================================
+    // REFRESH ALL STATISTICS
+    // =====================================================
+
+    private void refreshStatistics(
+
+            List<Container> containers,
+
+            HBox allocatedPart,
+            HBox availablePart,
+            HBox transitPart,
+            HBox pendingPart
+
+    ) {
+
+        int total =
+                containers.size();
+
+
+        int available = 0;
+
+        int allocated = 0;
+
+        int inTransit = 0;
+
+        int pending = 0;
+
+
+        // =================================================
+        // COUNT CONTAINERS BY STATUS
+        // =================================================
+
+        for (Container container : containers) {
+
+            if (container == null) {
+                continue;
+            }
+
+
+            String status =
+                    container.getStatus();
+
+
+            if (status == null) {
+                continue;
+            }
+
+
+            switch (status) {
+
+                case "Available":
+
+                    available++;
+
+                    break;
+
+
+                case "Allocated":
+
+                    allocated++;
+
+                    break;
+
+
+                case "In Transit":
+
+                    inTransit++;
+
+                    break;
+
+
+                case "Pending":
+
+                    pending++;
+
+                    break;
+            }
+        }
+
+
+        // =================================================
+        // UPDATE SUMMARY CARDS
+        // =================================================
+
+        totalContainersValue.setText(
+                String.valueOf(total)
+        );
+
+
+        availableValue.setText(
+                String.valueOf(available)
+        );
+
+
+        allocatedValue.setText(
+                String.valueOf(allocated)
+        );
+
+
+        inTransitValue.setText(
+                String.valueOf(inTransit)
+        );
+
+
+        pendingValue.setText(
+                String.valueOf(pending)
+        );
+
+
+        // =================================================
+        // UPDATE STATUS DISTRIBUTION VALUES
+        // =================================================
+
+        allocatedStatusValue.setText(
+                String.valueOf(allocated)
+        );
+
+
+        availableStatusValue.setText(
+                String.valueOf(available)
+        );
+
+
+        transitStatusValue.setText(
+                String.valueOf(inTransit)
+        );
+
+
+        pendingStatusValue.setText(
+                String.valueOf(pending)
+        );
+
+
+        // =================================================
+        // UPDATE STATUS BAR
+        // =================================================
+
+        updateStatusBar(
+
+                allocatedPart,
+                availablePart,
+                transitPart,
+                pendingPart,
+
+                allocated,
+                available,
+                inTransit,
+                pending
+        );
+    }
+
+
+    // =====================================================
+    // UPDATE STATUS BAR
+    // =====================================================
+
+    private void updateStatusBar(
+
+            HBox allocatedPart,
+            HBox availablePart,
+            HBox transitPart,
+            HBox pendingPart,
+
+            int allocated,
+            int available,
+            int inTransit,
+            int pending
+
+    ) {
+
+        int total =
+                allocated
+                + available
+                + inTransit
+                + pending;
+
+
+        // =================================================
+        // NO CONTAINERS
+        // =================================================
+
+        if (total == 0) {
+
+            allocatedPart.setPrefWidth(0);
+
+            availablePart.setPrefWidth(0);
+
+            transitPart.setPrefWidth(0);
+
+            pendingPart.setPrefWidth(0);
+
+
+            setPercentage(
+                    allocatedPart,
+                    ""
+            );
+
+
+            setPercentage(
+                    availablePart,
+                    ""
+            );
+
+
+            setPercentage(
+                    transitPart,
+                    ""
+            );
+
+
+            setPercentage(
+                    pendingPart,
+                    ""
+            );
+
+
+            return;
+        }
+
+
+        // =================================================
+        // TOTAL BAR WIDTH
+        // =================================================
+
+        double totalBarWidth =
+                820;
+
+
+        // =================================================
+        // CALCULATE WIDTHS
+        // =================================================
+
+        double allocatedWidth =
+                (allocated / (double) total)
+                * totalBarWidth;
+
+
+        double availableWidth =
+                (available / (double) total)
+                * totalBarWidth;
+
+
+        double transitWidth =
+                (inTransit / (double) total)
+                * totalBarWidth;
+
+
+        double pendingWidth =
+                (pending / (double) total)
+                * totalBarWidth;
+
+
+        // =================================================
+        // APPLY WIDTHS
+        // =================================================
+
+        allocatedPart.setPrefWidth(
+                allocatedWidth
+        );
+
+
+        availablePart.setPrefWidth(
+                availableWidth
+        );
+
+
+        transitPart.setPrefWidth(
+                transitWidth
+        );
+
+
+        pendingPart.setPrefWidth(
+                pendingWidth
+        );
+
+
+        // =================================================
+        // CALCULATE PERCENTAGES
+        // =================================================
+
+        int allocatedPercent =
+                (int) Math.round(
+                        (allocated / (double) total) * 100
+                );
+
+
+        int availablePercent =
+                (int) Math.round(
+                        (available / (double) total) * 100
+                );
+
+
+        int transitPercent =
+                (int) Math.round(
+                        (inTransit / (double) total) * 100
+                );
+
+
+        int pendingPercent =
+                (int) Math.round(
+                        (pending / (double) total) * 100
+                );
+
+
+        // =================================================
+        // UPDATE PERCENTAGE TEXT
+        // =================================================
+
+        setPercentage(
+                allocatedPart,
+                allocatedPercent + "%"
+        );
+
+
+        setPercentage(
+                availablePart,
+                availablePercent + "%"
+        );
+
+
+        setPercentage(
+                transitPart,
+                transitPercent + "%"
+        );
+
+
+        setPercentage(
+                pendingPart,
+                pendingPercent + "%"
+        );
+    }
+
+
+    // =====================================================
+    // SET STATUS BAR PERCENTAGE
+    // =====================================================
+
+    private void setPercentage(
+
+            HBox part,
+            String text
+
+    ) {
+
+        if (part.getChildren().isEmpty()) {
+            return;
+        }
+
+
+        Label label =
+                (Label) part.getChildren().get(0);
+
+
+        label.setText(
+                text
+        );
+    }
+
+
+    // =====================================================
+    // GENERATE CONTAINER ID
+    // =====================================================
+
+    private String generateContainerId() {
+
+        int highestId =
+                1024;
+
+
+        for (Container container : containerData) {
+
+            try {
+
+                String id =
+                        container.getContainerId();
+
+
+                if (id == null) {
+                    continue;
+                }
+
+
+                if (id.startsWith("CONT-")) {
+
+                    int number =
+                            Integer.parseInt(
+                                    id.substring(5)
+                            );
+
+
+                    if (number > highestId) {
+
+                        highestId =
+                                number;
+                    }
+                }
+
+            } catch (Exception e) {
+
+                // Ignore invalid container IDs
+            }
+        }
+
+
+        return "CONT-" +
+                (highestId + 1);
+    }
+
+
+    // =====================================================
+    // SHOW DELETE CONFIRMATION
+    // =====================================================
+
+    private void showDeleteConfirmation(
+
+            Container container,
+
+            TableView<Container> table,
+
+            HBox allocatedPart,
+            HBox availablePart,
+            HBox transitPart,
+            HBox pendingPart
+
+    ) {
+
+        Alert alert =
+                new Alert(
+                        Alert.AlertType.CONFIRMATION
+                );
+
+
+        alert.setTitle(
+                "Delete Container"
+        );
+
+
+        alert.setHeaderText(
+                "Delete Container?"
+        );
+
+
+        alert.setContentText(
+
+                "Are you sure you want to delete "
+
+                + container.getContainerId()
+
+                + "?"
+        );
+
+
+        ButtonType deleteButton =
+                new ButtonType(
+                        "Delete",
+                        ButtonBar.ButtonData.OK_DONE
+                );
+
+
+        ButtonType cancelButton =
+                new ButtonType(
+                        "Cancel",
+                        ButtonBar.ButtonData.CANCEL_CLOSE
+                );
+
+
+        alert.getButtonTypes().setAll(
+                deleteButton,
+                cancelButton
+        );
+
+
+        alert.showAndWait()
+                .ifPresent(response -> {
+
+
+                    if (response == deleteButton) {
+
+
+                        // =============================================
+                        // DELETE FROM FIREBASE
+                        // =============================================
+
+                        containerController.deleteContainer(
+                                container.getContainerId()
+                        );
+
+
+                        // =============================================
+                        // CREATE NOTIFICATION
+                        // =============================================
+
+                        notificationController.createNotification(
+
+                                "Container deleted",
+
+                                container.getContainerId()
+                                        +
+                                        " was deleted from the system.",
+
+                                "DELETE"
+                        );
+
+
+                        // =============================================
+                        // REMOVE FROM LOCAL LIST
+                        // =============================================
+
+                        containerData.remove(
+                                container
+                        );
+
+
+                        // =============================================
+                        // REFRESH TABLE
+                        // =============================================
+
+                        table.refresh();
+
+
+                        // =============================================
+                        // REFRESH STATISTICS
+                        // =============================================
+
+                        refreshStatistics(
+
+                                containerData,
+
+                                allocatedPart,
+                                availablePart,
+                                transitPart,
+                                pendingPart
+                        );
+
+
+                        // =============================================
+                        // SUCCESS MESSAGE
+                        // =============================================
+
+                        Alert success =
+                                new Alert(
+                                        Alert.AlertType.INFORMATION
+                                );
+
+
+                        success.setTitle(
+                                "Success"
+                        );
+
+
+                        success.setHeaderText(
+                                null
+                        );
+
+
+                        success.setContentText(
+                                "Container deleted successfully."
+                        );
+
+
+                        success.showAndWait();
+                    }
+                });
+    }
+
+
+    // =====================================================
     // CREATE TABLE COLUMN
     // =====================================================
 
-    private TableColumn<String[], String> createColumn(
+    private TableColumn<Container, String> createColumn(
+
             String title,
             double width,
-            int index
+            Function<Container, String> valueGetter
+
     ) {
 
-        TableColumn<String[], String> column =
+        TableColumn<Container, String> column =
                 new TableColumn<>(
                         title
                 );
+
 
         column.setPrefWidth(
                 width
         );
 
+
         column.setCellValueFactory(
                 data ->
                         new SimpleStringProperty(
-                                data.getValue()[index]
+                                valueGetter.apply(
+                                        data.getValue()
+                                )
                         )
         );
 
+
         return column;
     }
+
+
+    // =====================================================
+    // STYLE NORMAL CONTAINER COLUMN
+    // =====================================================
+
+    private void styleContainerColumn(
+            TableColumn<Container, String> column
+    ) {
+
+        column.setCellFactory(
+                col -> new TableCell<Container, String>() {
+
+                    @Override
+                    protected void updateItem(
+                            String item,
+                            boolean empty
+                    ) {
+
+                        super.updateItem(
+                                item,
+                                empty
+                        );
+
+
+                        if (empty || item == null) {
+
+                            setText(null);
+
+                            return;
+                        }
+
+
+                        setText(item);
+
+
+                        setStyle(
+                                "-fx-background-color:white;" +
+                                "-fx-text-fill:#475569;" +
+                                "-fx-font-size:10;" +
+                                "-fx-border-color:transparent transparent #e8edf2 transparent;" +
+                                "-fx-padding:0 8 0 8;"
+                        );
+
+
+                        setAlignment(
+                                Pos.CENTER_LEFT
+                        );
+                    }
+                }
+        );
+    }
+
+
+    // =====================================================
+    // STYLE TABLE HEADER
+    // =====================================================
+
+    private void styleContainerTableHeader(
+            TableView<Container> table
+    ) {
+
+        table.applyCss();
+
+
+        // =================================================
+        // HEADER BACKGROUND
+        // =================================================
+
+        Node headerBackground =
+                table.lookup(
+                        ".column-header-background"
+                );
+
+
+        if (headerBackground != null) {
+
+            headerBackground.setStyle(
+                    "-fx-background-color:#f1f5f9;" +
+                    "-fx-background-radius:0;" +
+                    "-fx-border-color:transparent;"
+            );
+        }
+
+
+        // =================================================
+        // INDIVIDUAL HEADERS
+        // =================================================
+
+        for (
+                Node node :
+                table.lookupAll(".column-header")
+        ) {
+
+            node.setStyle(
+                    "-fx-background-color:#f1f5f9;" +
+                    "-fx-border-color:transparent transparent #e2e8f0 transparent;" +
+                    "-fx-background-radius:0;"
+            );
+        }
+
+
+        // =================================================
+        // HEADER TEXT
+        // =================================================
+
+        for (
+                Node node :
+                table.lookupAll(".column-header .label")
+        ) {
+
+            node.setStyle(
+                    "-fx-text-fill:#334155;" +
+                    "-fx-font-size:10;" +
+                    "-fx-font-weight:bold;" +
+                    "-fx-background-color:transparent;"
+            );
+        }
+
+
+        // =================================================
+        // EMPTY HEADER AREA
+        // =================================================
+
+        Node filler =
+                table.lookup(".filler");
+
+
+        if (filler != null) {
+
+            filler.setStyle(
+                    "-fx-background-color:#f1f5f9;" +
+                    "-fx-border-color:transparent;"
+            );
+        }
+    }
+
 
     // =====================================================
     // UPDATE CONTAINER FILTER
     // =====================================================
 
     private void updateContainerFilter(
-                    FilteredList<String[]> filteredData,
-                    String searchText,
-                    String selectedStatus) {
 
-        String search = searchText
+            FilteredList<Container> filteredData,
+
+            String searchText,
+
+            String selectedStatus
+
+    ) {
+
+        String search =
+                searchText
                         .toLowerCase()
                         .trim();
 
 
-        filteredData.setPredicate(container -> {
-
-                // -----------------------------------------
-                // SEARCH
-                // -----------------------------------------
-
-                boolean matchesSearch = false;
-
-                for (String value : container) {
-
-                    if (value
-                            .toLowerCase()
-                            .contains(search)) {
-
-                            matchesSearch = true;
-                            break;
-                    }
-                }
+        filteredData.setPredicate(
+                container -> {
 
 
-                // -----------------------------------------
-                // STATUS
-                // -----------------------------------------
+                        // =============================================
+                        // SEARCH
+                        // =============================================
 
-                boolean matchesStatus = selectedStatus.equals(
-                                    "All Statuses"
-                                        )
-                                            ||
-                                        container[6].equals(
+                        boolean matchesSearch =
+
+                                safeContains(
+                                        container.getContainerId(),
+                                        search
+                                )
+
+                                ||
+
+                                safeContains(
+                                        container.getType(),
+                                        search
+                                )
+
+                                ||
+
+                                safeContains(
+                                        container.getCargoId(),
+                                        search
+                                )
+
+                                ||
+
+                                safeContains(
+                                        container.getShip(),
+                                        search
+                                )
+
+                                ||
+
+                                safeContains(
+                                        container.getLocation(),
+                                        search
+                                )
+
+                                ||
+
+                                safeContains(
+                                        container.getSize(),
+                                        search
+                                )
+
+                                ||
+
+                                safeContains(
+                                        container.getWeight(),
+                                        search
+                                )
+
+                                ||
+
+                                safeContains(
+                                        container.getStatus(),
+                                        search
+                                );
+
+
+                        // =============================================
+                        // STATUS FILTER
+                        // =============================================
+
+                        boolean matchesStatus =
+
+                                selectedStatus == null
+
+                                ||
+
+                                selectedStatus.equals(
+                                        "All Statuses"
+                                )
+
+                                ||
+
+                                safeEquals(
+                                        container.getStatus(),
                                         selectedStatus
-                                        );
+                                );
 
 
-                    return matchesSearch && matchesStatus;
-        });
+                        // =============================================
+                        // FINAL RESULT
+                        // =============================================
+
+                        return matchesSearch
+                                && matchesStatus;
+                }
+        );
     }
+
+
+    // =====================================================
+    // SAFE STRING CONTAINS
+    // =====================================================
+
+    private boolean safeContains(
+
+            String value,
+            String search
+
+    ) {
+
+        if (value == null) {
+            return false;
+        }
+
+
+        return value
+                .toLowerCase()
+                .contains(search);
+    }
+
+
+    // =====================================================
+    // SAFE STRING EQUALS
+    // =====================================================
+
+    private boolean safeEquals(
+
+            String value,
+            String expected
+
+    ) {
+
+        if (value == null ||
+                expected == null) {
+
+            return false;
+        }
+
+
+        return value.equals(
+                expected
+        );
+    }
+
 
     // =====================================================
     // GET PAGE CONTENT

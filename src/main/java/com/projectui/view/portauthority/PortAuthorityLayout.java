@@ -13,6 +13,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.ScrollPane.ScrollBarPolicy;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -64,6 +65,9 @@ public class PortAuthorityLayout {
                 "-fx-background-color: #f3f8ff;" +
                 "-fx-border-color:transparent;"
         );
+
+        scrollPane.setVbarPolicy(ScrollBarPolicy.NEVER);
+
 
         root.setCenter(
                 scrollPane

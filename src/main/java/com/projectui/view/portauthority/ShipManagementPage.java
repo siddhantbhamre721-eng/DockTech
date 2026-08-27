@@ -2,6 +2,7 @@ package com.projectui.view.portauthority;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
@@ -19,6 +20,8 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
+import javafx.application.Platform;
+
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -28,6 +31,7 @@ import java.util.List;
 
 import com.projectui.controller.portauthority.ShipController;
 import com.projectui.model.portauthority.Ship;
+import com.projectui.controller.portauthority.NotificationController;
 
 public class ShipManagementPage {
 
@@ -37,6 +41,8 @@ public class ShipManagementPage {
     //Ship Controller
 
     private final ShipController shipController = new ShipController();
+
+    private final NotificationController notificationController = new NotificationController();
 
     //State cards value  ----------------
 
@@ -214,10 +220,14 @@ public class ShipManagementPage {
 
         searchField.setStyle(
                 "-fx-background-color:white;" +
-                "-fx-border-color:#e5ebf3;" +
-                "-fx-border-radius:7;" +
                 "-fx-background-radius:7;" +
-                "-fx-font-size:11;"
+                "-fx-border-color:#e2e8f0;" +
+                "-fx-border-radius:7;" +
+                "-fx-border-width:1;" +
+                "-fx-text-fill:#334155;" +
+                "-fx-prompt-text-fill:#94a3b8;" +
+                "-fx-font-size:10;" +
+                "-fx-padding:0 12 0 12;"
         );
 
         // TYPE FILTER
@@ -237,12 +247,17 @@ public class ShipManagementPage {
                 "All Types"
         );
 
-        typeFilter.setPrefHeight(
-                36
-        );
-
         typeFilter.setPrefWidth(
                 165
+        );
+
+        typeFilter.setStyle(
+                "-fx-background-color:white;" +
+                "-fx-background-radius:7;" +
+                "-fx-border-color:#e2e8f0;" +
+                "-fx-border-radius:7;" +
+                "-fx-border-width:1;" +
+                "-fx-font-size:10;"
         );
 
         // STATUS FILTER
@@ -261,13 +276,28 @@ public class ShipManagementPage {
                 "All Status"
         );
 
-        statusFilter.setPrefHeight(
-                36
-        );
-
+        
         statusFilter.setPrefWidth(
                 165
         );
+
+        statusFilter.setStyle(
+                "-fx-background-color:white;" +
+                "-fx-background-radius:7;" +
+                "-fx-border-color:#e2e8f0;" +
+                "-fx-border-radius:7;" +
+                "-fx-border-width:1;" +
+                "-fx-font-size:10;"
+        );
+
+        searchField.setPrefHeight(36);
+        searchField.setMinHeight(36);
+
+        typeFilter.setPrefHeight(36);
+        typeFilter.setMinHeight(36);
+
+        statusFilter.setPrefHeight(36);
+        statusFilter.setMinHeight(36);
 
         
 
@@ -351,13 +381,18 @@ public class ShipManagementPage {
 
         table.setRowFactory(tv -> {
 
-            TableRow<String[]> row = new TableRow<>();
+                TableRow<String[]> row =
+                        new TableRow<>();
 
-            row.setPrefHeight(
-                    34
-            );
+                row.setPrefHeight(
+                        38
+                );
 
-            return row;
+                row.setStyle(
+                        "-fx-background-color:white;"
+                );
+
+                return row;
         });
 
         // =====================================================
@@ -365,10 +400,10 @@ public class ShipManagementPage {
         // =====================================================
 
         table.setStyle(
-            "-fx-background-color:white;" +
-            "-fx-border-color:transparent;" +
-            "-fx-table-cell-border-color: #e5e7eb;" +
-            "-fx-font-size:11;"
+                "-fx-background-color:white;" +
+                "-fx-border-color:transparent;" +
+                "-fx-table-cell-border-color:transparent;" +
+                "-fx-font-size:11;"
         );
 
         // =====================================================
@@ -538,10 +573,54 @@ public class ShipManagementPage {
 
 
                 // =============================================
-                // BUTTON ACTIONS
+                // BUTTON ACTIONS + Styling
                 // =============================================
 
                 {
+
+                        // =============================================
+                        // BUTTON STYLING
+                        // =============================================
+
+                        viewButton.setStyle(
+                                "-fx-background-color:#f1f5f9;" +
+                                "-fx-text-fill:#1e293b;" +
+                                "-fx-font-size:10;" +
+                                "-fx-font-weight:bold;" +
+                                "-fx-background-radius:5;" +
+                                "-fx-border-color:#cbd5e1;" +
+                                "-fx-border-radius:5;" +
+                                "-fx-padding:4 8 4 8;" +
+                                "-fx-cursor:hand;"
+                        );
+
+
+                        editButton.setStyle(
+                                "-fx-background-color:#eff6ff;" +
+                                "-fx-text-fill:#1d4ed8;" +
+                                "-fx-font-size:10;" +
+                                "-fx-font-weight:bold;" +
+                                "-fx-background-radius:5;" +
+                                "-fx-border-color:#bfdbfe;" +
+                                "-fx-border-radius:5;" +
+                                "-fx-padding:4 8 4 8;" +
+                                "-fx-cursor:hand;"
+                        );
+
+
+                        deleteButton.setStyle(
+                                "-fx-background-color:#fff1f2;" +
+                                "-fx-text-fill:#dc2626;" +
+                                "-fx-font-size:10;" +
+                                "-fx-font-weight:bold;" +
+                                "-fx-background-radius:5;" +
+                                "-fx-border-color:#fecdd3;" +
+                                "-fx-border-radius:5;" +
+                                "-fx-padding:4 8 4 8;" +
+                                "-fx-cursor:hand;"
+                        );
+
+
                         // -----------------------------------------
                         // VIEW BUTTON
                         // -----------------------------------------
@@ -620,6 +699,10 @@ public class ShipManagementPage {
                                         editButton,
                                         deleteButton
                                 );
+                        
+                        buttons.setAlignment(
+                                Pos.CENTER
+                        );
 
                         setGraphic(buttons);
                         }
@@ -644,6 +727,221 @@ public class ShipManagementPage {
                 actionColumn
         );
 
+        // =====================================================
+        // STYLE TABLE DATA COLUMNS
+        // =====================================================
+
+        styleTableColumn(idColumn);
+
+        styleTableColumn(nameColumn);
+
+        styleTableColumn(typeColumn);
+
+        styleTableColumn(imoColumn);
+
+        styleTableColumn(companyColumn);
+
+        styleTableColumn(arrivalColumn);
+
+        styleTableColumn(departureColumn);
+
+        styleTableColumn(berthColumn);
+
+        // =====================================================
+        // SHIP NAME STYLE
+        // =====================================================
+
+        nameColumn.setCellFactory(
+                column -> new TableCell<String[], String>() {
+
+                @Override
+                protected void updateItem(
+                        String item,
+                        boolean empty
+                ) {
+
+                        super.updateItem(
+                                item,
+                                empty
+                        );
+
+
+                        if (
+                                empty
+                                ||
+                                item == null
+                        ) {
+
+                        setText(null);
+
+                        return;
+                        }
+
+
+                        setText(
+                                item
+                        );
+
+
+                        setStyle(
+                                "-fx-background-color:white;" +
+                                "-fx-text-fill:#111827;" +
+                                "-fx-font-size:10;" +
+                                "-fx-font-weight:bold;" +
+                                "-fx-border-color:transparent transparent #e8edf2 transparent;" +
+                                "-fx-padding:0 8 0 8;"
+                        );
+
+
+                        setAlignment(
+                                Pos.CENTER_LEFT
+                        );
+                }
+                }
+        );
+
+        // =====================================================
+        // STATUS BADGE
+        // =====================================================
+
+        statusColumn.setCellFactory(
+                column -> new TableCell<String[], String>() {
+
+                private final Label statusLabel =
+                        new Label();
+
+
+                @Override
+                protected void updateItem(
+                        String item,
+                        boolean empty
+                ) {
+
+                        super.updateItem(
+                                item,
+                                empty
+                        );
+
+
+                        if (
+                                empty
+                                ||
+                                item == null
+                        ) {
+
+                        setGraphic(null);
+                        setText(null);
+
+                        return;
+                        }
+
+
+                        statusLabel.setText(
+                                item
+                        );
+
+
+                        // =============================================
+                        // ARRIVING
+                        // =============================================
+
+                        if (
+                                item.equalsIgnoreCase(
+                                        "Arriving"
+                                )
+                        ) {
+
+                        statusLabel.setStyle(
+                                "-fx-background-color:#dbeafe;" +
+                                "-fx-text-fill:#2563eb;" +
+                                "-fx-background-radius:12;" +
+                                "-fx-font-size:9;" +
+                                "-fx-font-weight:bold;" +
+                                "-fx-padding:4 9 4 9;"
+                        );
+                        }
+
+
+                        // =============================================
+                        // DOCKED
+                        // =============================================
+
+                        else if (
+                                item.equalsIgnoreCase(
+                                        "Docked"
+                                )
+                        ) {
+
+                        statusLabel.setStyle(
+                                "-fx-background-color:#dcfce7;" +
+                                "-fx-text-fill:#15803d;" +
+                                "-fx-background-radius:12;" +
+                                "-fx-font-size:9;" +
+                                "-fx-font-weight:bold;" +
+                                "-fx-padding:4 9 4 9;"
+                        );
+                        }
+
+
+                        // =============================================
+                        // DEPARTING
+                        // =============================================
+
+                        else if (
+                                item.equalsIgnoreCase(
+                                        "Departing"
+                                )
+                        ) {
+
+                        statusLabel.setStyle(
+                                "-fx-background-color:#ffedd5;" +
+                                "-fx-text-fill:#ea580c;" +
+                                "-fx-background-radius:12;" +
+                                "-fx-font-size:9;" +
+                                "-fx-font-weight:bold;" +
+                                "-fx-padding:4 9 4 9;"
+                        );
+                        }
+
+
+                        // =============================================
+                        // DEFAULT
+                        // =============================================
+
+                        else {
+
+                        statusLabel.setStyle(
+                                "-fx-background-color:#f1f5f9;" +
+                                "-fx-text-fill:#475569;" +
+                                "-fx-background-radius:12;" +
+                                "-fx-font-size:9;" +
+                                "-fx-font-weight:bold;" +
+                                "-fx-padding:4 9 4 9;"
+                        );
+                        }
+
+
+                        setGraphic(
+                                statusLabel
+                        );
+
+
+                        setText(null);
+
+
+                        setAlignment(
+                                Pos.CENTER
+                        );
+
+
+                        setStyle(
+                                "-fx-background-color:white;" +
+                                "-fx-border-color:transparent transparent #e8edf2 transparent;"
+                        );
+                }
+                }
+        );
+
         idColumn.setMinWidth(100);
         nameColumn.setMinWidth(150);
         typeColumn.setMinWidth(120);
@@ -657,21 +955,96 @@ public class ShipManagementPage {
         // TABLE HEADER STYLE
         // =====================================================
 
-        table.skinProperty().addListener((observable, oldSkin, newSkin) -> {
+        table.skinProperty().addListener(
+                (observable, oldSkin, newSkin) -> {
 
-            if (newSkin != null) {
+                if (newSkin != null) {
 
-                javafx.scene.Node header =
-                        table.lookup(".column-header-background");
+                        Platform.runLater(() -> {
 
-                if (header != null) {
+                        table.applyCss();
 
-                    header.setStyle(
-                            "-fx-background-color:#edf4fa;"
-                    );
+
+                        // =============================================
+                        // HEADER BACKGROUND
+                        // =============================================
+
+                        Node headerBackground =
+                                table.lookup(
+                                        ".column-header-background"
+                                );
+
+
+                        if (headerBackground != null) {
+
+                                headerBackground.setStyle(
+                                        "-fx-background-color:#f1f5f9;" +
+                                        "-fx-background-radius:0;" +
+                                        "-fx-border-color:transparent;"
+                                );
+                        }
+
+
+                        // =============================================
+                        // INDIVIDUAL COLUMN HEADERS
+                        // =============================================
+
+                        for (
+                                Node node :
+                                table.lookupAll(
+                                        ".column-header"
+                                )
+                        ) {
+
+                                node.setStyle(
+                                        "-fx-background-color:#f1f5f9;" +
+                                        "-fx-border-color:transparent transparent #e2e8f0 transparent;" +
+                                        "-fx-background-radius:0;"
+                                );
+                        }
+
+
+                        // =============================================
+                        // HEADER LABELS
+                        // =============================================
+
+                        for (
+                                Node node :
+                                table.lookupAll(
+                                        ".column-header .label"
+                                )
+                        ) {
+
+                                node.setStyle(
+                                        "-fx-text-fill:#334155;" +
+                                        "-fx-font-size:10;" +
+                                        "-fx-font-weight:bold;" +
+                                        "-fx-background-color:transparent;"
+                                );
+                        }
+
+
+                        // =============================================
+                        // EMPTY/FILLER AREA
+                        // =============================================
+
+                        Node filler =
+                                table.lookup(
+                                        ".filler"
+                                );
+
+
+                        if (filler != null) {
+
+                                filler.setStyle(
+                                        "-fx-background-color:#f1f5f9;" +
+                                        "-fx-border-color:transparent;"
+                                );
+                        }
+                        });
                 }
-            }
-        });
+                }
+        );
 
         // =====================================================
         // SHIP DATA FROM FIRESTORE
@@ -1233,6 +1606,19 @@ public class ShipManagementPage {
 
                         shipController.saveShip(ship);
 
+                        // =====================================================
+                        // CREATE NOTIFICATION
+                        // =====================================================
+
+                        notificationController.createNotification(
+
+                                "Ship registered",
+
+                                ship.getShipName() + " has been registered successfully.",
+
+                                "ADD"
+                        );
+
 
                         // =============================================
                         // ADD SHIP TO TABLE
@@ -1558,6 +1944,19 @@ public class ShipManagementPage {
 
                         shipController.updateShip(updatedShip);
 
+                        // =====================================================
+                        // CREATE NOTIFICATION
+                        // =====================================================
+
+                        notificationController.createNotification(
+
+                                "Ship record updated",
+
+                                updatedShip.getShipName() + " was updated successfully.",
+
+                                "EDIT"
+                        );
+
 
                         // =============================================
                         // UPDATE TABLE ROW
@@ -1660,8 +2059,21 @@ public class ShipManagementPage {
                 // DELETE FROM FIRESTORE
                 // =============================================
 
-                shipController.deleteShip(
-                        ship[0]
+                shipController.deleteShip(ship[0]);
+
+                // =============================================
+                // CREATE NOTIFICATION
+                // =============================================
+
+                notificationController.createNotification(
+
+                        "Ship deleted",
+
+                        ship[1]
+                                +
+                                " was deleted from the system.",
+
+                        "DELETE"
                 );
 
                 // =============================================
@@ -1703,6 +2115,63 @@ public class ShipManagementPage {
                 success.showAndWait();
                 }
         });
+        }
+
+        // =====================================================
+        // STYLE NORMAL TABLE COLUMN
+        // =====================================================
+
+        private void styleTableColumn(
+                        TableColumn<String[], String> column
+                ) {
+
+                column.setCellFactory(
+                        col -> new TableCell<String[], String>() {
+
+                                @Override
+                                protected void updateItem(
+                                        String item,
+                                        boolean empty
+                                ) {
+
+                                super.updateItem(
+                                        item,
+                                        empty
+                                );
+
+
+                                if (
+                                        empty
+                                        ||
+                                        item == null
+                                ) {
+
+                                        setText(null);
+
+                                        return;
+                                }
+
+
+                                setText(
+                                        item
+                                );
+
+
+                                setStyle(
+                                        "-fx-background-color:white;" +
+                                        "-fx-text-fill:#334155;" +
+                                        "-fx-font-size:10;" +
+                                        "-fx-border-color:transparent transparent #e8edf2 transparent;" +
+                                        "-fx-padding:0 8 0 8;"
+                                );
+
+
+                                setAlignment(
+                                        Pos.CENTER_LEFT
+                                );
+                                }
+                        }
+                );
         }
 
     // =====================================================
