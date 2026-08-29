@@ -1,7 +1,7 @@
 package com.projectui.dao;
 
-import com.google.cloud.firestore.Firestore;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -10,6 +10,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.google.cloud.firestore.Firestore;
+
 @SuppressWarnings({"null", "unchecked"})
 public class CargoDao extends Dao {
 
@@ -17,24 +19,56 @@ public class CargoDao extends Dao {
     private static int cargoCounter = 1027;
 
     static {
-        // Initial Seed Records for display consistency
-        seedCargo("CGO-1024", "Electronics", "General Cargo", "500 units", "1,200 kg", "Port of Mumbai", "Port of Singapore", "Registered");
-        seedCargo("CGO-1025", "Machinery", "Machinery", "120 units", "3,400 kg", "Port of Mumbai", "Port of Dubai", "In Transit");
-        seedCargo("CGO-1026", "Textiles", "Textiles", "800 units", "850 kg", "Port of Chennai", "Port of London", "Pending");
+        syncFromFirestore();
     }
 
-    private static void seedCargo(String id, String name, String type, String qty, String weight, String origin, String dest, String status) {
-        Map<String, Object> data = new HashMap<>();
-        data.put("cargoId", id);
-        data.put("cargoName", name);
-        data.put("cargoType", type);
-        data.put("quantity", qty);
-        data.put("weight", weight);
-        data.put("originPort", origin);
-        data.put("destinationPort", dest);
-        data.put("status", status);
-        data.put("createdAt", LocalDateTime.now().toString());
-        localCargoStore.put(id, data);
+    private static final List<Runnable> changeListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    public static void addChangeListener(Runnable r) {
+        if (r != null && !changeListeners.contains(r)) {
+            changeListeners.add(r);
+        }
+    }
+
+    public static void notifyListeners() {
+        for (Runnable r : changeListeners) {
+            try {
+                javafx.application.Platform.runLater(r);
+            } catch (Exception ex) {
+                try { r.run(); } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    public static void syncFromFirestore() {
+        java.util.concurrent.ForkJoinPool.commonPool().execute(() -> {
+            try {
+                Firestore db = com.projectui.config.FirebaseConfig.getFirestore();
+                if (db != null) {
+                    com.google.cloud.firestore.QuerySnapshot snap = db.collection("cargos").get().get();
+                    if (snap != null && !snap.isEmpty()) {
+                        for (com.google.cloud.firestore.DocumentSnapshot doc : snap.getDocuments()) {
+                            if (doc.exists() && doc.getData() != null) {
+                                localCargoStore.put(doc.getId(), new HashMap<>(doc.getData()));
+                            }
+                        }
+                        notifyListeners();
+                    }
+
+                    // Also attach snapshot listener for real-time live synchronization
+                    db.collection("cargos").addSnapshotListener((snapshot, err) -> {
+                        if (snapshot != null && !snapshot.isEmpty()) {
+                            for (com.google.cloud.firestore.DocumentSnapshot doc : snapshot.getDocuments()) {
+                                if (doc.exists() && doc.getData() != null) {
+                                    localCargoStore.put(doc.getId(), new HashMap<>(doc.getData()));
+                                }
+                            }
+                            notifyListeners();
+                        }
+                    });
+                }
+            } catch (Exception ignored) {}
+        });
     }
 
     public synchronized String generateCargoId() {
@@ -50,35 +84,38 @@ public class CargoDao extends Dao {
                 cargoId = generateCargoId();
             }
 
-            Map<String, Object> cargoData = new HashMap<>();
+            Map<String, Object> cargoData = localCargoStore.getOrDefault(cargoId, new HashMap<>());
             cargoData.put("cargoId", cargoId);
-            cargoData.put("cargoName", cargoName != null ? cargoName.trim() : "Cargo");
-            cargoData.put("cargoType", cargoType != null ? cargoType.trim() : "General Cargo");
-            cargoData.put("quantity", quantity != null ? quantity.trim() : "1");
-            cargoData.put("weight", weight != null ? weight.trim() : "0 kg");
-            cargoData.put("originPort", originPort != null ? originPort.trim() : "Port of Mumbai");
-            cargoData.put("destinationPort", destinationPort != null ? destinationPort.trim() : "Port of Singapore");
-            cargoData.put("status", status != null && !status.isBlank() ? status : "Registered");
-            cargoData.put("createdAt", LocalDateTime.now().toString());
+            if (cargoName != null) cargoData.put("cargoName", cargoName.trim());
+            if (cargoType != null) cargoData.put("cargoType", cargoType.trim());
+            if (quantity != null) cargoData.put("quantity", quantity.trim());
+            if (weight != null) cargoData.put("weight", weight.trim());
+            if (originPort != null) cargoData.put("originPort", originPort.trim());
+            if (destinationPort != null) cargoData.put("destinationPort", destinationPort.trim());
+            if (status != null && !status.isBlank()) {
+                cargoData.put("status", status);
+                cargoData.put("customsStatus", status);
+            }
+            cargoData.put("updatedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")));
+            if (!cargoData.containsKey("createdAt")) {
+                cargoData.put("createdAt", LocalDateTime.now().toString());
+            }
 
-            // Save to local thread-safe store
             localCargoStore.put(cargoId, cargoData);
-            System.out.println("[CARGO DAO] Saved cargo to local store: " + cargoId);
+            notifyListeners();
 
             // Attempt Firestore save if connected
             try {
                 Firestore db = db();
                 if (db != null) {
                     com.google.api.core.ApiFuture<com.google.cloud.firestore.WriteResult> apiFuture = 
-                            db.collection("cargos").document(cargoId).set(cargoData);
+                            db.collection("cargos").document(cargoId).set(cargoData, com.google.cloud.firestore.SetOptions.merge());
                     
                     apiFuture.addListener(() -> {
                         try {
                             apiFuture.get();
-                            System.out.println("[CARGO DAO] Saved cargo to Firestore: " + cargoData.get("cargoId"));
                             future.complete(cargoData);
                         } catch (Exception ex) {
-                            System.err.println("[CARGO DAO] Firestore async write warning: " + ex.getMessage());
                             future.complete(cargoData);
                         }
                     }, Runnable::run);
@@ -86,20 +123,200 @@ public class CargoDao extends Dao {
                     future.complete(cargoData);
                 }
             } catch (Exception ex) {
-                System.err.println("[CARGO DAO] Firestore save warning: " + ex.getMessage());
                 future.complete(cargoData);
             }
         } catch (Exception ex) {
-            System.err.println("[CARGO DAO] Cargo save failed: " + ex.getMessage());
             future.completeExceptionally(ex);
         }
         return future;
     }
 
+    public Map<String, Object> getCargo(String cargoId) {
+        if (cargoId == null) return null;
+        return localCargoStore.get(cargoId);
+    }
+
     public List<Map<String, Object>> getAllCargos() {
         List<Map<String, Object>> list = new ArrayList<>(localCargoStore.values());
-        // Sort newest first
         Collections.reverse(list);
         return list;
+    }
+
+    public List<Map<String, Object>> getCargosByPort(String portName) {
+        List<Map<String, Object>> res = new ArrayList<>();
+        if (portName == null || portName.isBlank() || "all ports".equalsIgnoreCase(portName.trim())) {
+            return getAllCargos();
+        }
+        String norm = UserDao.normalizePort(portName).toLowerCase();
+
+        for (Map<String, Object> c : localCargoStore.values()) {
+            if (c == null) continue;
+            String origin = c.get("originPort") != null ? c.get("originPort").toString() : (c.get("origin") != null ? c.get("origin").toString() : "");
+            String dest = c.get("destinationPort") != null ? c.get("destinationPort").toString() : (c.get("destination") != null ? c.get("destination").toString() : "");
+            String assigned = c.get("assignedPort") != null ? c.get("assignedPort").toString() : (c.get("port") != null ? c.get("port").toString() : "");
+
+            String oNorm = UserDao.normalizePort(origin).toLowerCase();
+            String dNorm = UserDao.normalizePort(dest).toLowerCase();
+            String aNorm = UserDao.normalizePort(assigned).toLowerCase();
+
+            if (oNorm.contains(norm) || dNorm.contains(norm) || aNorm.contains(norm) || norm.contains("mumbai") || (origin.isBlank() && dest.isBlank())) {
+                res.add(c);
+            }
+        }
+        Collections.reverse(res);
+        return res;
+    }
+
+    public boolean updateDocumentStatus(String cargoId, String docId, String newStatus, String officer, String notes) {
+        if (cargoId == null || docId == null) return false;
+        Map<String, Object> cargo = localCargoStore.get(cargoId);
+        if (cargo == null) return false;
+
+        String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm"));
+        List<Map<String, Object>> docs = (List<Map<String, Object>>) cargo.get("documents");
+        boolean updated = false;
+
+        if (docs != null) {
+            for (Map<String, Object> d : docs) {
+                if (docId.equalsIgnoreCase(String.valueOf(d.get("docId")))) {
+                    d.put("status", newStatus);
+                    d.put("verifiedBy", officer != null ? officer : "Customs Officer");
+                    d.put("verifiedAt", nowStr);
+                    if (notes != null) d.put("notes", notes);
+                    updated = true;
+                    break;
+                }
+            }
+        }
+
+        // Check if all docs are verified
+        boolean allVerified = true;
+        boolean anyRejected = false;
+        boolean anyPending = false;
+        if (docs != null && !docs.isEmpty()) {
+            for (Map<String, Object> d : docs) {
+                String st = String.valueOf(d.get("status"));
+                if ("Rejected".equalsIgnoreCase(st)) anyRejected = true;
+                else if (!"Verified".equalsIgnoreCase(st) && !"Approved".equalsIgnoreCase(st)) allVerified = false;
+                if ("Pending".equalsIgnoreCase(st)) anyPending = true;
+            }
+        }
+
+        if (anyRejected) {
+            cargo.put("docStatus", "Rejected");
+            cargo.put("verificationStatus", "Rejected");
+        } else if (allVerified && docs != null && !docs.isEmpty()) {
+            cargo.put("docStatus", "Verified");
+            cargo.put("verificationStatus", "Verified");
+        } else if (anyPending) {
+            cargo.put("docStatus", "Pending Review");
+            cargo.put("verificationStatus", "Pending");
+        }
+
+        cargo.put("updatedAt", nowStr);
+
+        // Firestore sync
+        try {
+            Firestore db = db();
+            if (db != null) {
+                db.collection("cargos").document(cargoId).set(cargo, com.google.cloud.firestore.SetOptions.merge());
+            }
+        } catch (Exception ignored) {}
+
+        return updated;
+    }
+
+    public boolean updateInspectionStatus(String cargoId, String newInspectionStatus, String officer, String notes, String reason) {
+        if (cargoId == null) return false;
+        Map<String, Object> cargo = localCargoStore.get(cargoId);
+        if (cargo == null) return false;
+
+        String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm"));
+        cargo.put("inspectionStatus", newInspectionStatus);
+        cargo.put("inspectedBy", officer != null ? officer : "Customs Officer");
+        cargo.put("inspectionDate", nowStr);
+        cargo.put("updatedAt", nowStr);
+        if (notes != null) cargo.put("inspectionNotes", notes);
+        if (reason != null) cargo.put("inspectionReason", reason);
+
+        // If Passed, make eligible for clearance
+        if ("Passed".equalsIgnoreCase(newInspectionStatus) || "Cleared".equalsIgnoreCase(newInspectionStatus)) {
+            if ("Verified".equalsIgnoreCase(String.valueOf(cargo.get("verificationStatus")))) {
+                cargo.put("customsStatus", "Cleared");
+                cargo.put("status", "Cleared");
+            }
+        } else if ("Failed".equalsIgnoreCase(newInspectionStatus) || "Rejected".equalsIgnoreCase(newInspectionStatus)) {
+            cargo.put("customsStatus", "Rejected");
+            cargo.put("status", "Rejected");
+        } else if ("Hold".equalsIgnoreCase(newInspectionStatus) || "Quarantined".equalsIgnoreCase(newInspectionStatus)) {
+            cargo.put("customsStatus", "Held");
+            cargo.put("status", "Held");
+        }
+
+        // Firestore sync
+        try {
+            Firestore db = db();
+            if (db != null) {
+                db.collection("cargos").document(cargoId).set(cargo, com.google.cloud.firestore.SetOptions.merge());
+            }
+        } catch (Exception ignored) {}
+
+        return true;
+    }
+
+    public boolean updateCustomsClearance(String cargoId, String newCustomsStatus, String officer, String reason) {
+        if (cargoId == null) return false;
+        Map<String, Object> cargo = localCargoStore.get(cargoId);
+        if (cargo == null) return false;
+
+        String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm"));
+        cargo.put("customsStatus", newCustomsStatus);
+        cargo.put("status", newCustomsStatus);
+        cargo.put("clearedBy", officer != null ? officer : "Customs Officer");
+        cargo.put("clearedAt", nowStr);
+        cargo.put("updatedAt", nowStr);
+        if (reason != null) cargo.put("clearanceNotes", reason);
+
+        if ("Cleared".equalsIgnoreCase(newCustomsStatus) || "Approved".equalsIgnoreCase(newCustomsStatus)) {
+            cargo.put("verificationStatus", "Verified");
+            cargo.put("inspectionStatus", "Passed");
+        } else if ("Rejected".equalsIgnoreCase(newCustomsStatus)) {
+            cargo.put("rejectionReason", reason != null ? reason : "Customs regulatory non-compliance");
+        } else if ("Held".equalsIgnoreCase(newCustomsStatus)) {
+            cargo.put("holdReason", reason != null ? reason : "Quarantined / regulatory documentation hold");
+        }
+
+        // Firestore sync
+        try {
+            Firestore db = db();
+            if (db != null) {
+                db.collection("cargos").document(cargoId).set(cargo, com.google.cloud.firestore.SetOptions.merge());
+            }
+        } catch (Exception ignored) {}
+
+        return true;
+    }
+
+    public boolean updateCargoStatus(String cargoId, String newStatus) {
+        if (cargoId == null) return false;
+        Map<String, Object> cargo = localCargoStore.get(cargoId);
+        if (cargo == null) {
+            cargo = new HashMap<>();
+            cargo.put("cargoId", cargoId);
+            localCargoStore.put(cargoId, cargo);
+        }
+        String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm"));
+        cargo.put("status", newStatus);
+        cargo.put("updatedAt", nowStr);
+        notifyListeners();
+
+        try {
+            Firestore db = db();
+            if (db != null) {
+                db.collection("cargos").document(cargoId).set(cargo, com.google.cloud.firestore.SetOptions.merge());
+            }
+        } catch (Exception ignored) {}
+
+        return true;
     }
 }

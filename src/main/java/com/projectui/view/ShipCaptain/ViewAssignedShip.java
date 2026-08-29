@@ -64,13 +64,25 @@ public class ViewAssignedShip {
         );
         overlay.setPrefHeight(230);
 
+        com.projectui.model.Ship assignedShip = com.projectui.dao.UserDao.getAssignedShipForCaptain(com.projectui.view.login.LoginPage.loggedInUser);
+        String sName = assignedShip != null ? assignedShip.getShipName() : "No Vessel Assigned";
+        String sType = assignedShip != null && assignedShip.getShipType() != null ? assignedShip.getShipType() : "Container Vessel";
+        String sStatus = assignedShip != null && assignedShip.getStatus() != null ? assignedShip.getStatus() : "At Berth";
+        String sBerth = assignedShip != null && assignedShip.getBerth() != null ? assignedShip.getBerth() : "B04";
+        String sImo = assignedShip != null && assignedShip.getImoNumber() != null ? assignedShip.getImoNumber() : "IMO 923456";
+        String sCompany = assignedShip != null && assignedShip.getCompany() != null ? assignedShip.getCompany() : "Ocean Shipping Ltd.";
+        String cName = com.projectui.view.login.LoginPage.loggedInUser != null && com.projectui.view.login.LoginPage.loggedInUser.get("name") != null
+                ? com.projectui.view.login.LoginPage.loggedInUser.get("name").toString() : "Ship Captain";
+        String cPort = com.projectui.view.login.LoginPage.loggedInUser != null && com.projectui.view.login.LoginPage.loggedInUser.get("assignedPort") != null
+                ? com.projectui.view.login.LoginPage.loggedInUser.get("assignedPort").toString() : "Mumbai";
+
         VBox shipName = new VBox(2);
 
-        Label name = new Label("⚓  Oceanic Star");
+        Label name = new Label("⚓  " + sName);
         name.setTextFill(Color.WHITE);
         name.setFont(Font.font("Arial",FontWeight.BOLD,25));
 
-        Label type = new Label("Container Vessel");
+        Label type = new Label(sType);
         type.setTextFill(Color.LIGHTGRAY);
 
         shipName.getChildren().addAll(name,type);
@@ -78,7 +90,7 @@ public class ViewAssignedShip {
         StackPane.setAlignment(shipName,Pos.BOTTOM_LEFT);
         StackPane.setMargin(shipName,new Insets(0,0,25,30));
 
-        Label status = new Label("●  At Berth");
+        Label status = new Label("●  " + sStatus);
         status.setStyle(
             "-fx-background-color:#36c878;" +
             "-fx-text-fill:white;" +
@@ -113,13 +125,13 @@ public class ViewAssignedShip {
         VBox left = new VBox();
 
         left.getChildren().addAll(
-            row("⚓","Ship Name","Oceanic Star"),
+            row("⚓","Ship Name", sName),
             line(),
-            row("◉","Ship Type","Container Vessel"),
+            row("◉","Ship Type", sType),
             line(),
-            row("♙","Captain","John Smith"),
+            row("♙","Captain", cName),
             line(),
-            row("⚓","Current Berth","B04"),
+            row("⚓","Current Berth", sBerth),
             line(),
             row("◷","Expected Departure","06:30 PM")
         );
@@ -127,11 +139,11 @@ public class ViewAssignedShip {
         VBox right = new VBox();
 
         right.getChildren().addAll(
-            row("#","IMO Number","1234567"),
+            row("#","IMO Number", sImo),
             line(),
-            row("▣","Shipping Company","Ocean Shipping Ltd."),
+            row("▣","Shipping Company", sCompany),
             line(),
-            row("⌖","Current Port","Mumbai"),
+            row("⌖","Current Port", cPort),
             line(),
             row("◴","Arrival","10:20 AM"),
             line(),

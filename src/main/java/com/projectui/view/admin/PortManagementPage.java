@@ -1,6 +1,7 @@
 package com.projectui.view.admin;
 
 import java.util.List;
+import java.util.ArrayList;
 
 import com.projectui.view.admin.AdminDataStore.Port;
 
@@ -886,10 +887,13 @@ public class PortManagementPage extends AdminTheme {
             refreshBtn.setText("⏳ Refreshing...");
             refreshBtn.setDisable(true);
 
-            renderPortRequests(requestsContainer);
-
-            refreshBtn.setText("↻ Refresh");
-            refreshBtn.setDisable(false);
+            this.portRequestDao.syncWithDatabase().whenComplete((list, err) -> {
+                javafx.application.Platform.runLater(() -> {
+                    renderPortRequests(requestsContainer);
+                    refreshBtn.setText("↻ Refresh");
+                    refreshBtn.setDisable(false);
+                });
+            });
         });
 
         card.getChildren().addAll(headerRow, requestsContainer);
@@ -899,8 +903,10 @@ public class PortManagementPage extends AdminTheme {
     private void renderPortRequests(VBox container) {
         container.getChildren().clear();
 
+        List<AdminDataStore.PortRequest> allRequests = store.portRequests;
+
         // Filter ONLY PENDING requests for the Pending Admin Verification section
-        List<AdminDataStore.PortRequest> pendingList = store.portRequests.stream()
+        List<AdminDataStore.PortRequest> pendingList = allRequests.stream()
                 .filter(r -> r.status != null && "PENDING".equalsIgnoreCase(r.status.trim()))
                 .filter(r -> !"APPROVED".equalsIgnoreCase(r.status) && !"REJECTED".equalsIgnoreCase(r.status)
                         && !"COMPLETED".equalsIgnoreCase(r.status) && !"CANCELLED".equalsIgnoreCase(r.status))
@@ -1007,8 +1013,8 @@ public class PortManagementPage extends AdminTheme {
                         userDao.provisionAccount("Admin", req.proposedPaName, req.proposedPaEmail, req.portName,
                                 req.requesterPhone, "Port Authority", "Active")
                                 .whenComplete((creds, err) -> javafx.application.Platform.runLater(() -> {
-                                    String accId = (creds != null && creds.get("id") != null) ? creds.get("id")
-                                            : "PA-001";
+                                    String accId = (creds != null && creds.get("id") != null && !creds.get("id").isBlank()) ? creds.get("id")
+                                            : req.proposedPaEmail;
                                     String tempPass = (creds != null && creds.get("tempPassword") != null)
                                             ? creds.get("tempPassword")
                                             : "Pass#9821";
@@ -1028,7 +1034,8 @@ public class PortManagementPage extends AdminTheme {
 
                                     formSubtitle.setText("✓ Port Approved & Created! Credentials created for: "
                                             + req.proposedPaEmail + " (ID: " + accId + ")");
-                                    store.users.add(0, new AdminDataStore.UserAccount(req.proposedPaName,
+                                    String paUid = (creds != null && creds.get("uid") != null) ? creds.get("uid") : ("usr_" + Math.abs(req.proposedPaEmail.toLowerCase().hashCode()));
+                                    store.users.add(0, new AdminDataStore.UserAccount(paUid, req.proposedPaName,
                                             req.proposedPaEmail, "Port Authority", "Active", "Today", "Just now"));
 
                                     showPortAuthorityAccountCreatedPopup(req.portName, req.proposedPaName,
@@ -1038,11 +1045,337 @@ public class PortManagementPage extends AdminTheme {
                 });
             });
 
+            String aadhaarDocUrl = getDocumentUrl(req, true);
+            String supportingDocUrl = getDocumentUrl(req, false);
+
+            VBox docInfo = new VBox(6);
+            Button viewAadhaarBtn = new Button("📄 View Aadhaar Card");
+            viewAadhaarBtn.setStyle("-fx-background-color:#0b63ff; -fx-text-fill:white; -fx-font-size:11; -fx-font-weight:bold; -fx-padding:5 10; -fx-background-radius:6; -fx-cursor:hand;");
+            viewAadhaarBtn.setOnAction(e -> showDocumentViewerModal("Aadhaar Card Verification", req.aadhaarFileName, aadhaarDocUrl));
+
+            Button dlAadhaarBtn = new Button("⬇️ Download");
+            dlAadhaarBtn.setStyle("-fx-background-color:#334155; -fx-text-fill:white; -fx-font-size:11; -fx-font-weight:bold; -fx-padding:5 8; -fx-background-radius:6; -fx-cursor:hand;");
+            dlAadhaarBtn.setOnAction(e -> downloadDocument(req.aadhaarFileName, aadhaarDocUrl, container.getScene().getWindow()));
+
+            HBox aadhaarRow = new HBox(6, viewAadhaarBtn, dlAadhaarBtn);
+
+            Button viewSupportingBtn = new Button("📋 View Port Establishment Proposal");
+            viewSupportingBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:11; -fx-font-weight:bold; -fx-padding:5 10; -fx-background-radius:6; -fx-cursor:hand;");
+            viewSupportingBtn.setOnAction(e -> showDocumentViewerModal("Port Establishment Proposal", req.supportingFileName, supportingDocUrl));
+
+            Button dlSupportingBtn = new Button("⬇️ Download");
+            dlSupportingBtn.setStyle("-fx-background-color:#334155; -fx-text-fill:white; -fx-font-size:11; -fx-font-weight:bold; -fx-padding:5 8; -fx-background-radius:6; -fx-cursor:hand;");
+            dlSupportingBtn.setOnAction(e -> downloadDocument(req.supportingFileName, supportingDocUrl, container.getScene().getWindow()));
+
+            HBox proposalRow = new HBox(6, viewSupportingBtn, dlSupportingBtn);
+
+            docInfo.getChildren().addAll(aadhaarRow, proposalRow);
+
             rejectBtn.setOnAction(e -> showRejectionDialog(req, container));
 
-            actions.getChildren().addAll(approveBtn, rejectBtn);
+            actions.getChildren().addAll(docInfo, approveBtn, rejectBtn);
             row.getChildren().addAll(info, paInfo, statusBadge, space, actions);
             container.getChildren().add(row);
+        }
+    }
+
+    public static String getDocumentUrl(AdminDataStore.PortRequest req, boolean isAadhaar) {
+        if (req == null) return "";
+        if (isAadhaar) {
+            if (req.aadhaarUrl != null && !req.aadhaarUrl.isBlank()) return req.aadhaarUrl.trim();
+            if (req.aadhaarFileName != null && req.aadhaarFileName.startsWith("http")) return req.aadhaarFileName.trim();
+        } else {
+            if (req.supportingUrl != null && !req.supportingUrl.isBlank()) return req.supportingUrl.trim();
+            if (req.supportingFileName != null && req.supportingFileName.startsWith("http")) return req.supportingFileName.trim();
+        }
+        return "";
+    }
+
+    private static byte[] fetchDocumentBytes(String urlString) {
+        if (urlString == null || urlString.isBlank()) return null;
+        String trimmed = urlString.trim();
+
+        // 1. Local file URI or file path
+        if (trimmed.startsWith("file:") || new java.io.File(trimmed).exists()) {
+            try {
+                java.io.File localFile = trimmed.startsWith("file:") ? new java.io.File(new java.net.URI(trimmed)) : new java.io.File(trimmed);
+                if (localFile.exists()) {
+                    return java.nio.file.Files.readAllBytes(localFile.toPath());
+                }
+            } catch (Exception ex) {
+                System.err.println("[LOCAL FILE FETCH NOTICE] " + ex.getMessage());
+            }
+        }
+
+        // 2. Remote HTTP/HTTPS Cloudinary URL
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                    .followRedirects(java.net.http.HttpClient.Redirect.ALWAYS)
+                    .connectTimeout(java.time.Duration.ofSeconds(15))
+                    .build();
+
+            // Correct legacy cloud name "docktech" to active "snmxmesm"
+            String fixedUrl = trimmed.replace("res.cloudinary.com/docktech/", "res.cloudinary.com/snmxmesm/");
+
+            // Generate candidate URLs to try fetching
+            List<String> candidates = new ArrayList<>();
+            candidates.add(fixedUrl);
+
+            // Cloudinary resource_type variants (/image/upload/ vs /raw/upload/)
+            if (fixedUrl.contains("/image/upload/")) {
+                candidates.add(fixedUrl.replace("/image/upload/", "/raw/upload/"));
+            } else if (fixedUrl.contains("/raw/upload/")) {
+                candidates.add(fixedUrl.replace("/raw/upload/", "/image/upload/"));
+            }
+
+            // Version-stripped variants (/v1724800000/ or /v123456/ -> /)
+            String noVersionUrl = fixedUrl.replaceAll("/v[0-9]+/", "/");
+            if (!candidates.contains(noVersionUrl)) {
+                candidates.add(noVersionUrl);
+                if (noVersionUrl.contains("/image/upload/")) {
+                    candidates.add(noVersionUrl.replace("/image/upload/", "/raw/upload/"));
+                } else if (noVersionUrl.contains("/raw/upload/")) {
+                    candidates.add(noVersionUrl.replace("/raw/upload/", "/image/upload/"));
+                }
+            }
+
+            // Add .pdf extension variants if missing
+            List<String> extCandidates = new ArrayList<>();
+            for (String c : candidates) {
+                if (!c.toLowerCase().endsWith(".pdf") && !c.toLowerCase().endsWith(".png") && !c.toLowerCase().endsWith(".jpg") && !c.toLowerCase().endsWith(".jpeg")) {
+                    extCandidates.add(c + ".pdf");
+                }
+            }
+            candidates.addAll(extCandidates);
+
+            for (String candidate : candidates) {
+                try {
+                    java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+                            .uri(java.net.URI.create(candidate))
+                            .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                            .header("Accept", "application/pdf,application/octet-stream,image/*,*/*")
+                            .timeout(java.time.Duration.ofSeconds(15))
+                            .GET()
+                            .build();
+
+                    java.net.http.HttpResponse<byte[]> resp = client.send(req, java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+                    if (resp.statusCode() == 200 && resp.body() != null && resp.body().length > 0) {
+                        System.out.println("[DOCUMENT FETCH SUCCESS] Retrieved " + resp.body().length + " bytes from: " + candidate);
+                        return resp.body();
+                    }
+                } catch (Exception ex) {
+                    System.err.println("[DOCUMENT FETCH CANDIDATE FAILED] " + candidate + " -> " + ex.getMessage());
+                }
+            }
+        }
+        return null;
+    }
+
+    private void showDocumentViewerModal(String docTitle, String fileName, String url) {
+        if (url == null || url.isBlank()) {
+            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR, "No document URL available for " + docTitle + ".");
+            alert.showAndWait();
+            return;
+        }
+
+        Stage dialog = new Stage();
+        dialog.initModality(Modality.APPLICATION_MODAL);
+        dialog.setTitle(docTitle + " - " + (fileName != null ? fileName : "document"));
+
+        VBox rootNode = new VBox(14);
+        rootNode.setPadding(new Insets(20));
+        rootNode.setStyle("-fx-background-color:#0f172a;");
+
+        String headerIcon = docTitle.toLowerCase().contains("aadhaar") ? "📄 " : "📋 ";
+        Label titleLabel = new Label(headerIcon + docTitle);
+        titleLabel.setStyle("-fx-text-fill:#38bdf8; -fx-font-size:18px; -fx-font-weight:bold;");
+
+        Label fileLabel = new Label("File Name: " + (fileName != null ? fileName : "document"));
+        fileLabel.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:12px; -fx-wrap-text:true;");
+
+        Region topSpace = new Region();
+        HBox.setHgrow(topSpace, Priority.ALWAYS);
+
+        Button closeHeaderBtn = new Button("✕");
+        closeHeaderBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#94a3b8; -fx-font-size:16px; -fx-font-weight:bold; -fx-cursor:hand;");
+        closeHeaderBtn.setOnAction(e -> dialog.close());
+
+        HBox headerRow = new HBox(10, new VBox(4, titleLabel, fileLabel), topSpace, closeHeaderBtn);
+        headerRow.setAlignment(Pos.CENTER_LEFT);
+
+        StackPane viewerContainer = new StackPane();
+        viewerContainer.setPrefSize(700, 460);
+        viewerContainer.setStyle("-fx-background-color:#1e293b; -fx-border-color:#334155; -fx-border-radius:8; -fx-background-radius:8;");
+
+        VBox loadingBox = new VBox(12);
+        loadingBox.setAlignment(Pos.CENTER);
+        javafx.scene.control.ProgressIndicator progress = new javafx.scene.control.ProgressIndicator();
+        progress.setMaxSize(40, 40);
+        Label loadingLbl = new Label("Loading document preview...");
+        loadingLbl.setStyle("-fx-text-fill:#38bdf8; -fx-font-size:14px; -fx-font-weight:bold;");
+        loadingBox.getChildren().addAll(progress, loadingLbl);
+        viewerContainer.getChildren().add(loadingBox);
+
+        new Thread(() -> {
+            byte[] bytes = fetchDocumentBytes(url);
+
+            if (bytes == null || bytes.length == 0) {
+                javafx.application.Platform.runLater(() -> {
+                    viewerContainer.getChildren().clear();
+                    VBox errBox = new VBox(14);
+                    errBox.setAlignment(Pos.CENTER);
+                    Label errIcon = new Label("⚠️");
+                    errIcon.setStyle("-fx-font-size:44px;");
+                    Label errLbl = new Label("Unable to load document.");
+                    errLbl.setStyle("-fx-text-fill:#ef4444; -fx-font-size:14px; -fx-font-weight:bold;");
+
+                    Button retryBtn = new Button("🔄 Retry");
+                    retryBtn.setStyle("-fx-background-color:#0b63ff; -fx-text-fill:white; -fx-font-size:12px; -fx-font-weight:bold; -fx-padding:8 16; -fx-background-radius:6; -fx-cursor:hand;");
+                    retryBtn.setOnAction(ev -> {
+                        dialog.close();
+                        showDocumentViewerModal(docTitle, fileName, url);
+                    });
+
+                    errBox.getChildren().addAll(errIcon, errLbl, retryBtn);
+                    viewerContainer.getChildren().add(errBox);
+                });
+                return;
+            }
+
+            // 1. Try rendering as PDF document using Apache PDFBox
+            try {
+                org.apache.pdfbox.pdmodel.PDDocument pdfDoc = org.apache.pdfbox.pdmodel.PDDocument.load(bytes);
+                org.apache.pdfbox.rendering.PDFRenderer pdfRenderer = new org.apache.pdfbox.rendering.PDFRenderer(pdfDoc);
+
+                VBox pdfPagesBox = new VBox(14);
+                pdfPagesBox.setAlignment(Pos.CENTER);
+                pdfPagesBox.setPadding(new Insets(14));
+                pdfPagesBox.setStyle("-fx-background-color:#0f172a;");
+
+                int pageCount = pdfDoc.getNumberOfPages();
+                for (int i = 0; i < pageCount; i++) {
+                    java.awt.image.BufferedImage bImg = pdfRenderer.renderImageWithDPI(i, 130);
+                    java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                    javax.imageio.ImageIO.write(bImg, "png", baos);
+                    javafx.scene.image.Image fxImg = new javafx.scene.image.Image(new java.io.ByteArrayInputStream(baos.toByteArray()));
+                    javafx.scene.image.ImageView pageView = new javafx.scene.image.ImageView(fxImg);
+                    pageView.setFitWidth(650);
+                    pageView.setPreserveRatio(true);
+
+                    VBox pageCard = new VBox(pageView);
+                    pageCard.setStyle("-fx-effect:dropshadow(three-pass-box, rgba(0,0,0,0.5), 10, 0, 0, 4);");
+                    pdfPagesBox.getChildren().add(pageCard);
+                }
+                pdfDoc.close();
+
+                javafx.scene.control.ScrollPane scrollPane = new javafx.scene.control.ScrollPane(pdfPagesBox);
+                scrollPane.setFitToWidth(true);
+                scrollPane.setStyle("-fx-background:#0f172a; -fx-background-color:#0f172a; -fx-viewport-border:transparent;");
+                com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scrollPane);
+
+                javafx.application.Platform.runLater(() -> {
+                    viewerContainer.getChildren().clear();
+                    viewerContainer.getChildren().add(scrollPane);
+                });
+                return;
+            } catch (Exception pdfEx) {
+                // Not a PDF, try rendering as direct image
+                try {
+                    javafx.scene.image.Image img = new javafx.scene.image.Image(new java.io.ByteArrayInputStream(bytes));
+                    if (!img.isError() && img.getWidth() > 0) {
+                        javafx.scene.image.ImageView imgView = new javafx.scene.image.ImageView(img);
+                        imgView.setFitWidth(660);
+                        imgView.setPreserveRatio(true);
+
+                        VBox imgBox = new VBox(imgView);
+                        imgBox.setAlignment(Pos.CENTER);
+                        imgBox.setPadding(new Insets(14));
+                        imgBox.setStyle("-fx-background-color:#0f172a;");
+
+                        javafx.scene.control.ScrollPane imgScrollPane = new javafx.scene.control.ScrollPane(imgBox);
+                        imgScrollPane.setFitToWidth(true);
+                        imgScrollPane.setStyle("-fx-background:#0f172a; -fx-background-color:#0f172a; -fx-viewport-border:transparent;");
+                        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(imgScrollPane);
+
+                        javafx.application.Platform.runLater(() -> {
+                            viewerContainer.getChildren().clear();
+                            viewerContainer.getChildren().add(imgScrollPane);
+                        });
+                        return;
+                    }
+                } catch (Exception imgEx) {
+                }
+            }
+
+            // Fallback error view if both PDF rendering and image rendering fail
+            javafx.application.Platform.runLater(() -> {
+                viewerContainer.getChildren().clear();
+                VBox errBox = new VBox(14);
+                errBox.setAlignment(Pos.CENTER);
+                Label errIcon = new Label("⚠️");
+                errIcon.setStyle("-fx-font-size:44px;");
+                Label errLbl = new Label("Unable to load document.");
+                errLbl.setStyle("-fx-text-fill:#ef4444; -fx-font-size:14px; -fx-font-weight:bold;");
+
+                Button retryBtn = new Button("🔄 Retry");
+                retryBtn.setStyle("-fx-background-color:#0b63ff; -fx-text-fill:white; -fx-font-size:12px; -fx-font-weight:bold; -fx-padding:8 16; -fx-background-radius:6; -fx-cursor:hand;");
+                retryBtn.setOnAction(ev -> {
+                    dialog.close();
+                    showDocumentViewerModal(docTitle, fileName, url);
+                });
+
+                errBox.getChildren().addAll(errIcon, errLbl, retryBtn);
+                viewerContainer.getChildren().add(errBox);
+            });
+        }).start();
+
+        Button closeBtn = new Button("Close");
+        closeBtn.setStyle("-fx-background-color:#334155; -fx-text-fill:white; -fx-font-size:12px; -fx-font-weight:bold; -fx-padding:8 16; -fx-background-radius:6; -fx-cursor:hand;");
+        closeBtn.setOnAction(e -> dialog.close());
+
+        HBox btnBox = new HBox(closeBtn);
+        btnBox.setAlignment(Pos.CENTER_RIGHT);
+
+        rootNode.getChildren().addAll(headerRow, viewerContainer, btnBox);
+        Scene scene = new Scene(rootNode, 740, 600);
+        dialog.setScene(scene);
+        dialog.show();
+    }
+
+    private void downloadDocument(String fileName, String url, javafx.stage.Window ownerWindow) {
+        if (url == null || url.isBlank()) {
+            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR, "No document URL available for download.");
+            alert.showAndWait();
+            return;
+        }
+
+        javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
+        chooser.setTitle("Save Document As");
+        chooser.setInitialFileName(fileName != null && !fileName.isBlank() ? fileName : "Port_Document.pdf");
+        java.io.File dest = chooser.showSaveDialog(ownerWindow);
+        if (dest != null) {
+            new Thread(() -> {
+                byte[] bytes = fetchDocumentBytes(url);
+                if (bytes != null && bytes.length > 0) {
+                    try {
+                        java.nio.file.Files.write(dest.toPath(), bytes);
+                        javafx.application.Platform.runLater(() -> {
+                            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.INFORMATION, "Document downloaded successfully:\n" + dest.getAbsolutePath());
+                            alert.showAndWait();
+                        });
+                    } catch (Exception ex) {
+                        javafx.application.Platform.runLater(() -> {
+                            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR, "Failed to write downloaded document: " + ex.getMessage());
+                            alert.showAndWait();
+                        });
+                    }
+                } else {
+                    javafx.application.Platform.runLater(() -> {
+                        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR, "Unable to download document. Please verify your connection.");
+                        alert.showAndWait();
+                    });
+                }
+            }).start();
         }
     }
 

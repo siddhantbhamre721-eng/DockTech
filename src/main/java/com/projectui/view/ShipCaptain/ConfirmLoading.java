@@ -80,12 +80,16 @@ public class ConfirmLoading {
         HBox cardTitle = new HBox(12, icon, title);
         cardTitle.setAlignment(Pos.CENTER_LEFT);
 
+        com.projectui.model.Ship assignedShip = com.projectui.dao.UserDao.getAssignedShipForCaptain(com.projectui.view.login.LoginPage.loggedInUser);
+        String sName = assignedShip != null ? assignedShip.getShipName() : "No Vessel Assigned";
+        String sBerth = assignedShip != null && assignedShip.getBerth() != null ? assignedShip.getBerth() : "B04";
+
         GridPane details = new GridPane();
         details.setHgap(15);
         details.setVgap(15);
 
-        details.add(detail("SHIP", "Oceanic Star", false), 0, 0);
-        details.add(detail("BERTH", "B04", false), 1, 0);
+        details.add(detail("SHIP", sName, false), 0, 0);
+        details.add(detail("BERTH", sBerth, false), 1, 0);
         details.add(detail("CARGO", "Electronics", false), 0, 1);
         details.add(detail("CARGO ID", "CGO-1287", false), 1, 1);
         details.add(detail("EXPECTED QUANTITY", "850 Tons", false), 0, 2);

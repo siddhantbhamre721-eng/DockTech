@@ -120,6 +120,7 @@ public class LoginPage extends Application {
         }
 
         private void showLoginScene() {
+                loggedInUser = null;
                 initVideoBackground();
                 showRoot(stage, createLoginPage());
         }
@@ -579,37 +580,54 @@ public class LoginPage extends Application {
                                                                                                                 System.err.println(
                                                                                                                                 "[LOGIN ERROR] Firestore profile load error: "
                                                                                                                                                 + storeError.getMessage());
-                                                                                                                Throwable actualStoreError = storeError
-                                                                                                                                .getCause() == null
-                                                                                                                                                ? storeError
-                                                                                                                                                : storeError.getCause();
+                                                                                                                Throwable actualStoreError = storeError.getCause() == null
+                                                                                                                                ? storeError
+                                                                                                                                : storeError.getCause();
                                                                                                                 resetLoadingState(
                                                                                                                                 login,
                                                                                                                                 message,
                                                                                                                                 actualStoreError != null
-                                                                                                                                                ? actualStoreError
-                                                                                                                                                                .getMessage()
+                                                                                                                                                ? actualStoreError.getMessage()
                                                                                                                                                 : "Account authentication succeeded, but user profile could not be read.");
                                                                                                                 return;
                                                                                                         }
 
-                                                                                                        if (profile == null) {
-                                                                                                                System.err.println(
-                                                                                                                                "[LOGIN ERROR] Firebase authentication successful but user profile not found");
-                                                                                                                resetLoadingState(
-                                                                                                                                login,
-                                                                                                                                message,
-                                                                                                                                "User profile not found in database.");
-                                                                                                                return;
+                                                                                                        Map<String, Object> activeProfile = profile;
+                                                                                                        if (activeProfile == null) {
+                                                                                                                System.out.println(
+                                                                                                                                "[LOGIN] Backfilling missing Firestore profile for authenticated user: "
+                                                                                                                                                + emailValue + " (UID: " + authUser.getUid() + ")");
+                                                                                                                String selectedRole = role.getValue();
+                                                                                                                String authName = authUser.getDisplayName() != null && !authUser.getDisplayName().isBlank()
+                                                                                                                                ? authUser.getDisplayName()
+                                                                                                                                : (emailValue.contains("@") ? emailValue.substring(0, emailValue.indexOf("@")) : emailValue);
+
+                                                                                                                java.util.Map<String, Object> newProf = new java.util.HashMap<>();
+                                                                                                                newProf.put("uid", authUser.getUid());
+                                                                                                                newProf.put("email", emailValue.toLowerCase().trim());
+                                                                                                                newProf.put("name", authName);
+                                                                                                                newProf.put("role", selectedRole);
+                                                                                                                newProf.put("status", "Active");
+                                                                                                                newProf.put("organization", "Ocean Logistics");
+                                                                                                                newProf.put("company", "Ocean Logistics");
+                                                                                                                newProf.put("assignedPort", "Port of Mumbai");
+                                                                                                                newProf.put("assignedShip", "Not Assigned");
+                                                                                                                newProf.put("duty", "Not Assigned");
+                                                                                                                newProf.put("assignmentStatus", "Available");
+                                                                                                                newProf.put("createdAt", java.time.LocalDateTime.now().toString());
+                                                                                                                newProf.put("updatedAt", java.time.LocalDateTime.now().toString());
+
+                                                                                                                userDao.saveUserExtended(authUser.getUid(), emailValue, authName, "Ocean Logistics", "", selectedRole, "Active", newProf);
+                                                                                                                activeProfile = newProf;
                                                                                                         }
 
                                                                                                         System.out.println(
                                                                                                                         "[LOGIN] Profile found");
-                                                                                                        loggedInUser = profile;
+                                                                                                        loggedInUser = activeProfile;
 
                                                                                                         String selectedRole = role
                                                                                                                         .getValue();
-                                                                                                        Object roleObj = profile
+                                                                                                        Object roleObj = activeProfile
                                                                                                                         .get("role");
                                                                                                         String firestoreRole = roleObj != null
                                                                                                                         ? roleObj.toString()
@@ -629,7 +647,7 @@ public class LoginPage extends Application {
                                                                                                         System.out.println(
                                                                                                                         "[LOGIN] Role: " + firestoreRole);
 
-                                                                                                        Object statusObj = profile
+                                                                                                        Object statusObj = activeProfile
                                                                                                                         .get("status");
                                                                                                         String firestoreStatus = statusObj != null
                                                                                                                         ? statusObj.toString()
@@ -884,7 +902,8 @@ public class LoginPage extends Application {
         }
 
         private void showCustomOfficer() {
-                new com.projectui.view.CustomOfficer.DashBoard().start(stage);
+                Parent root = new com.projectui.view.CustomOfficer.DashBoard().getRoot(stage, this::showLoginScene);
+                showRoot(stage, root);
         }
 
         private void showImporter() {

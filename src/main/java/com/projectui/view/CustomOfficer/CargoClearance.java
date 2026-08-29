@@ -1,9 +1,16 @@
 package com.projectui.view.CustomOfficer;
 
+import java.util.List;
+import java.util.Map;
+
+import com.projectui.dao.CargoDao;
+import com.projectui.dao.UserDao;
+import com.projectui.view.login.LoginPage;
+
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
-import javafx.scene.Scene;
+import javafx.scene.Parent;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
@@ -11,6 +18,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextInputDialog;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -21,489 +29,353 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
+@SuppressWarnings({"unchecked", "unused"})
 public class CargoClearance {
     private final BorderPane root = new BorderPane();
-    private final Scene scene;
+    private VBox content;
 
-    Label pending = new Label("18");
-    Label approved = new Label("142");
-    Label rejected = new Label("07");
+    private final Label pendingLabel = new Label("0");
+    private final Label approvedLabel = new Label("0");
+    private final Label rejectedLabel = new Label("0");
+    private final Label totalLabel = new Label("0");
+
+    private GridPane clearanceGrid;
+    private final CargoDao cargoDao = new CargoDao();
+    private String activeAssignedPort = "Port of Mumbai";
+    private String officerName = "Customs Officer";
+
+    private TextField searchField;
+    private ComboBox<String> statusFilterCombo;
+    private ComboBox<String> typeFilterCombo;
 
     public CargoClearance() {
+        resolveOfficerContext();
+        buildUI();
+        refreshClearanceData();
+    }
 
+    private void resolveOfficerContext() {
+        if (LoginPage.loggedInUser != null) {
+            Map<String, Object> u = LoginPage.loggedInUser;
+            if (u.get("name") != null) officerName = u.get("name").toString();
+
+            String portVal = null;
+            if (u.get("assignedPort") != null && !u.get("assignedPort").toString().isBlank()) {
+                portVal = u.get("assignedPort").toString();
+            } else if (u.get("port") != null && !u.get("port").toString().isBlank()) {
+                portVal = u.get("port").toString();
+            } else if (u.get("organization") != null && !u.get("organization").toString().isBlank()) {
+                portVal = u.get("organization").toString();
+            } else if (u.get("company") != null && !u.get("company").toString().isBlank()) {
+                portVal = u.get("company").toString();
+            }
+
+            if (portVal != null && !portVal.isBlank()) {
+                activeAssignedPort = UserDao.normalizePort(portVal);
+            }
+        }
+    }
+
+    private void buildUI() {
         root.setStyle("-fx-background-color:#f4f7fb;");
 
-        VBox main = new VBox(10);
-        main.setPadding(new Insets(5,22,20,22));
+        content = new VBox(16);
+        content.setPadding(new Insets(18, 26, 26, 26));
 
-        Label title = label("Cargo Clearance",27,true);
-        Label sub = label(
-                "Review and authorize cargo clearance.",
-                13,false
-        );
-        sub.setTextFill(Color.web("#7b8794"));
+        // HEADER
+        Label title = label("Approve / Reject Cargo Clearance (" + activeAssignedPort + ")", 26, true);
+        Label sub = label("Final regulatory adjudication and terminal release certification.", 13, false);
+        sub.setTextFill(Color.web("#64748b"));
 
-        VBox titleBox = new VBox(2,title,sub);
+        VBox titleBox = new VBox(3, title, sub);
 
-       
-
-        
         Region gap = new Region();
-        HBox.setHgrow(gap,Priority.ALWAYS);
+        HBox.setHgrow(gap, Priority.ALWAYS);
 
-        HBox header = new HBox(15,titleBox,gap);
+        Button refreshBtn = new Button("↻ Refresh Data");
+        refreshBtn.setStyle("-fx-background-color:white; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-padding:6 12; -fx-font-size:12px; -fx-font-weight:bold; -fx-cursor:hand;");
+        refreshBtn.setOnAction(e -> refreshClearanceData());
+
+        HBox header = new HBox(15, titleBox, gap, refreshBtn);
         header.setAlignment(Pos.CENTER_LEFT);
 
-        HBox cards = new HBox(12,
-                card("Pending Clearance",pending,"◷","#f59e0b"),
-                card("Approved",approved,"✓","#16a875"),
-                card("Rejected",rejected,"×","#e53935"),
-                card("Today's Clearance",
-                        new Label("24"),"▣","#287cf5")
+        // SUMMARY METRIC CARDS
+        HBox cards = new HBox(14,
+                card("Pending Clearance", pendingLabel, "◷", "#f59e0b", "#fef3c7"),
+                card("Cleared & Released", approvedLabel, "✓", "#10b981", "#d1fae5"),
+                card("Rejected / Held", rejectedLabel, "×", "#ef4444", "#fee2e2"),
+                card("Total Shipments", totalLabel, "▣", "#0284c7", "#e0f2fe")
         );
 
-        for(Node n:cards.getChildren())
-            HBox.setHgrow(n,Priority.ALWAYS);
-
-        TextField cargo = new TextField();
-        cargo.setPromptText("⌕  Search Cargo...");
-        cargo.setPrefWidth(250);
-
-        HBox filter = new HBox(8,
-                cargo,
-                combo("Status","All Status","Approved",
-                        "Pending","Rejected"),
-                combo("Cargo Type","All Types","Electronics",
-                        "Machinery","Food"),
-                combo("Date","All Dates","Today","Yesterday"),
-                combo("Exporter","All Exporters",
-                        "Ocean Shipping Ltd.","Global Traders")
-        );
-
-        Button apply = new Button("☷  Apply Filter");
-        apply.setPrefSize(150,42);
-        apply.setStyle(btn("#287cf5"));
-
-        filter.getChildren().add(apply);
-        filter.setPadding(new Insets(8));
-        filter.setStyle(box());
-
-        VBox table = new VBox();
-        table.setStyle(box());
-
-        VBox th = new VBox(2,
-                label("Clearance Table",19,true),
-                label(
-                        "Review cargo decisions and release status",
-                        12,false
-                )
-        );
-
-        th.setPadding(new Insets(15));
-
-        String[] h={
-                "CARGO ID","DOCUMENT","SHIP","EXPORTER",
-                "CARGO TYPE","INSPECTION","STATUS","DATE","ACTION"
-        };
-
-        HBox headings=new HBox(8);
-        headings.setPadding(new Insets(12));
-
-        for(String s:h)
-            headings.getChildren().add(col(s,95));
-
-        table.getChildren().addAll(
-                th,new Separator(),headings,
-
-                row("CGO-1287","DOC-1024","Oceanic Star",
-                        "Ocean Shipping Ltd.","Electronics",
-                        "Verified","Approved",true),
-
-                row("CGO-1290","DOC-1025","Sea Voyager",
-                        "Global Traders","Machinery",
-                        "Under Review","Pending",false)
-        );
-
-        HBox content = new HBox(15,table,details());
-        HBox.setHgrow(table,Priority.ALWAYS);
-
-        main.getChildren().addAll(
-                header,cards,filter,content
-        );
-
-        ScrollPane scroll = new ScrollPane(main);
-        scroll.setFitToWidth(true);
-        scroll.setFitToHeight(false);
-        scroll.setHbarPolicy(
-                ScrollPane.ScrollBarPolicy.NEVER
-        );
-        scroll.setStyle(
-                "-fx-background:#f4f7fb;" +
-                "-fx-background-color:#f4f7fb;"
-        );
-
-        root.setCenter(scroll);
-        scene = new Scene(root,1500,850);
-    }
-
-    private VBox card(
-            String name,
-            Label value,
-            String icon,
-            String color
-    ) {
-
-        Label t=label(name,13,false);
-        t.setTextFill(Color.web("#697586"));
-
-        Label i=new Label(icon);
-        i.setTextFill(Color.web(color));
-        i.setFont(Font.font(20));
-
-        Region r=new Region();
-        HBox.setHgrow(r,Priority.ALWAYS);
-
-        value.setFont(
-                Font.font("Arial",FontWeight.BOLD,28)
-        );
-
-        VBox b=new VBox(
-                6,
-                new HBox(t,r,i),
-                value
-        );
-
-        b.setPadding(new Insets(14));
-        b.setStyle(box());
-
-        return b;
-    }
-
-    private HBox row(
-            String id,
-            String doc,
-            String ship,
-            String exporter,
-            String type,
-            String inspection,
-            String status,
-            boolean ok
-    ) {
-
-        Label st=new Label(status);
-
-        st.setPadding(
-                new Insets(5,10,5,10)
-        );
-
-        st.setStyle(ok ?
-                "-fx-background-color:#e7faf3;" +
-                "-fx-text-fill:#15956d;" +
-                "-fx-background-radius:15;" +
-                "-fx-font-weight:bold;" :
-
-                "-fx-background-color:#fff3df;" +
-                "-fx-text-fill:#ed8613;" +
-                "-fx-background-radius:15;" +
-                "-fx-font-weight:bold;"
-        );
-
-        Button action=new Button(
-                ok ? "View" : "Review"
-        );
-
-        action.setStyle(
-                "-fx-background-color:transparent;" +
-                "-fx-text-fill:#287cf5;"
-        );
-
-        action.setOnAction(e ->
-                alert(
-                        ok ? "Cargo Approved" : "Cargo Review",
-                        id+" selected."
-                )
-        );
-
-        HBox r=new HBox(8);
-
-        r.setPadding(
-                new Insets(12,15,12,15)
-        );
-
-        r.getChildren().addAll(
-                cell(id,90),
-                cell(doc,95),
-                cell(ship,95),
-                cell(exporter,115),
-                cell(type,100),
-                cell(inspection,95),
-                st,
-                cell("11 Aug 2026",80),
-                action
-        );
-
-        return r;
-    }
-
-    private VBox details() {
-
-        GridPane info=new GridPane();
-
-        info.setHgap(25);
-        info.setVgap(10);
-
-        add(info,"Cargo ID","CGO-1287",0,0);
-        add(info,"Ship","Oceanic Star",1,0);
-        add(info,"Exporter",
-                "Ocean Shipping Ltd.",0,1);
-        add(info,"Cargo Type",
-                "Electronics",1,1);
-        add(info,"Weight","850 Tons",0,2);
-        add(info,"Containers","120",1,2);
-
-        Label decision=new Label("Approved");
-
-        decision.setPadding(
-                new Insets(6,12,6,12)
-        );
-
-        decision.setStyle(
-                "-fx-background-color:#e7faf3;" +
-                "-fx-text-fill:#15956d;" +
-                "-fx-background-radius:15;" +
-                "-fx-font-weight:bold;"
-        );
-
-        Button approve =
-                new Button("✓  Approve Clearance");
-
-        Button hold =
-                new Button("◷  Hold Cargo");
-
-        Button reject =
-                new Button("✕  Reject Cargo");
-
-        approve.setStyle(btn("#16a875"));
-        hold.setStyle(btn("#f59e0b"));
-        reject.setStyle(btn("#e53935"));
-
-        for(Button b:new Button[]{
-                approve,hold,reject
-        }) {
-            b.setMaxWidth(Double.MAX_VALUE);
-            b.setPrefHeight(40);
+        for (Node n : cards.getChildren()) {
+            HBox.setHgrow(n, Priority.ALWAYS);
         }
 
-        approve.setOnAction(e -> {
-            approved.setText("143");
-            pending.setText("17");
-            decision.setText("✓ Approved");
+        // FILTER BAR
+        searchField = new TextField();
+        searchField.setPromptText("⌕  Search Cargo ID, Vessel, Company...");
+        searchField.setPrefWidth(260);
+        searchField.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-font-size:12px;");
+        searchField.textProperty().addListener((obs, o, n) -> renderClearanceTable());
+
+        statusFilterCombo = combo("All Status", "All Status", "Pending", "Cleared", "Held", "Rejected");
+        statusFilterCombo.setOnAction(e -> renderClearanceTable());
+
+        typeFilterCombo = combo("All Types", "All Types", "Electronics", "Machinery", "Textiles", "Automotive", "Perishables", "General Cargo");
+        typeFilterCombo.setOnAction(e -> renderClearanceTable());
+
+        HBox filter = new HBox(10, searchField, statusFilterCombo, typeFilterCombo);
+        filter.setPadding(new Insets(12));
+        filter.setStyle("-fx-background-color:white; -fx-border-color:#e2e8f0; -fx-border-radius:8; -fx-background-radius:8;");
+
+        // CLEARANCE REGISTRY TABLE
+        VBox tableBox = new VBox(12);
+        tableBox.setPadding(new Insets(18));
+        tableBox.setStyle("-fx-background-color:white; -fx-border-color:#e2e8f0; -fx-border-radius:8; -fx-background-radius:8;");
+
+        Label tableHead = label("Official Customs Clearance Adjudication Table", 16, true);
+        Label tableSub = label("Authorize release for vessel loading/unloading or enforce regulatory hold.", 12, false);
+        tableSub.setTextFill(Color.web("#64748b"));
+
+        clearanceGrid = new GridPane();
+        clearanceGrid.setHgap(15);
+        clearanceGrid.setVgap(10);
+        clearanceGrid.setPadding(new Insets(8, 0, 8, 0));
+
+        ScrollPane scroll = new ScrollPane(clearanceGrid);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background-color:transparent; -fx-background:transparent; -fx-border-color:transparent;");
+
+        tableBox.getChildren().addAll(tableHead, tableSub, new Separator(), scroll);
+
+        content.getChildren().addAll(header, cards, filter, tableBox);
+        root.setCenter(content);
+    }
+
+    private void refreshClearanceData() {
+        resolveOfficerContext();
+
+        int pendingCount = 0;
+        int approvedCount = 0;
+        int rejectedCount = 0;
+        int totalCount = 0;
+
+        List<Map<String, Object>> cargos = cargoDao.getCargosByPort(activeAssignedPort);
+        if (cargos != null) {
+            for (Map<String, Object> c : cargos) {
+                if (c == null) continue;
+                String st = c.get("customsStatus") != null ? String.valueOf(c.get("customsStatus")) : "Pending";
+
+                if ("Cleared".equalsIgnoreCase(st) || "Approved".equalsIgnoreCase(st)) {
+                    approvedCount++;
+                } else if ("Rejected".equalsIgnoreCase(st) || "Held".equalsIgnoreCase(st)) {
+                    rejectedCount++;
+                } else {
+                    pendingCount++;
+                }
+                totalCount++;
+            }
+        }
+
+        pendingLabel.setText(String.valueOf(pendingCount));
+        approvedLabel.setText(String.valueOf(approvedCount));
+        rejectedLabel.setText(String.valueOf(rejectedCount));
+        totalLabel.setText(String.valueOf(totalCount));
+
+        renderClearanceTable();
+    }
+
+    private void renderClearanceTable() {
+        if (clearanceGrid == null) return;
+        clearanceGrid.getChildren().clear();
+
+        String[] headers = {
+                "Cargo ID", "Cargo / Commodity", "Vessel / Ship", "Importer / Exporter",
+                "Docs Status", "Inspection", "Clearance Decision", "Actions"
+        };
+
+        for (int i = 0; i < headers.length; i++) {
+            Label l = new Label(headers[i]);
+            l.setFont(Font.font("Arial", FontWeight.BOLD, 12));
+            l.setTextFill(Color.web("#475569"));
+            l.setPadding(new Insets(8, 6, 8, 6));
+            clearanceGrid.add(l, i, 0);
+        }
+
+        String query = searchField != null && searchField.getText() != null ? searchField.getText().trim().toLowerCase() : "";
+        String statusVal = statusFilterCombo != null ? statusFilterCombo.getValue() : "All Status";
+        String typeVal = typeFilterCombo != null ? typeFilterCombo.getValue() : "All Types";
+
+        List<Map<String, Object>> cargos = cargoDao.getCargosByPort(activeAssignedPort);
+        int rowIndex = 1;
+
+        if (cargos != null) {
+            for (Map<String, Object> c : cargos) {
+                if (c == null) continue;
+
+                String cargoId = String.valueOf(c.get("cargoId"));
+                String name = c.get("cargoName") != null ? String.valueOf(c.get("cargoName")) : "General Cargo";
+                String type = c.get("cargoType") != null ? String.valueOf(c.get("cargoType")) : "General";
+                String vessel = c.get("assignedShip") != null ? String.valueOf(c.get("assignedShip")) : "MV " + activeAssignedPort.replace("Port of ", "").replace(" Port", "") + " Trader";
+                String company = c.get("exporter") != null ? String.valueOf(c.get("exporter")) : (c.get("company") != null ? String.valueOf(c.get("company")) : "Maritime Logistics");
+                String docStatus = c.get("verificationStatus") != null ? String.valueOf(c.get("verificationStatus")) : "Pending";
+                String inspectStatus = c.get("inspectionStatus") != null ? String.valueOf(c.get("inspectionStatus")) : "Pending";
+                String customsStatus = c.get("customsStatus") != null ? String.valueOf(c.get("customsStatus")) : "Pending";
+
+                boolean matchQuery = query.isEmpty() ||
+                        cargoId.toLowerCase().contains(query) ||
+                        name.toLowerCase().contains(query) ||
+                        vessel.toLowerCase().contains(query) ||
+                        company.toLowerCase().contains(query);
+
+                boolean matchStatus = "All Status".equalsIgnoreCase(statusVal) || customsStatus.equalsIgnoreCase(statusVal);
+                boolean matchType = "All Types".equalsIgnoreCase(typeVal) || type.equalsIgnoreCase(typeVal) || name.toLowerCase().contains(typeVal.toLowerCase());
+
+                if (matchQuery && matchStatus && matchType) {
+                    addClearanceRow(rowIndex++, cargoId, name + " (" + type + ")", vessel, company, docStatus, inspectStatus, customsStatus);
+                }
+            }
+        }
+
+        if (rowIndex == 1) {
+            Label empty = new Label("No shipments awaiting customs clearance decision for " + activeAssignedPort);
+            empty.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:13px; -fx-padding:15;");
+            clearanceGrid.add(empty, 0, 1, 8, 1);
+        }
+    }
+
+    private void addClearanceRow(int row, String id, String cargoDesc, String vessel, String company, String docStatus, String inspectStatus, String customsStatus) {
+        Label lId = new Label(id);
+        lId.setStyle("-fx-font-weight:bold; -fx-text-fill:#0f172a; -fx-font-size:12px;");
+
+        Label lDesc = new Label(cargoDesc);
+        lDesc.setStyle("-fx-text-fill:#334155; -fx-font-size:12px;");
+
+        Label lVessel = new Label(vessel);
+        lVessel.setStyle("-fx-text-fill:#334155; -fx-font-size:12px;");
+
+        Label lCompany = new Label(company);
+        lCompany.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px;");
+
+        Label badgeDocs = new Label(docStatus);
+        if ("Verified".equalsIgnoreCase(docStatus) || "Approved".equalsIgnoreCase(docStatus)) {
+            badgeDocs.setStyle("-fx-background-color:#dcfce7; -fx-text-fill:#166534; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:10;");
+        } else {
+            badgeDocs.setStyle("-fx-background-color:#fef3c7; -fx-text-fill:#92400e; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:10;");
+        }
+
+        Label badgeInspect = new Label(inspectStatus);
+        if ("Passed".equalsIgnoreCase(inspectStatus) || "Approved".equalsIgnoreCase(inspectStatus)) {
+            badgeInspect.setStyle("-fx-background-color:#dcfce7; -fx-text-fill:#166534; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:10;");
+        } else if ("Under Inspection".equalsIgnoreCase(inspectStatus)) {
+            badgeInspect.setStyle("-fx-background-color:#e0f2fe; -fx-text-fill:#0369a1; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:10;");
+        } else {
+            badgeInspect.setStyle("-fx-background-color:#fef3c7; -fx-text-fill:#92400e; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:10;");
+        }
+
+        Label badgeCustoms = new Label(customsStatus);
+        if ("Cleared".equalsIgnoreCase(customsStatus) || "Approved".equalsIgnoreCase(customsStatus)) {
+            badgeCustoms.setStyle("-fx-background-color:#dcfce7; -fx-text-fill:#166534; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:10;");
+        } else if ("Held".equalsIgnoreCase(customsStatus)) {
+            badgeCustoms.setStyle("-fx-background-color:#fee2e2; -fx-text-fill:#991b1b; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:10;");
+        } else {
+            badgeCustoms.setStyle("-fx-background-color:#fef3c7; -fx-text-fill:#92400e; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:10;");
+        }
+
+        // ACTIONS
+        HBox actions = new HBox(6);
+        Button approveBtn = new Button("Approve & Clear");
+        approveBtn.setStyle("-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+        approveBtn.setOnAction(e -> {
+            cargoDao.updateCustomsClearance(id, "Cleared", officerName, "Regulatory clearance granted for vessel operation");
+            refreshClearanceData();
+            Alert a = new Alert(Alert.AlertType.INFORMATION);
+            a.setTitle("Cargo Cleared");
+            a.setHeaderText("Cargo " + id + " Approved and Cleared");
+            a.setContentText("Customs Release Order issued by " + officerName + " (" + activeAssignedPort + ").\nPort Authority & Ship Captain have been notified for cargo loading/unloading.");
+            a.showAndWait();
         });
 
-        reject.setOnAction(e -> {
-            rejected.setText("08");
-            pending.setText("17");
-            decision.setText("✕ Rejected");
+        Button holdBtn = new Button("Hold");
+        holdBtn.setStyle("-fx-background-color:#f59e0b; -fx-text-fill:white; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+        holdBtn.setOnAction(e -> {
+            TextInputDialog td = new TextInputDialog("Pending duty payment verification / quarantine order");
+            td.setTitle("Place Cargo on Customs Hold");
+            td.setHeaderText("Specify Reason for Regulatory Hold on " + id);
+            td.setContentText("Hold Reason:");
+            td.showAndWait().ifPresent(reason -> {
+                cargoDao.updateCustomsClearance(id, "Held", officerName, reason);
+                refreshClearanceData();
+            });
         });
 
-        hold.setOnAction(e ->
-                alert(
-                        "Cargo On Hold",
-                        "CGO-1287 has been placed on hold."
-                )
-        );
+        Button rejectBtn = new Button("Reject");
+        rejectBtn.setStyle("-fx-background-color:#ef4444; -fx-text-fill:white; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+        rejectBtn.setOnAction(e -> {
+            TextInputDialog td = new TextInputDialog("Prohibited goods / fraudulent declaration");
+            td.setTitle("Reject Cargo Clearance");
+            td.setHeaderText("Specify Reason for Cargo Rejection: " + id);
+            td.setContentText("Rejection Reason:");
+            td.showAndWait().ifPresent(reason -> {
+                cargoDao.updateCustomsClearance(id, "Rejected", officerName, reason);
+                refreshClearanceData();
+            });
+        });
 
-        VBox docs=new VBox(
-                5,
-                doc("Bill of Lading"),
-                doc("Commercial Invoice"),
-                doc("Packing List"),
-                doc("Customs Declaration")
-        );
+        actions.getChildren().addAll(approveBtn, holdBtn, rejectBtn);
 
-        VBox d=new VBox(
-                10,
-                label("Cargo Clearance",20,true),
-                label(
-                        "Detailed review for CGO-1287",
-                        12,false
-                ),
-                info,
-                new Separator(),
-                label("Documents",15,true),
-                docs,
-                new Separator(),
-                label(
-                        "✓   Inspection Completed",
-                        13,true
-                ),
-                new Separator(),
-                label("Customs Decision",13,false),
-                decision,
-                approve,
-                hold,
-                reject
-        );
-
-        d.getChildren().get(1).setStyle(
-                "-fx-text-fill:#7b8794;"
-        );
-
-        d.getChildren().get(8).setStyle(
-                "-fx-text-fill:#15956d;"
-        );
-
-        d.setPadding(new Insets(18));
-        d.setPrefWidth(370);
-        d.setStyle(box());
-
-        return d;
+        clearanceGrid.add(lId, 0, row);
+        clearanceGrid.add(lDesc, 1, row);
+        clearanceGrid.add(lVessel, 2, row);
+        clearanceGrid.add(lCompany, 3, row);
+        clearanceGrid.add(badgeDocs, 4, row);
+        clearanceGrid.add(badgeInspect, 5, row);
+        clearanceGrid.add(badgeCustoms, 6, row);
+        clearanceGrid.add(actions, 7, row);
     }
 
-    private Label label(
-            String s,
-            double size,
-            boolean bold
-    ) {
+    private VBox card(String title, Label countLbl, String icon, String color, String bg) {
+        VBox card = new VBox(6);
+        card.setPadding(new Insets(14));
+        card.setStyle("-fx-background-color:white; -fx-border-color:#e2e8f0; -fx-border-radius:8; -fx-background-radius:8;");
 
-        Label l=new Label(s);
+        HBox top = new HBox(8);
+        top.setAlignment(Pos.CENTER_LEFT);
 
-        l.setFont(
-                Font.font(
-                        "Arial",
-                        bold ?
-                                FontWeight.BOLD :
-                                FontWeight.NORMAL,
-                        size
-                )
-        );
+        Label ic = new Label(icon);
+        ic.setStyle("-fx-font-size:14px; -fx-text-fill:" + color + "; -fx-background-color:" + bg + "; -fx-background-radius:6; -fx-padding:4 8;");
 
+        Label t = label(title, 12, true);
+        t.setTextFill(Color.web("#64748b"));
+        top.getChildren().addAll(ic, t);
+
+        countLbl.setFont(Font.font("Arial", FontWeight.BOLD, 22));
+        countLbl.setTextFill(Color.web("#0f172a"));
+
+        card.getChildren().addAll(top, countLbl);
+        return card;
+    }
+
+    private ComboBox<String> combo(String prompt, String... items) {
+        ComboBox<String> cb = new ComboBox<>();
+        cb.getItems().addAll(items);
+        cb.setValue(prompt);
+        cb.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-font-size:12px;");
+        return cb;
+    }
+
+    private Label label(String text, int size, boolean bold) {
+        Label l = new Label(text);
+        l.setFont(Font.font("Arial", bold ? FontWeight.BOLD : FontWeight.NORMAL, size));
+        l.setTextFill(Color.web("#0f172a"));
         return l;
     }
 
-    private Label cell(
-            String s,
-            double w
-    ) {
-
-        Label l=new Label(s);
-        l.setPrefWidth(w);
-        l.setWrapText(true);
-
-        return l;
-    }
-
-    private Label col(
-            String s,
-            double w
-    ) {
-
-        Label l=cell(s,w);
-
-        l.setFont(
-                Font.font(
-                        "Arial",
-                        FontWeight.BOLD,
-                        11
-                )
-        );
-
-        l.setTextFill(
-                Color.web("#687586")
-        );
-
-        return l;
-    }
-
-    private ComboBox<String> combo(
-            String name,
-            String... items
-    ) {
-
-        ComboBox<String> c=new ComboBox<>();
-
-        c.getItems().addAll(items);
-        c.setValue(name);
-        c.setPrefSize(145,42);
-
-        return c;
-    }
-
-    private void add(
-            GridPane g,
-            String a,
-            String b,
-            int c,
-            int r
-    ) {
-
-        Label x=new Label(a);
-
-        x.setTextFill(
-                Color.web("#7b8794")
-        );
-
-        g.add(
-                new VBox(
-                        2,
-                        x,
-                        label(b,13,true)
-                ),
-                c,
-                r
-        );
-    }
-
-    private Label doc(String s) {
-
-        Label l=new Label("✓   "+s);
-
-        l.setTextFill(
-                Color.web("#16a875")
-        );
-
-        return l;
-    }
-
-    private String box() {
-
-        return
-                "-fx-background-color:white;" +
-                "-fx-background-radius:14;" +
-                "-fx-border-color:#e1e7ee;" +
-                "-fx-border-radius:14;";
-    }
-
-    private String btn(String c) {
-
-        return
-                "-fx-background-color:"+c+";" +
-                "-fx-text-fill:white;" +
-                "-fx-font-weight:bold;" +
-                "-fx-background-radius:8;";
-    }
-
-    private void alert(
-            String t,
-            String m
-    ) {
-
-        Alert a=new Alert(
-                Alert.AlertType.INFORMATION
-        );
-
-        a.setTitle(t);
-        a.setHeaderText(null);
-        a.setContentText(m);
-        a.showAndWait();
-    }
-
-    public BorderPane getRoot() {
+    public Parent getRoot() {
         return root;
     }
 
-    public Scene getScene() {
-        return scene;
+    public VBox getContent() {
+        return content;
     }
-    
 }

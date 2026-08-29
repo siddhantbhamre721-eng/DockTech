@@ -1,5 +1,7 @@
 package com.projectui.view.CustomOfficer;
 
+import java.util.Map;
+
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
@@ -48,18 +50,40 @@ public class SettingsPage {
                 info("✓", "Security", "Protected", "#eaf3ff", BLUE),
                 info("◉", "Last Backup", "Today, 09:30 PM", "#fff7dc", "#b77900"));
 
+        // DYNAMIC PROFILE EXTRACTION
+        String officerName = "Custom Officer";
+        String officerEmail = "officer@docktech.com";
+        String officerRole = "Custom Officer";
+        String officerPort = "Port of Mumbai";
+        String initials = "CO";
+
+        if (com.projectui.view.login.LoginPage.loggedInUser != null) {
+            Map<String, Object> u = com.projectui.view.login.LoginPage.loggedInUser;
+            if (u.get("name") != null) officerName = u.get("name").toString();
+            if (u.get("email") != null) officerEmail = u.get("email").toString();
+            if (u.get("role") != null) officerRole = u.get("role").toString();
+            if (u.get("assignedPort") != null) officerPort = u.get("assignedPort").toString();
+
+            String[] parts = officerName.trim().split("\\s+");
+            if (parts.length > 0 && !parts[0].isEmpty()) {
+                String a = parts[0].substring(0, 1);
+                String b = parts.length > 1 && !parts[parts.length - 1].isEmpty() ? parts[parts.length - 1].substring(0, 1) : "";
+                initials = (a + b).toUpperCase();
+            }
+        }
+
         // PROFILE
         VBox profile = card();
 
         HBox top = new HBox(
                 new VBox(4,
-                        label("Officer Profile", 22, true, TEXT),
-                        label("Manage your officer information.", 14, false, GRAY)),
+                        label("Officer Profile (" + officerRole + ")", 22, true, TEXT),
+                        label("Manage your officer credentials and assigned port jurisdiction.", 14, false, GRAY)),
                 new Region());
 
         HBox.setHgrow(top.getChildren().get(1), Priority.ALWAYS);
 
-        Label avatar = new Label("CO");
+        Label avatar = new Label(initials);
         avatar.setMinSize(56, 56);
         avatar.setAlignment(Pos.CENTER);
         avatar.setStyle(
@@ -72,14 +96,15 @@ public class SettingsPage {
         top.getChildren().add(avatar);
 
         HBox fields = new HBox(16,
-                field("Officer Name", "Custom Officer"),
-                field("Email", "officer@docktech.com"),
-                field("Role", "Administrator"));
+                field("Officer Name", officerName),
+                field("Email", officerEmail),
+                field("Jurisdiction Port", officerPort));
 
         Button saveProfile = button("Save Profile");
 
+        final String finalEmail = officerEmail;
         saveProfile.setOnAction(e -> {
-            success.setText("✓  Profile Updated Successfully");
+            success.setText("✓  Profile Preferences Updated Successfully for " + finalEmail);
             success.setVisible(true);
         });
 

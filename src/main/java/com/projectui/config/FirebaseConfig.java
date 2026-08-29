@@ -18,12 +18,18 @@ import com.google.firebase.cloud.FirestoreClient;
 public class FirebaseConfig {
 
     private static Firestore firestore;
+    private static boolean firebaseAppInitialized = false;
+
+    public static synchronized boolean hasAdminAuth() {
+        return firebaseAppInitialized && !FirebaseApp.getApps().isEmpty();
+    }
 
     public static synchronized Firestore getFirestore() {
         if (firestore != null) return firestore;
 
         try {
             if (!FirebaseApp.getApps().isEmpty()) {
+                firebaseAppInitialized = true;
                 firestore = FirestoreClient.getFirestore();
                 return firestore;
             }
@@ -45,6 +51,7 @@ public class FirebaseConfig {
                         .setProjectId("fir-demo-4dbd9")
                         .build();
                 FirebaseApp.initializeApp(options);
+                firebaseAppInitialized = true;
                 firestore = FirestoreClient.getFirestore();
                 return firestore;
             }

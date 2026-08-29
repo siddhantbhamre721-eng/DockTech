@@ -93,6 +93,14 @@ public class UpdateShipStatus {
             "-fx-background-radius:10;"
         );
 
+        com.projectui.model.Ship assignedShip = com.projectui.dao.UserDao.getAssignedShipForCaptain(com.projectui.view.login.LoginPage.loggedInUser);
+        String sName = assignedShip != null ? assignedShip.getShipName() : "No Vessel Assigned";
+        String sStatus = assignedShip != null && assignedShip.getStatus() != null ? assignedShip.getStatus() : "At Berth";
+        String sPort = com.projectui.view.login.LoginPage.loggedInUser != null && com.projectui.view.login.LoginPage.loggedInUser.get("assignedPort") != null
+                ? com.projectui.view.login.LoginPage.loggedInUser.get("assignedPort").toString() : "Mumbai Port";
+        String sDest = assignedShip != null && assignedShip.getDeparture() != null ? assignedShip.getDeparture() : "Port of Singapore";
+        String sEta = assignedShip != null && assignedShip.getArrival() != null ? assignedShip.getArrival() : "Today, 18:00";
+
         VBox shipText = new VBox(2);
 
         Label current = new Label(
@@ -104,7 +112,7 @@ public class UpdateShipStatus {
         );
 
         Label shipName = new Label(
-            "Oceanic Star"
+            sName
         );
 
         shipName.setFont(
@@ -140,7 +148,7 @@ public class UpdateShipStatus {
         );
 
         Label currentStatus = new Label(
-            "●  At Berth"
+            "●  " + sStatus
         );
 
         currentStatus.setStyle(
@@ -199,7 +207,7 @@ public class UpdateShipStatus {
         infoGrid.add(
             infoItem(
                 "Current Port",
-                "Mumbai Port"
+                sPort
             ),
             0,
             0
@@ -208,7 +216,7 @@ public class UpdateShipStatus {
         infoGrid.add(
             infoItem(
                 "Destination",
-                "Dubai Port"
+                sDest
             ),
             1,
             0
@@ -217,7 +225,7 @@ public class UpdateShipStatus {
         infoGrid.add(
             infoItem(
                 "ETA",
-                "18 Aug 2026, 08:30 AM"
+                sEta
             ),
             0,
             1
@@ -244,7 +252,7 @@ public class UpdateShipStatus {
         infoGrid.add(
             infoItem(
                 "Last Updated",
-                "15 Aug 2026, 02:25 PM"
+                java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm"))
             ),
             1,
             2

@@ -273,41 +273,24 @@ public class DashBoard extends Application {
 
         if (user != null) {
             if (user.get("name") != null) captainName = user.get("name").toString();
-            if (user.get("assignedShip") != null && !user.get("assignedShip").toString().isBlank()) {
-                assignedShip = user.get("assignedShip").toString();
-            } else if (user.get("company") != null && !user.get("company").toString().isBlank()) {
-                assignedShip = user.get("company").toString();
-            }
-            if (user.get("shipImo") != null) shipImo = user.get("shipImo").toString();
             if (user.get("assignedPort") != null) assignedPort = user.get("assignedPort").toString();
             if (user.get("duty") != null && !user.get("duty").toString().isBlank()) duty = user.get("duty").toString();
         }
 
-        // 2. Query ShipDAO for ship matching assignedShip or shipImo
-        com.projectui.model.Ship matchedShip = null;
-        try {
-            java.util.List<com.projectui.model.Ship> ships = new com.projectui.dao.ShipDAO().getShips();
-            if (ships != null) {
-                for (com.projectui.model.Ship s : ships) {
-                    if (s != null) {
-                        if (!assignedShip.isBlank() && s.getShipName() != null && s.getShipName().equalsIgnoreCase(assignedShip)) {
-                            matchedShip = s;
-                            break;
-                        }
-                        if (!shipImo.isBlank() && s.getImoNumber() != null && s.getImoNumber().equalsIgnoreCase(shipImo)) {
-                            matchedShip = s;
-                            break;
-                        }
-                    }
-                }
-            }
-        } catch (Exception ignored) {}
+        // 2. Resolve assigned ship via unified live resolver
+        com.projectui.model.Ship matchedShip = com.projectui.dao.UserDao.getAssignedShipForCaptain(user);
+        if (matchedShip != null) {
+            assignedShip = matchedShip.getShipName();
+            if (matchedShip.getImoNumber() != null) shipImo = matchedShip.getImoNumber();
+        } else if (user != null && user.get("assignedShip") != null && !user.get("assignedShip").toString().isBlank()) {
+            assignedShip = user.get("assignedShip").toString();
+        }
 
         // Fallback display strings
         String shipDisplay = !assignedShip.isBlank() ? assignedShip : (matchedShip != null ? matchedShip.getShipName() : "No ship assigned");
         String imoDisplay = matchedShip != null && matchedShip.getImoNumber() != null && !matchedShip.getImoNumber().isBlank()
                 ? matchedShip.getImoNumber()
-                : (!shipImo.isBlank() ? shipImo : "Not Assigned");
+                : (!shipImo.isBlank() ? shipImo : "Not Available");
         String statusDisplay = matchedShip != null && matchedShip.getStatus() != null && !matchedShip.getStatus().isBlank()
                 ? matchedShip.getStatus()
                 : (!assignedShip.isBlank() ? "At Berth" : "No Ship Assigned");

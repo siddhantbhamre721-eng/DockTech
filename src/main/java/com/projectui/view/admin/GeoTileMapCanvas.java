@@ -539,7 +539,7 @@ public class GeoTileMapCanvas extends StackPane {
                     double tileScreenX = w / 2.0 + (tx * 256.0 - centerPxX) + offsetX;
                     double tileScreenY = h / 2.0 + (ty * 256.0 - centerPxY) + offsetY;
 
-                    String tileUrl = String.format("https://a.basemaps.cartocdn.com/rastertiles/voyager/%d/%d/%d.png", zoom, tx, ty);
+                    String tileUrl = String.format("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/%d/%d/%d", zoom, ty, tx);
                     Image tileImg = tileCache.get(tileUrl);
                     if (tileImg == null) {
                         tileImg = new Image(tileUrl, true);
@@ -641,6 +641,8 @@ public class GeoTileMapCanvas extends StackPane {
 
     private void drawSingleVessel(VesselMarker v) {
         if (v == null || isFilteredOut(v.name, String.valueOf(v.mmsi))) return;
+        if (v.lat < -90.0 || v.lat > 90.0 || v.lng < -180.0 || v.lng > 180.0 || (v.lat == 0.0 && v.lng == 0.0)) return;
+        if (!com.projectui.service.VesselPositionValidator.isWaterCoordinate(v.lat, v.lng)) return;
 
         double[] pos = latLngToPixel(v.lat, v.lng);
         boolean isSel = (selectedVessel == v);

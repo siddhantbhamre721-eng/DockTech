@@ -1,10 +1,17 @@
 package com.projectui.view.CustomOfficer;
 
+import java.util.List;
+import java.util.Map;
+
+import com.projectui.dao.CargoDao;
+import com.projectui.dao.UserDao;
+import com.projectui.view.login.LoginPage;
+
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Parent;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
@@ -18,253 +25,336 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
+@SuppressWarnings({"unchecked", "unused"})
 public class CargoInspection {
     private final VBox content;
 
-    public CargoInspection() {
+    private int pendingCount = 0;
+    private int underInspectionCount = 0;
+    private int approvedCount = 0;
+    private int rejectedCount = 0;
 
-        content = new VBox(22);
-        content.setPadding(new Insets(25, 35, 30, 35));
-        content.setStyle("-fx-background-color:#f3f8fc;");
+    private Label pendingLabel;
+    private Label underLabel;
+    private Label approvedLabel;
+    private Label rejectedLabel;
+
+    private GridPane tableGrid;
+    private final CargoDao cargoDao = new CargoDao();
+    private String activeAssignedPort = "Port of Mumbai";
+    private String officerName = "Customs Officer";
+
+    private TextField searchField;
+    private ComboBox<String> statusFilterCombo;
+
+    public CargoInspection() {
+        resolveOfficerContext();
+
+        content = new VBox(20);
+        content.setPadding(new Insets(20, 28, 28, 28));
+        content.setStyle("-fx-background-color:#f4f7fb;");
 
         // HEADER
-        Label title = new Label("Cargo Inspection");
-        title.setFont(Font.font("Arial", FontWeight.BOLD, 28));
+        Label title = new Label("Cargo Physical Inspection (" + activeAssignedPort + ")");
+        title.setFont(Font.font("Arial", FontWeight.BOLD, 26));
         title.setTextFill(Color.web("#111827"));
 
-        Label subtitle = new Label(
-                "Inspect cargo and approve or reject shipments based on customs verification.");
-        subtitle.setTextFill(Color.web("#7b8494"));
+        Label subtitle = new Label("Conduct physical container audits, hazardous compliance checks, and authorize clearance.");
+        subtitle.setTextFill(Color.web("#64748b"));
+        subtitle.setFont(Font.font("Arial", 13));
 
-        VBox heading = new VBox(5, title, subtitle);
-
-      
+        VBox heading = new VBox(4, title, subtitle);
 
         Region space = new Region();
         HBox.setHgrow(space, Priority.ALWAYS);
 
-        HBox header = new HBox(heading, space);
+        Button refreshBtn = new Button("↻ Refresh Data");
+        refreshBtn.setStyle("-fx-background-color:white; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-padding:6 12; -fx-font-size:12px; -fx-font-weight:bold; -fx-cursor:hand;");
+        refreshBtn.setOnAction(e -> refreshInspectionData());
+
+        HBox header = new HBox(heading, space, refreshBtn);
         header.setAlignment(Pos.CENTER_LEFT);
 
-        // CARDS
+        // STAT CARDS
         HBox cards = new HBox(15);
-        cards.getChildren().addAll(
-                createCard("Pending Inspection", "18", "◷", "#f59e0b"),
-                createCard("Under Inspection", "12", "⌕", "#087cf5"),
-                createCard("Approved", "142", "✓", "#10b981"),
-                createCard("Rejected", "07", "✕", "#ef4444")
-        );
+        VBox c1 = createCard("Pending Inspection", "0", "◷", "#f59e0b", "#fef3c7");
+        VBox c2 = createCard("Under Inspection", "0", "⌕", "#0284c7", "#e0f2fe");
+        VBox c3 = createCard("Passed & Approved", "0", "✓", "#10b981", "#d1fae5");
+        VBox c4 = createCard("Failed / Rejected", "0", "✕", "#ef4444", "#fee2e2");
 
-        // TABLE
-        VBox tableBox = new VBox(15);
-        tableBox.setPadding(new Insets(20));
-        tableBox.setStyle(
-                "-fx-background-color:white;" +
-                "-fx-background-radius:14;" +
-                "-fx-border-color:#e5e7eb;" +
-                "-fx-border-radius:14;");
+        pendingLabel = (Label) c1.getChildren().get(1);
+        underLabel = (Label) c2.getChildren().get(1);
+        approvedLabel = (Label) c3.getChildren().get(1);
+        rejectedLabel = (Label) c4.getChildren().get(1);
 
-        Label tableTitle = new Label("Cargo Inspection");
-        tableTitle.setFont(Font.font("Arial", FontWeight.BOLD, 19));
+        cards.getChildren().addAll(c1, c2, c3, c4);
 
-        Label tableSubtitle = new Label(
-                "Review and inspect cargo shipments.");
-        tableSubtitle.setTextFill(Color.web("#8a93a3"));
+        // FILTER BAR
+        HBox filterBar = new HBox(12);
+        filterBar.setAlignment(Pos.CENTER_LEFT);
+        filterBar.setPadding(new Insets(12, 16, 12, 16));
+        filterBar.setStyle("-fx-background-color:white; -fx-border-color:#e2e8f0; -fx-border-radius:8; -fx-background-radius:8;");
 
-        VBox tableHeading = new VBox(4, tableTitle, tableSubtitle);
+        searchField = new TextField();
+        searchField.setPromptText("Search Cargo ID, Category, Exporter...");
+        searchField.setPrefWidth(260);
+        searchField.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-font-size:12px;");
+        searchField.textProperty().addListener((obs, o, n) -> renderTableRows());
 
-        GridPane table = new GridPane();
-        table.setHgap(15);
-        table.setVgap(5);
+        statusFilterCombo = new ComboBox<>();
+        statusFilterCombo.getItems().addAll("All Statuses", "Pending", "Under Inspection", "Passed", "Failed", "Hold");
+        statusFilterCombo.setValue("All Statuses");
+        statusFilterCombo.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-font-size:12px;");
+        statusFilterCombo.setOnAction(e -> renderTableRows());
+
+        Region filterGap = new Region();
+        HBox.setHgrow(filterGap, Priority.ALWAYS);
+
+        filterBar.getChildren().addAll(searchField, statusFilterCombo, filterGap);
+
+        // TABLE BOX
+        VBox tableBox = new VBox(14);
+        tableBox.setPadding(new Insets(18));
+        tableBox.setStyle("-fx-background-color:white; -fx-background-radius:8; -fx-border-color:#e2e8f0; -fx-border-radius:8;");
+
+        Label tableTitle = new Label("Live Cargo Inspection Registry");
+        tableTitle.setFont(Font.font("Arial", FontWeight.BOLD, 15));
+        tableTitle.setTextFill(Color.web("#0f172a"));
+
+        tableGrid = new GridPane();
+        tableGrid.setHgap(15);
+        tableGrid.setVgap(10);
+        tableGrid.setPadding(new Insets(6, 0, 6, 0));
+
+        ScrollPane scroll = new ScrollPane(tableGrid);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background-color:transparent; -fx-background:transparent; -fx-border-color:transparent;");
+
+        tableBox.getChildren().addAll(tableTitle, scroll);
+
+        content.getChildren().addAll(header, cards, filterBar, tableBox);
+
+        refreshInspectionData();
+    }
+
+    private void resolveOfficerContext() {
+        if (LoginPage.loggedInUser != null) {
+            Map<String, Object> u = LoginPage.loggedInUser;
+            if (u.get("name") != null) officerName = u.get("name").toString();
+
+            String portVal = null;
+            if (u.get("assignedPort") != null && !u.get("assignedPort").toString().isBlank()) {
+                portVal = u.get("assignedPort").toString();
+            } else if (u.get("port") != null && !u.get("port").toString().isBlank()) {
+                portVal = u.get("port").toString();
+            } else if (u.get("organization") != null && !u.get("organization").toString().isBlank()) {
+                portVal = u.get("organization").toString();
+            } else if (u.get("company") != null && !u.get("company").toString().isBlank()) {
+                portVal = u.get("company").toString();
+            }
+
+            if (portVal != null && !portVal.isBlank()) {
+                activeAssignedPort = UserDao.normalizePort(portVal);
+            }
+        }
+    }
+
+    private void refreshInspectionData() {
+        resolveOfficerContext();
+        pendingCount = 0;
+        underInspectionCount = 0;
+        approvedCount = 0;
+        rejectedCount = 0;
+
+        List<Map<String, Object>> cargos = cargoDao.getCargosByPort(activeAssignedPort);
+        if (cargos != null) {
+            for (Map<String, Object> c : cargos) {
+                if (c == null) continue;
+                String inspectStatus = c.get("inspectionStatus") != null ? String.valueOf(c.get("inspectionStatus")) : "Pending";
+
+                if ("Passed".equalsIgnoreCase(inspectStatus) || "Approved".equalsIgnoreCase(inspectStatus) || "Cleared".equalsIgnoreCase(inspectStatus)) {
+                    approvedCount++;
+                } else if ("Under Inspection".equalsIgnoreCase(inspectStatus)) {
+                    underInspectionCount++;
+                } else if ("Failed".equalsIgnoreCase(inspectStatus) || "Rejected".equalsIgnoreCase(inspectStatus) || "Hold".equalsIgnoreCase(inspectStatus)) {
+                    rejectedCount++;
+                } else {
+                    pendingCount++;
+                }
+            }
+        }
+
+        if (pendingLabel != null) pendingLabel.setText(String.valueOf(pendingCount));
+        if (underLabel != null) underLabel.setText(String.valueOf(underInspectionCount));
+        if (approvedLabel != null) approvedLabel.setText(String.valueOf(approvedCount));
+        if (rejectedLabel != null) rejectedLabel.setText(String.valueOf(rejectedCount));
+
+        renderTableRows();
+    }
+
+    private void renderTableRows() {
+        if (tableGrid == null) return;
+        tableGrid.getChildren().clear();
 
         String[] headers = {
-                "Cargo ID", "Cargo", "Shipping Co.", "Category",
-                "Weight", "Inspection Status", "Customs Status", "Action"
+                "Cargo ID", "Cargo Name", "Exporter / Shipper", "Category",
+                "Weight", "Inspection Status", "Customs Status", "Actions"
         };
 
         for (int i = 0; i < headers.length; i++) {
             Label l = new Label(headers[i]);
-            l.setFont(Font.font("Arial", FontWeight.BOLD, 11));
-            l.setTextFill(Color.web("#6b7280"));
-            l.setPadding(new Insets(10));
-            table.add(l, i, 0);
+            l.setFont(Font.font("Arial", FontWeight.BOLD, 12));
+            l.setTextFill(Color.web("#475569"));
+            l.setPadding(new Insets(8, 6, 8, 6));
+            tableGrid.add(l, i, 0);
         }
 
-        addRow(table, 1, "CGO-1287", "Ocean Queen",
-                "Ocean Shipping Ltd.", "Electronics", "120 Tons",
-                "Under Inspection", "Pending");
+        String query = searchField != null && searchField.getText() != null ? searchField.getText().trim().toLowerCase() : "";
+        String statusFilter = statusFilterCombo != null ? statusFilterCombo.getValue() : "All Statuses";
 
-        addRow(table, 2, "CGO-1290", "Sea Dragon",
-                "Global Logistics", "Machinery", "180 Tons",
-                "Completed", "Approved");
+        List<Map<String, Object>> cargos = cargoDao.getCargosByPort(activeAssignedPort);
+        int rowIndex = 1;
 
-        addRow(table, 3, "CGO-1281", "Pacific Star",
-                "Maritime Cargo", "Textiles", "95 Tons",
-                "Hold", "Rejected");
+        if (cargos != null) {
+            for (Map<String, Object> c : cargos) {
+                if (c == null) continue;
+                String cargoId = String.valueOf(c.get("cargoId"));
+                String name = c.get("cargoName") != null ? String.valueOf(c.get("cargoName")) : "General Cargo";
+                String exporter = c.get("exporter") != null ? String.valueOf(c.get("exporter")) : (c.get("company") != null ? String.valueOf(c.get("company")) : "Maritime Corp");
+                String type = c.get("cargoType") != null ? String.valueOf(c.get("cargoType")) : "General";
+                String weight = c.get("weight") != null ? String.valueOf(c.get("weight")) : "1,000 kg";
+                String inspectStatus = c.get("inspectionStatus") != null ? String.valueOf(c.get("inspectionStatus")) : "Pending";
+                String customsStatus = c.get("customsStatus") != null ? String.valueOf(c.get("customsStatus")) : "Pending";
 
-        addRow(table, 4, "CGO-1301", "Coral Queen",
-                "Ocean Shipping Ltd.", "Pharmaceuticals", "210 Tons",
-                "Pending", "Pending");
+                boolean matchQuery = query.isEmpty() ||
+                        cargoId.toLowerCase().contains(query) ||
+                        name.toLowerCase().contains(query) ||
+                        exporter.toLowerCase().contains(query) ||
+                        type.toLowerCase().contains(query);
 
-        ScrollPane scroll = new ScrollPane(table);
-        scroll.setFitToWidth(false);
-        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        scroll.setStyle(
-                "-fx-background-color:transparent;" +
-                "-fx-border-color:transparent;");
+                boolean matchStatus = "All Statuses".equalsIgnoreCase(statusFilter) ||
+                        inspectStatus.equalsIgnoreCase(statusFilter) ||
+                        customsStatus.equalsIgnoreCase(statusFilter);
 
-        tableBox.getChildren().addAll(tableHeading, scroll);
-        VBox.setVgrow(tableBox, Priority.ALWAYS);
-
-        content.getChildren().addAll(header, cards, tableBox);
-    }
-
-    private VBox createCard(String title, String value,
-                            String icon, String color) {
-
-        VBox card = new VBox(7);
-        card.setPrefHeight(110);
-        card.setPadding(new Insets(17));
-        card.setStyle(
-                "-fx-background-color:white;" +
-                "-fx-background-radius:13;" +
-                "-fx-border-color:#e5e7eb;" +
-                "-fx-border-radius:13;");
-
-        Label titleLabel = new Label(title);
-        titleLabel.setTextFill(Color.web("#7b8494"));
-
-        Label number = new Label(value);
-        number.setFont(Font.font("Arial", FontWeight.BOLD, 25));
-        number.setTextFill(Color.web("#111827"));
-
-        Label iconLabel = new Label(icon);
-        iconLabel.setMinSize(35, 35);
-        iconLabel.setAlignment(Pos.CENTER);
-        iconLabel.setFont(Font.font("Arial", FontWeight.BOLD, 18));
-        iconLabel.setStyle(
-                "-fx-background-color:" + color + "25;" +
-                "-fx-text-fill:" + color + ";" +
-                "-fx-background-radius:9;");
-
-        VBox numbers = new VBox(4, titleLabel, number);
-        Region space = new Region();
-        HBox.setHgrow(space, Priority.ALWAYS);
-
-        HBox row = new HBox(10, numbers, space, iconLabel);
-        card.getChildren().add(row);
-
-        HBox.setHgrow(card, Priority.ALWAYS);
-        return card;
-    }
-
-    private void addRow(GridPane table, int row,
-                         String id, String cargo, String company,
-                         String category, String weight,
-                         String inspection, String customs) {
-
-        String[] values = {id, cargo, company, category, weight};
-
-        for (int i = 0; i < values.length; i++) {
-            table.add(cell(values[i]), i, row);
+                if (matchQuery && matchStatus) {
+                    addGridRow(rowIndex++, cargoId, name, exporter, type, weight, inspectStatus, customsStatus);
+                }
+            }
         }
 
-        Label inspectionLabel = cell(inspection);
-        Label customsLabel = cell(customs);
+        if (rowIndex == 1) {
+            Label empty = new Label("No cargo inspection records found for " + activeAssignedPort);
+            empty.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:13px; -fx-padding:15;");
+            tableGrid.add(empty, 0, 1, 8, 1);
+        }
+    }
 
-        table.add(inspectionLabel, 5, row);
-        table.add(customsLabel, 6, row);
+    private void addGridRow(int row, String id, String name, String company, String type, String weight, String inspectStatus, String customsStatus) {
+        Label lId = new Label(id);
+        lId.setStyle("-fx-font-weight:bold; -fx-text-fill:#0f172a; -fx-font-size:12px;");
 
-        Button inspect = new Button("Inspect");
-        inspect.setStyle(
-                "-fx-background-color:#0f5fff;" +
-                "-fx-text-fill:white;" +
-                "-fx-font-weight:bold;" +
-                "-fx-background-radius:8;");
+        Label lName = new Label(name);
+        lName.setStyle("-fx-text-fill:#334155; -fx-font-size:12px;");
 
-        Button reject = new Button("Reject");
-        reject.setStyle(
-                "-fx-background-color:#ef4444;" +
-                "-fx-text-fill:white;" +
-                "-fx-font-weight:bold;" +
-                "-fx-background-radius:8;");
+        Label lComp = new Label(company);
+        lComp.setStyle("-fx-text-fill:#334155; -fx-font-size:12px;");
 
-        inspect.setOnAction(e -> {
-            inspectionLabel.setText("Completed");
-            inspectionLabel.setTextFill(Color.web("#10b981"));
+        Label lType = new Label(type);
+        lType.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px;");
 
-            customsLabel.setText("Approved");
-            customsLabel.setTextFill(Color.web("#10b981"));
+        Label lWeight = new Label(weight);
+        lWeight.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px;");
 
-            showSuccessAlert(id);
+        Label badgeInspect = new Label(inspectStatus);
+        if ("Passed".equalsIgnoreCase(inspectStatus) || "Approved".equalsIgnoreCase(inspectStatus)) {
+            badgeInspect.setStyle("-fx-background-color:#dcfce7; -fx-text-fill:#166534; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:10;");
+        } else if ("Under Inspection".equalsIgnoreCase(inspectStatus)) {
+            badgeInspect.setStyle("-fx-background-color:#e0f2fe; -fx-text-fill:#0369a1; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:10;");
+        } else if ("Failed".equalsIgnoreCase(inspectStatus) || "Rejected".equalsIgnoreCase(inspectStatus)) {
+            badgeInspect.setStyle("-fx-background-color:#fee2e2; -fx-text-fill:#991b1b; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:10;");
+        } else {
+            badgeInspect.setStyle("-fx-background-color:#fef3c7; -fx-text-fill:#92400e; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:10;");
+        }
+
+        Label badgeCustoms = new Label(customsStatus);
+        if ("Cleared".equalsIgnoreCase(customsStatus) || "Approved".equalsIgnoreCase(customsStatus)) {
+            badgeCustoms.setStyle("-fx-background-color:#dcfce7; -fx-text-fill:#166534; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:10;");
+        } else if ("Held".equalsIgnoreCase(customsStatus)) {
+            badgeCustoms.setStyle("-fx-background-color:#fee2e2; -fx-text-fill:#991b1b; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:10;");
+        } else {
+            badgeCustoms.setStyle("-fx-background-color:#fef3c7; -fx-text-fill:#92400e; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:10;");
+        }
+
+        // Action Buttons
+        HBox actions = new HBox(6);
+        Button startBtn = new Button("Inspect");
+        startBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+        startBtn.setOnAction(e -> {
+            cargoDao.updateInspectionStatus(id, "Under Inspection", officerName, "Physical inspection initiated by officer", null);
+            refreshInspectionData();
         });
 
-        reject.setOnAction(e -> {
-            TextInputDialog dialog = new TextInputDialog();
-            dialog.setTitle("Reject Cargo");
-            dialog.setHeaderText("Reason for rejecting Cargo " + id);
-            dialog.setContentText("Enter rejection reason:");
+        Button passBtn = new Button("Pass");
+        passBtn.setStyle("-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+        passBtn.setOnAction(e -> {
+            cargoDao.updateInspectionStatus(id, "Passed", officerName, "Physical inspection verified. Cargo conforms to declaration.", null);
+            refreshInspectionData();
+            Alert a = new Alert(Alert.AlertType.INFORMATION);
+            a.setTitle("Inspection Passed");
+            a.setHeaderText("Cargo " + id + " Inspection Passed");
+            a.setContentText("Inspection certified by " + officerName + ". Cargo is now eligible for final Customs Clearance.");
+            a.showAndWait();
+        });
 
-            dialog.showAndWait().ifPresent(reason -> {
-                if (reason.trim().isEmpty()) {
-                    new Alert(Alert.AlertType.WARNING,
-                            "Please enter a reason before rejecting the cargo.")
-                            .showAndWait();
-                    return;
-                }
-
-                inspectionLabel.setText("Rejected");
-                inspectionLabel.setTextFill(Color.web("#ef4444"));
-
-                customsLabel.setText("Rejected");
-                customsLabel.setTextFill(Color.web("#ef4444"));
-
-                showRejectAlert(id, reason);
+        Button failBtn = new Button("Fail");
+        failBtn.setStyle("-fx-background-color:#ef4444; -fx-text-fill:white; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+        failBtn.setOnAction(e -> {
+            TextInputDialog td = new TextInputDialog("Discrepancy in seal number / cargo weight");
+            td.setTitle("Record Inspection Failure");
+            td.setHeaderText("Specify Physical Inspection Failure Reason");
+            td.setContentText("Failure Reason:");
+            td.showAndWait().ifPresent(reason -> {
+                cargoDao.updateInspectionStatus(id, "Failed", officerName, "Physical inspection failed: " + reason, reason);
+                refreshInspectionData();
             });
         });
 
-        table.add(new HBox(8, inspect, reject), 7, row);
+        actions.getChildren().addAll(startBtn, passBtn, failBtn);
+
+        tableGrid.add(lId, 0, row);
+        tableGrid.add(lName, 1, row);
+        tableGrid.add(lComp, 2, row);
+        tableGrid.add(lType, 3, row);
+        tableGrid.add(lWeight, 4, row);
+        tableGrid.add(badgeInspect, 5, row);
+        tableGrid.add(badgeCustoms, 6, row);
+        tableGrid.add(actions, 7, row);
     }
 
-    private Label cell(String text) {
-        Label l = new Label(text);
-        l.setWrapText(true);
-        l.setPadding(new Insets(15, 8, 15, 8));
-        l.setFont(Font.font(11));
-        l.setTextFill(Color.web("#374151"));
-        return l;
-    }
+    private VBox createCard(String title, String count, String icon, String color, String bg) {
+        VBox card = new VBox(6);
+        card.setPadding(new Insets(14));
+        card.setStyle("-fx-background-color:white; -fx-border-color:#e2e8f0; -fx-border-radius:8; -fx-background-radius:8;");
 
-    private void showSuccessAlert(String id) {
+        HBox top = new HBox(8);
+        top.setAlignment(Pos.CENTER_LEFT);
 
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Inspection Successful");
-        alert.setHeaderText(null);
-        alert.setContentText(
-                "Cargo " + id +
-                " has been successfully inspected and approved.");
-        alert.showAndWait();
-    }
+        Label ic = new Label(icon);
+        ic.setStyle("-fx-font-size:14px; -fx-text-fill:" + color + "; -fx-background-color:" + bg + "; -fx-background-radius:6; -fx-padding:4 8;");
 
-    private void showRejectAlert(String id, String reason) {
+        Label t = new Label(title);
+        t.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px; -fx-font-weight:bold;");
+        top.getChildren().addAll(ic, t);
 
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Cargo Rejected");
-        alert.setHeaderText("Cargo Rejected");
-        alert.setContentText(
-                "Cargo " + id +
-                " has been rejected successfully.\n\nReason: " + reason);
-        alert.showAndWait();
+        Label c = new Label(count);
+        c.setStyle("-fx-text-fill:#0f172a; -fx-font-size:22px; -fx-font-weight:bold;");
+
+        card.getChildren().addAll(top, c);
+        HBox.setHgrow(card, Priority.ALWAYS);
+        return card;
     }
 
     public VBox getContent() {
         return content;
     }
-
-    public Parent getRoot() {
-        return content;
-    }
 }
-    
-

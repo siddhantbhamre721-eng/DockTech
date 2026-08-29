@@ -373,10 +373,33 @@ public class VesselFinderService {
                         double rawLng = Double.parseDouble(parts[0].trim());
                         double rawLat = Double.parseDouble(parts[1].trim());
 
-                        // Map coordinates strictly into maritime sea waters (Arabian Sea & Bay of Bengal)
-                        boolean inBayOfBengal = (featureIdx % 2 == 0);
-                        double lat = inBayOfBengal ? (8.5 + (Math.abs(rawLat * 10.0) % 11.0)) : (7.0 + (Math.abs(rawLat * 10.0) % 12.0));
-                        double lng = inBayOfBengal ? (83.5 + (Math.abs(rawLng * 10.0) % 10.0)) : (62.5 + (Math.abs(rawLng * 10.0) % 9.0));
+                        // Map coordinates strictly into maritime sea waters across major Indian ports
+                        int portSlot = featureIdx % 5;
+                        String defaultDest;
+                        double lat;
+                        double lng;
+
+                        if (portSlot == 0) {
+                            defaultDest = "Cochin Port";
+                            lat = 9.40 + (Math.abs(rawLat * 10.0) % 1.10);
+                            lng = 75.40 + (Math.abs(rawLng * 10.0) % 0.75);
+                        } else if (portSlot == 1) {
+                            defaultDest = "Port of Mumbai";
+                            lat = 18.20 + (Math.abs(rawLat * 10.0) % 1.20);
+                            lng = 71.50 + (Math.abs(rawLng * 10.0) % 1.20);
+                        } else if (portSlot == 2) {
+                            defaultDest = "Port of Chennai";
+                            lat = 12.50 + (Math.abs(rawLat * 10.0) % 1.20);
+                            lng = 80.40 + (Math.abs(rawLng * 10.0) % 1.20);
+                        } else if (portSlot == 3) {
+                            defaultDest = "Port of Vizag";
+                            lat = 17.00 + (Math.abs(rawLat * 10.0) % 1.20);
+                            lng = 83.40 + (Math.abs(rawLng * 10.0) % 1.20);
+                        } else {
+                            defaultDest = "Port of Kolkata";
+                            lat = 21.00 + (Math.abs(rawLat * 10.0) % 1.00);
+                            lng = 87.50 + (Math.abs(rawLng * 10.0) % 1.00);
+                        }
 
                         int searchStart = Math.max(0, pos - 200);
                         long mmsi = extractLongField(json, searchStart, "mmsi");
@@ -393,7 +416,9 @@ public class VesselFinderService {
                         String name = meta != null && meta.get("name") != null && !meta.get("name").isBlank()
                                 ? meta.get("name")
                                 : "MV Indian Ocean #" + (mmsi % 10000);
-                        String dest = meta != null && meta.get("destination") != null ? meta.get("destination") : (inBayOfBengal ? "Port of Chennai" : "Port of Mumbai");
+                        String dest = meta != null && meta.get("destination") != null && !meta.get("destination").isBlank()
+                                ? meta.get("destination")
+                                : defaultDest;
                         String imo = meta != null && meta.get("imo") != null ? meta.get("imo") : "9" + (Math.abs(mmsi) % 899999 + 100000);
                         String callSign = meta != null && meta.get("callSign") != null ? meta.get("callSign") : "V" + (Math.abs(mmsi) % 8999 + 1000);
                         String shipType = meta != null && meta.get("shipType") != null ? meta.get("shipType") : (sog > 10.0 ? "Container / Cargo Ship" : "Tanker Ship");

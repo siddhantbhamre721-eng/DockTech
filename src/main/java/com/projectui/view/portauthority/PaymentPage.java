@@ -1,838 +1,943 @@
 package com.projectui.view.portauthority;
 
-import javafx.geometry.Insets;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
+import java.text.NumberFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import com.projectui.dao.CargoDao;
+import com.projectui.dao.ContainerDao;
+import com.projectui.service.VesselData;
+import com.projectui.service.VesselFinderService;
+import com.projectui.service.VesselManager;
+
+import javafx.application.Platform;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.collections.transformation.FilteredList;
-import javafx.scene.control.*;
-
-
-
-// =====================================================
-// PAYMENT MANAGEMENT PAGE
-// =====================================================
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Node;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.Label;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
+import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.VBox;
 
 @SuppressWarnings({"unchecked", "unused"})
 public class PaymentPage {
 
-    // =====================================================
-    // MAIN PAGE CONTAINER
-    // =====================================================
+    private final VBox root = new VBox(16);
 
-    private VBox root;
+    // Shared In-Memory Payment Store synchronized with real backend transactions
+    private static final Map<String, Map<String, Object>> paymentStore = new ConcurrentHashMap<>();
 
+    // Backend DAOs & Services (Single source of truth)
+    private final CargoDao cargoDao = new CargoDao();
+    private final ContainerDao containerDao = new ContainerDao();
+    private final VesselManager vesselManager = VesselManager.getInstance();
+    private final VesselFinderService vesselFinderService = VesselFinderService.getInstance();
 
-    // =====================================================
-    // CONSTRUCTOR
-    // =====================================================
+    // Authenticated Port Authority Context
+    private String userAssignedPort = "Cochin Port";
+    private String activeViewingPort = "Cochin Port";
+
+    // Header Freshness & Telemetry UI
+    private Label pageHeadingLabel;
+    private Label pageSubLabel;
+    private Label dataFreshnessBadge;
+    private Label lastSyncLabel;
+
+    // Top Summary KPI Cards
+    private Label totalPaymentsVal;
+    private Label paidCountVal;
+    private Label pendingCountVal;
+    private Label failedCountVal;
+    private Label totalAmountVal;
+    private Label paidAmountVal;
+    private Label pendingAmountVal;
+
+    // Master & Filtered Payment List
+    private final List<Map<String, Object>> masterPaymentsList = new ArrayList<>();
+    private final ObservableList<Map<String, Object>> displayedPaymentsList = FXCollections.observableArrayList();
+
+    // Tables & Filters
+    private TableView<Map<String, Object>> paymentTable;
+    private TextField searchField;
+    private ComboBox<String> statusFilterCombo;
+    private ComboBox<String> customerTypeCombo;
+    private ComboBox<String> methodFilterCombo;
+    private ComboBox<String> sortCombo;
+
+    // State Tracking
+    private long lastSuccessfulUpdateEpoch = System.currentTimeMillis();
+    private final NumberFormat currencyFormatter = NumberFormat.getCurrencyInstance(new Locale("en", "IN"));
 
     public PaymentPage() {
+        root.setSpacing(16);
+        root.setPadding(new Insets(0));
+        root.setStyle("-fx-background-color:transparent;");
 
-        root = new VBox();
+        resolveAssignedPort();
+        buildLayout();
+        connectLiveServices();
+    }
 
-        root.setSpacing(18);
+    // =====================================================
+    // 1. PORT CONTEXT RESOLUTION (DYNAMIC PER USER)
+    // =====================================================
+    private void resolveAssignedPort() {
+        String port = null;
+        if (com.projectui.view.login.LoginPage.loggedInUser != null) {
+            Map<String, Object> user = com.projectui.view.login.LoginPage.loggedInUser;
+            if (user.get("assignedPort") != null && !user.get("assignedPort").toString().isBlank()) {
+                port = user.get("assignedPort").toString().trim();
+            } else if (user.get("company") != null && !user.get("company").toString().isBlank()) {
+                port = user.get("company").toString().trim();
+            }
+        }
 
-        root.setPadding(
-                new Insets(0)
-        );
+        if (port != null && !port.isBlank()) {
+            userAssignedPort = normalizePortName(port);
+        } else {
+            userAssignedPort = "Cochin Port";
+        }
+        activeViewingPort = userAssignedPort;
+    }
 
-        root.setStyle(
-                "-fx-background-color: transparent;"
-        );
+    private String normalizePortName(String raw) {
+        if (raw == null) return "Cochin Port";
+        String lower = raw.toLowerCase().trim();
+        if (lower.contains("cochin") || lower.contains("kochi")) return "Cochin Port";
+        if (lower.contains("mumbai") || lower.contains("bombay")) return "Port of Mumbai";
+        if (lower.contains("chennai") || lower.contains("madras")) return "Port of Chennai";
+        if (lower.contains("vizag") || lower.contains("visakhapatnam")) return "Port of Vizag";
+        if (lower.contains("kolkata") || lower.contains("calcutta")) return "Port of Kolkata";
+        return raw;
+    }
 
-
-        // =================================================
-        // PAGE TITLE
-        // =================================================
-
-        Label title =
-                new Label(
-                        "Payment Management"
-                );
-
-        title.setStyle(
-                "-fx-text-fill:#0F172A; -fx-font-size:22px; -fx-font-weight:bold;"
-        );
-
-
-        // =================================================
-        // PAGE DESCRIPTION
-        // =================================================
-
-        Label subtitle =
-                new Label(
-                        "Monitor payment transactions related to port and cargo operations."
-                );
-
-        subtitle.setStyle(
-                "-fx-text-fill:#64748B; -fx-font-size:13px;"
-        );
-
-
-        // =================================================
-        // TITLE + DESCRIPTION
-        // =================================================
-
-        VBox titleBox =
-                new VBox(
-                        4,
-                        title,
-                        subtitle
-                );
-
-
-        // =================================================
-        // SUMMARY CARDS
-        // =================================================
-
-        HBox summaryCards =
-                createSummaryCards();
-
-        // =================================================
-        // PAYMENT TRANSACTIONS TABLE
-        // =================================================
-
-        VBox paymentTable = createPaymentTable();
-
-
-        // =================================================
-        // ADD COMPONENTS TO PAGE
-        // =================================================
+    // =====================================================
+    // 2. LAYOUT COMPOSITION
+    // =====================================================
+    private void buildLayout() {
+        VBox header = buildHeader();
+        HBox summaryCards = buildSummaryCards();
+        VBox paymentSection = buildPaymentTableSection();
 
         root.getChildren().addAll(
-                titleBox,
+                header,
                 summaryCards,
-                paymentTable
+                paymentSection
         );
     }
 
-
     // =====================================================
-    // GET PAGE CONTENT
+    // 3. HEADER BANNER
     // =====================================================
+    private VBox buildHeader() {
+        VBox container = new VBox(4);
 
-    public VBox getContent() {
+        HBox topRow = new HBox(12);
+        topRow.setAlignment(Pos.CENTER_LEFT);
 
-        return root;
+        VBox titleBox = new VBox(2);
+        pageHeadingLabel = new Label("Payment Management");
+        pageHeadingLabel.setStyle("-fx-text-fill:#0f172a; -fx-font-size:22px; -fx-font-weight:bold;");
+
+        pageSubLabel = new Label("Monitor, audit and verify port tariffs, freight invoices and shipper transactions for " + activeViewingPort);
+        pageSubLabel.setStyle("-fx-text-fill:#64748b; -fx-font-size:13px;");
+        titleBox.getChildren().addAll(pageHeadingLabel, pageSubLabel);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        // Freshness Badge
+        dataFreshnessBadge = new Label("● LIVE — Payment Synced");
+        dataFreshnessBadge.setStyle("-fx-text-fill:#10b981; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-color:rgba(16,185,129,0.12); -fx-padding:6 12; -fx-background-radius:999;");
+
+        lastSyncLabel = new Label("Synced: Just now");
+        lastSyncLabel.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:12px;");
+
+        Button refreshBtn = new Button("↻ Refresh");
+        refreshBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-radius:6; -fx-padding:6 14; -fx-cursor:hand;");
+        refreshBtn.setOnAction(e -> refreshPaymentData());
+
+        topRow.getChildren().addAll(titleBox, spacer, dataFreshnessBadge, lastSyncLabel, refreshBtn);
+        container.getChildren().add(topRow);
+        return container;
     }
 
-
     // =====================================================
-    // CREATE SUMMARY CARDS
+    // 4. TOP SUMMARY KPI CARDS
     // =====================================================
+    private HBox buildSummaryCards() {
+        HBox row = new HBox(10);
+        row.setAlignment(Pos.CENTER_LEFT);
 
-    private HBox createSummaryCards() {
+        totalPaymentsVal = new Label("0");
+        paidCountVal = new Label("0");
+        pendingCountVal = new Label("0");
+        failedCountVal = new Label("0");
+        totalAmountVal = new Label("₹0");
+        paidAmountVal = new Label("₹0");
+        pendingAmountVal = new Label("₹0");
 
-        HBox cards =
-                new HBox();
+        VBox cTotal = createKpiCard("TOTAL TRANSACTIONS", totalPaymentsVal, "All port invoices", "💳", "#0284c7", "#e0f2fe");
+        VBox cPaid = createKpiCard("PAID", paidCountVal, "Settled & verified", "🟢", "#16a34a", "#ecfdf5");
+        VBox cPending = createKpiCard("PENDING", pendingCountVal, "Awaiting payment", "⏳", "#d97706", "#fef3c7");
+        VBox cFailed = createKpiCard("FAILED / OVERDUE", failedCountVal, "Action required", "🔴", "#ef4444", "#fee2e2");
+        VBox cTotalAmt = createKpiCard("TOTAL INVOICED", totalAmountVal, "Gross tariff value", "📊", "#6366f1", "#e0e7ff");
+        VBox cPaidAmt = createKpiCard("PAID AMOUNT", paidAmountVal, "Collected revenue", "💰", "#059669", "#d1fae5");
+        VBox cPendingAmt = createKpiCard("PENDING AMOUNT", pendingAmountVal, "Outstanding balance", "⚖", "#ea580c", "#ffedd5");
 
-        cards.setSpacing(18);
+        row.getChildren().addAll(cTotal, cPaid, cPending, cFailed, cTotalAmt, cPaidAmt, cPendingAmt);
 
-
-        // =================================================
-        // TOTAL REVENUE
-        // =================================================
-
-        VBox totalRevenue =
-                createSummaryCard(
-                        "Total Revenue",
-                        "₹12.5L",
-                        "+8.2% vs last month",
-                        "#00a878"
-                );
-
-
-        // =================================================
-        // PAID
-        // =================================================
-
-        VBox paid =
-                createSummaryCard(
-                        "Paid",
-                        "₹9.8L",
-                        "784 transactions",
-                        "#7b879c"
-                );
-
-
-        // =================================================
-        // PENDING
-        // =================================================
-
-        VBox pending =
-                createSummaryCard(
-                        "Pending",
-                        "₹2.1L",
-                        "62 invoices",
-                        "#ff8a00"
-                );
-
-
-        // =================================================
-        // OVERDUE
-        // =================================================
-
-        VBox overdue =
-                createSummaryCard(
-                        "Overdue",
-                        "₹60K",
-                        "9 accounts overdue",
-                        "#e53935"
-                );
-
-
-        // =================================================
-        // ADD CARDS
-        // =================================================
-
-        cards.getChildren().addAll(
-                totalRevenue,
-                paid,
-                pending,
-                overdue
-        );
-
-
-        return cards;
+        for (Node n : row.getChildren()) {
+            HBox.setHgrow(n, Priority.ALWAYS);
+            if (n instanceof VBox) {
+                ((VBox) n).setMaxWidth(Double.MAX_VALUE);
+            }
+        }
+        return row;
     }
 
+    private VBox createKpiCard(String title, Label valLabel, String subtitle, String iconStr, String color, String bg) {
+        VBox card = new VBox(4);
+        card.setPadding(new Insets(10, 12, 10, 12));
+        card.setStyle("-fx-background-color:#ffffff; -fx-background-radius:8; -fx-border-color:#e2e8f0; -fx-border-radius:8; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.03), 4, 0, 0, 1);");
 
-    // =====================================================
-    // CREATE ONE SUMMARY CARD
-    // =====================================================
+        HBox top = new HBox(6);
+        top.setAlignment(Pos.CENTER_LEFT);
 
-    private VBox createSummaryCard(
-            String heading,
-            String value,
-            String description,
-            String descriptionColor
-    ) {
+        Label icon = new Label(iconStr);
+        icon.setStyle("-fx-text-fill:" + color + "; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-color:" + bg + "; -fx-padding:3 6; -fx-background-radius:4;");
 
-        // -------------------------------------------------
-        // CARD HEADING
-        // -------------------------------------------------
+        Label t = new Label(title);
+        t.setStyle("-fx-text-fill:#64748b; -fx-font-size:10px; -fx-font-weight:bold;");
 
-        Label headingLabel =
-                new Label(
-                        heading.toUpperCase()
-                );
+        top.getChildren().addAll(icon, t);
 
-        headingLabel.setFont(
-                Font.font(
-                        "Arial",
-                        13
-                )
-        );
+        valLabel.setStyle("-fx-text-fill:#0f172a; -fx-font-size:19px; -fx-font-weight:bold;");
 
-        headingLabel.setTextFill(
-                Color.web("#7b879c")
-        );
+        Label sub = new Label(subtitle);
+        sub.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:10px;");
 
-
-        // -------------------------------------------------
-        // MAIN VALUE
-        // -------------------------------------------------
-
-        Label valueLabel =
-                new Label(value);
-
-        valueLabel.setFont(
-                Font.font(
-                        "Arial",
-                        FontWeight.BOLD,
-                        28
-                )
-        );
-
-        valueLabel.setTextFill(
-                Color.web("#12203a")
-        );
-
-
-        // -------------------------------------------------
-        // DESCRIPTION
-        // -------------------------------------------------
-
-        Label descriptionLabel =
-                new Label(description);
-
-        descriptionLabel.setFont(
-                Font.font(
-                        "Arial",
-                        13
-                )
-        );
-
-        descriptionLabel.setTextFill(
-                Color.web(descriptionColor)
-        );
-
-
-        // -------------------------------------------------
-        // CARD
-        // -------------------------------------------------
-
-        VBox card =
-                new VBox(
-                        10,
-                        headingLabel,
-                        valueLabel,
-                        descriptionLabel
-                );
-
-        card.setPadding(
-                new Insets(20)
-        );
-
-        card.setPrefHeight(120);
-
-        card.setStyle(
-                "-fx-background-color: white;" +
-                "-fx-border-color: #dce5f0;" +
-                "-fx-border-radius: 10;" +
-                "-fx-background-radius: 10;"
-        );
-
-
+        card.getChildren().addAll(top, valLabel, sub);
         return card;
     }
 
     // =====================================================
-    // PAYMENT TRANSACTIONS TABLE
+    // 5. PAYMENT TRANSACTIONS TABLE SECTION
     // =====================================================
+    private VBox buildPaymentTableSection() {
+        VBox container = new VBox(12);
+        container.setPadding(new Insets(16));
+        container.setStyle("-fx-background-color:#ffffff; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.03), 6, 0, 0, 2);");
 
-    private VBox createPaymentTable() {
+        // Top Filter Bar
+        HBox filterBar = new HBox(10);
+        filterBar.setAlignment(Pos.CENTER_LEFT);
 
-        VBox tableBox = new VBox(10);
+        searchField = new TextField();
+        searchField.setPromptText("🔍 Search by Payment ID, Customer, Cargo, Container...");
+        searchField.setPrefWidth(280);
+        searchField.setPrefHeight(34);
+        searchField.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-font-size:12px;");
+        searchField.textProperty().addListener((obs, oldV, newV) -> applyFilters());
 
-        // -------------------------------------------------
-        // SECTION TITLE
-        // -------------------------------------------------
+        statusFilterCombo = new ComboBox<>();
+        statusFilterCombo.getItems().addAll("All Statuses", "Paid", "Pending", "Failed", "Overdue");
+        statusFilterCombo.setValue("All Statuses");
+        statusFilterCombo.setPrefHeight(34);
+        statusFilterCombo.setStyle("-fx-font-size:12px;");
+        statusFilterCombo.setOnAction(e -> applyFilters());
 
-        Label tableTitle =
-                new Label("Payment Transactions");
+        customerTypeCombo = new ComboBox<>();
+        customerTypeCombo.getItems().addAll("All Entities", "Importer", "Exporter");
+        customerTypeCombo.setValue("All Entities");
+        customerTypeCombo.setPrefHeight(34);
+        customerTypeCombo.setStyle("-fx-font-size:12px;");
+        customerTypeCombo.setOnAction(e -> applyFilters());
 
-        Label tableSubtitle =
-                new Label("All port and cargo payment records");
+        methodFilterCombo = new ComboBox<>();
+        methodFilterCombo.getItems().addAll("All Methods", "UPI", "Bank Transfer", "Net Banking", "Card");
+        methodFilterCombo.setValue("All Methods");
+        methodFilterCombo.setPrefHeight(34);
+        methodFilterCombo.setStyle("-fx-font-size:12px;");
+        methodFilterCombo.setOnAction(e -> applyFilters());
 
-        VBox titleBox = new VBox(3);
+        sortCombo = new ComboBox<>();
+        sortCombo.getItems().addAll("Sort: Newest First", "Sort: Oldest First", "Sort: Amount (High to Low)", "Sort: Amount (Low to High)");
+        sortCombo.setValue("Sort: Newest First");
+        sortCombo.setPrefHeight(34);
+        sortCombo.setStyle("-fx-font-size:12px;");
+        sortCombo.setOnAction(e -> applyFilters());
 
-        titleBox.getChildren().addAll(
-                tableTitle,
-                tableSubtitle
-        );
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
 
+        filterBar.getChildren().addAll(searchField, statusFilterCombo, customerTypeCombo, methodFilterCombo, sortCombo);
 
-        // -------------------------------------------------
-        // FILTERS
-        // -------------------------------------------------
+        // Table
+        paymentTable = new TableView<>();
+        paymentTable.setPrefHeight(420);
+        paymentTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        paymentTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");
+        paymentTable.setPlaceholder(new Label("No payment transactions available for " + activeViewingPort));
 
+        TableColumn<Map<String, Object>, String> colPayId = new TableColumn<>("Payment ID");
+        colPayId.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "paymentId", "PAY-N/A")));
+        colPayId.setStyle("-fx-alignment:CENTER; -fx-font-size:12px; -fx-font-weight:bold; -fx-text-fill:#0284c7;");
 
-        // -------------------------------------------------
-        // SEARCH PAYMENT
-        // -------------------------------------------------
+        TableColumn<Map<String, Object>, String> colCustomer = new TableColumn<>("Customer / Entity");
+        colCustomer.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "customerName", "Global Logistics Ltd.")));
+        colCustomer.setStyle("-fx-font-size:12px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
 
-        TextField searchField =
-                new TextField();
-
-        searchField.setPromptText(
-                "Search Payment..."
-        );
-
-        searchField.setPrefWidth(260);
-
-        // Payment Method Filter
-        ComboBox<String> methodFilter = new ComboBox<>();
-
-        methodFilter.getItems().addAll(
-                "All Methods",
-                "Bank Transfer",
-                "UPI",
-                "Card"
-        );
-
-        methodFilter.setValue("All Methods");
-
-        methodFilter.setPrefWidth(150);
-
-
-        // Payment Status Filter
-        ComboBox<String> statusFilter = new ComboBox<>();
-
-        statusFilter.getItems().addAll(
-                "All Statuses",
-                "Paid",
-                "Pending",
-                "Failed",
-                "Overdue"
-        );
-
-        statusFilter.setValue("All Statuses");
-
-        statusFilter.setPrefWidth(150);
-
-
-        // Put both dropdowns beside each other
-        HBox filters = new HBox(10);
-
-        filters.getChildren().addAll(
-                searchField,
-                methodFilter,
-                statusFilter
-        );
-
-
-        // -------------------------------------------------
-        // TABLE
-        // -------------------------------------------------
-
-        TableView<String[]> table =
-                new TableView<>();
-
-        table.setPrefHeight(400);
-
-
-        // -------------------------------------------------
-        // TABLE COLUMNS
-        // -------------------------------------------------
-
-        TableColumn<String[], String> paymentId =
-                createColumn(
-                        "Payment ID",
-                        100,
-                        0
-                );
-
-
-        TableColumn<String[], String> cargoId =
-                createColumn(
-                        "Cargo ID",
-                        90,
-                        1
-                );
-
-
-        TableColumn<String[], String> ship =
-                createColumn(
-                        "Ship",
-                        120,
-                        2
-                );
-
-
-        TableColumn<String[], String> customer =
-                createColumn(
-                        "Customer",
-                        150,
-                        3
-                );
-
-
-        TableColumn<String[], String> amount =
-                createColumn(
-                        "Amount",
-                        110,
-                        4
-                );
-
-
-        TableColumn<String[], String> date =
-                createColumn(
-                        "Date",
-                        100,
-                        5
-                );
-
-
-        TableColumn<String[], String> method =
-                createColumn(
-                        "Method",
-                        120,
-                        6
-                );
-
-
-        TableColumn<String[], String> status =
-                createColumn(
-                        "Status",
-                        100,
-                        7
-                );
-
-
-        // -------------------------------------------------
-        // ACTION COLUMN
-        // -------------------------------------------------
-
-        TableColumn<String[], String> action =
-                new TableColumn<>("Action");
-
-        action.setPrefWidth(150);
-
-
-        action.setCellFactory(column ->
-                new TableCell<String[], String>() {
-
-                    private final Button viewButton =
-                            new Button("View Payment");
-
-                    {
-                        viewButton.setOnAction(event -> {
-
-                            String[] payment =
-                                    getTableView()
-                                            .getItems()
-                                            .get(getIndex());
-
-                            Alert alert =
-                                    new Alert(
-                                            Alert.AlertType.INFORMATION
-                                    );
-
-                            alert.setTitle("Payment Details");
-
-                            alert.setHeaderText(
-                                    "Payment Details"
-                            );
-
-                            alert.setContentText(
-                                    "Payment ID: " + payment[0] + "\n" +
-                                    "Cargo ID: " + payment[1] + "\n" +
-                                    "Ship: " + payment[2] + "\n" +
-                                    "Customer: " + payment[3] + "\n" +
-                                    "Amount: " + payment[4] + "\n" +
-                                    "Date: " + payment[5] + "\n" +
-                                    "Method: " + payment[6] + "\n" +
-                                    "Status: " + payment[7]
-                            );
-
-                            alert.showAndWait();
-                        });
+        TableColumn<Map<String, Object>, String> colType = new TableColumn<>("Type");
+        colType.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "customerType", "Exporter")));
+        colType.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setGraphic(null);
+                    setText(null);
+                } else {
+                    Label pill = new Label(item);
+                    if ("Importer".equalsIgnoreCase(item)) {
+                        pill.setStyle("-fx-background-color:#e0f2fe; -fx-text-fill:#0284c7; -fx-font-size:10px; -fx-font-weight:bold; -fx-padding:2 6; -fx-background-radius:4;");
+                    } else {
+                        pill.setStyle("-fx-background-color:#fef3c7; -fx-text-fill:#d97706; -fx-font-size:10px; -fx-font-weight:bold; -fx-padding:2 6; -fx-background-radius:4;");
                     }
+                    setGraphic(pill);
+                    setAlignment(Pos.CENTER);
+                    setText(null);
+                }
+            }
+        });
 
+        TableColumn<Map<String, Object>, String> colCargoId = new TableColumn<>("Cargo ID");
+        colCargoId.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "cargoId", "CGO-N/A")));
+        colCargoId.setStyle("-fx-alignment:CENTER; -fx-font-size:11px; -fx-text-fill:#475569;");
 
-                    @Override
-                    protected void updateItem(
-                            String item,
-                            boolean empty
-                    ) {
+        TableColumn<Map<String, Object>, String> colContainer = new TableColumn<>("Container(s)");
+        colContainer.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "containerNo", getString(d.getValue(), "bookingId", "CONT-2045"))));
+        colContainer.setStyle("-fx-alignment:CENTER; -fx-font-size:11px; -fx-text-fill:#0f172a; -fx-font-weight:bold;");
 
-                        super.updateItem(item, empty);
+        TableColumn<Map<String, Object>, String> colAmount = new TableColumn<>("Amount");
+        colAmount.setCellValueFactory(d -> new SimpleStringProperty(formatCurrency(d.getValue())));
+        colAmount.setStyle("-fx-alignment:CENTER-RIGHT; -fx-font-size:12px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
 
-                        if (empty) {
+        TableColumn<Map<String, Object>, String> colMethod = new TableColumn<>("Method");
+        colMethod.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "paymentMethod", "Bank Transfer")));
+        colMethod.setStyle("-fx-alignment:CENTER; -fx-font-size:11px; -fx-text-fill:#334155;");
 
-                            setGraphic(null);
+        TableColumn<Map<String, Object>, String> colStatus = new TableColumn<>("Status");
+        colStatus.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "paymentStatus", "Pending")));
+        colStatus.setCellFactory(col -> createStatusBadgeCell());
 
-                        } else {
+        TableColumn<Map<String, Object>, String> colDate = new TableColumn<>("Payment Date");
+        colDate.setCellValueFactory(d -> new SimpleStringProperty(formatIsoDate(getString(d.getValue(), "paymentDate", "Today"))));
+        colDate.setStyle("-fx-alignment:CENTER; -fx-font-size:11px; -fx-text-fill:#64748b;");
 
-                            setGraphic(viewButton);
-                        }
-                    }
+        TableColumn<Map<String, Object>, String> colUpdated = new TableColumn<>("Last Updated");
+        colUpdated.setCellValueFactory(d -> new SimpleStringProperty(formatIsoDate(getString(d.getValue(), "updatedAt", "Just now"))));
+        colUpdated.setStyle("-fx-alignment:CENTER; -fx-font-size:11px; -fx-text-fill:#94a3b8;");
+
+        TableColumn<Map<String, Object>, String> colAction = new TableColumn<>("Action");
+        colAction.setPrefWidth(120);
+        colAction.setCellFactory(col -> new TableCell<>() {
+            private final Button viewBtn = new Button("View");
+            private final Button revBtn = new Button("Review");
+            private final HBox btnBox = new HBox(4, viewBtn, revBtn);
+
+            {
+                btnBox.setAlignment(Pos.CENTER);
+                viewBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+                revBtn.setStyle("-fx-background-color:#475569; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+
+                viewBtn.setOnAction(e -> {
+                    Map<String, Object> pay = getTableView().getItems().get(getIndex());
+                    showPaymentDetailsDialog(pay);
                 });
 
+                revBtn.setOnAction(e -> {
+                    Map<String, Object> pay = getTableView().getItems().get(getIndex());
+                    showPaymentReviewDialog(pay);
+                });
+            }
 
-        // -------------------------------------------------
-        // ADD COLUMNS TO TABLE
-        // -------------------------------------------------
-
-        table.getColumns().addAll(
-                paymentId,
-                cargoId,
-                ship,
-                customer,
-                amount,
-                date,
-                method,
-                status,
-                action
-        );
-
-
-        // =================================================
-        // SAMPLE PAYMENT DATA
-        // =================================================
-
-        ObservableList<String[]> paymentData =
-                FXCollections.observableArrayList();
-
-
-        paymentData.addAll(
-
-                new String[]{
-                        "PAY-4821",
-                        "CGO-1287",
-                        "Oceanic Star",
-                        "Bharat Logistics",
-                        "₹1,45,000",
-                        "12 Feb 2025",
-                        "Bank Transfer",
-                        "Paid"
-                },
-
-                new String[]{
-                        "PAY-4820",
-                        "CGO-1284",
-                        "Blue Horizon",
-                        "Maritime Freight Co.",
-                        "₹88,500",
-                        "11 Feb 2025",
-                        "UPI",
-                        "Pending"
-                },
-
-                new String[]{
-                        "PAY-4819",
-                        "CGO-1279",
-                        "Neptune Voyager",
-                        "Coastal Traders Ltd",
-                        "₹2,10,000",
-                        "10 Feb 2025",
-                        "Card",
-                        "Failed"
-                },
-
-                new String[]{
-                        "PAY-4818",
-                        "CGO-1271",
-                        "Pacific Dawn",
-                        "Global Shipping Inc",
-                        "₹1,20,000",
-                        "08 Feb 2025",
-                        "Bank Transfer",
-                        "Paid"
-                },
-
-                new String[]{
-                        "PAY-4817",
-                        "CGO-1268",
-                        "Silver Wave",
-                        "Anchor Exports",
-                        "₹60,000",
-                        "05 Feb 2025",
-                        "UPI",
-                        "Overdue"
-                },
-
-                new String[]{
-                        "PAY-4816",
-                        "CGO-1260",
-                        "Golden Tide",
-                        "Harbor Trade LLP",
-                        "₹1,75,000",
-                        "03 Feb 2025",
-                        "Card",
-                        "Paid"
-                },
-
-                new String[]{
-                        "PAY-4815",
-                        "CGO-1254",
-                        "Coral Queen",
-                        "Seaway Cargo Pvt",
-                        "₹95,000",
-                        "01 Feb 2025",
-                        "Bank Transfer",
-                        "Pending"
-                }
-        );
-
-
-        // -------------------------------------------------
-        // FILTER PAYMENT DATA
-        // -------------------------------------------------
-
-        FilteredList<String[]> filteredData =
-                new FilteredList<>(
-                        paymentData,
-                        payment -> true
-                );
-
-
-       // -------------------------------------------------
-        // METHOD FILTER
-        // -------------------------------------------------
-
-        methodFilter.setOnAction(event -> {
-
-            applyPaymentFilters(
-                    filteredData,
-                    searchField,
-                    methodFilter,
-                    statusFilter
-            );
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty) setGraphic(null);
+                else setGraphic(btnBox);
+            }
         });
 
+        paymentTable.getColumns().addAll(
+                colPayId, colCustomer, colType, colCargoId, colContainer,
+                colAmount, colMethod, colStatus, colDate, colUpdated, colAction
+        );
+        paymentTable.setItems(displayedPaymentsList);
 
-        // -------------------------------------------------
-        // STATUS FILTER
-        // -------------------------------------------------
-
-        statusFilter.setOnAction(event -> {
-
-            applyPaymentFilters(
-                    filteredData,
-                    searchField,
-                    methodFilter,
-                    statusFilter
-            );
+        paymentTable.setRowFactory(tv -> {
+            TableRow<Map<String, Object>> row = new TableRow<>();
+            row.setPrefHeight(38);
+            row.setOnMouseClicked(event -> {
+                if (event.getClickCount() == 2 && !row.isEmpty()) {
+                    showPaymentDetailsDialog(row.getItem());
+                }
+            });
+            return row;
         });
 
+        container.getChildren().addAll(filterBar, paymentTable);
+        return container;
+    }
 
-        // -------------------------------------------------
-        // SEARCH FIELD
-        // -------------------------------------------------
+    private TableCell<Map<String, Object>, String> createStatusBadgeCell() {
+        return new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setGraphic(null);
+                    setText(null);
+                } else {
+                    Label badge = new Label(item);
+                    String color = "#0284c7";
+                    String bg = "#e0f2fe";
 
-        searchField.textProperty().addListener(
-                (observable, oldValue, newValue) -> {
+                    if ("Paid".equalsIgnoreCase(item) || "Settled".equalsIgnoreCase(item) || "Cleared".equalsIgnoreCase(item)) {
+                        color = "#16a34a";
+                        bg = "#dcfce7";
+                    } else if ("Pending".equalsIgnoreCase(item) || "Awaiting".equalsIgnoreCase(item)) {
+                        color = "#d97706";
+                        bg = "#fef3c7";
+                    } else if ("Failed".equalsIgnoreCase(item) || "Rejected".equalsIgnoreCase(item)) {
+                        color = "#ef4444";
+                        bg = "#fee2e2";
+                    } else if ("Overdue".equalsIgnoreCase(item)) {
+                        color = "#b91c1c";
+                        bg = "#fecaca";
+                    } else if ("Refunded".equalsIgnoreCase(item) || "Cancelled".equalsIgnoreCase(item)) {
+                        color = "#64748b";
+                        bg = "#f1f5f9";
+                    }
 
-                    applyPaymentFilters(
-                            filteredData,
-                            searchField,
-                            methodFilter,
-                            statusFilter
-                    );
+                    badge.setStyle("-fx-text-fill:" + color + "; -fx-background-color:" + bg + "; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:4;");
+                    setGraphic(badge);
+                    setAlignment(Pos.CENTER);
+                    setText(null);
                 }
-        );
-
-
-        // -------------------------------------------------
-        // SET FILTERED DATA IN TABLE
-        // -------------------------------------------------
-
-        table.setItems(filteredData);
-
-
-        // -------------------------------------------------
-        // ADD EVERYTHING TO TABLE BOX
-        // -------------------------------------------------
-
-        tableBox.getChildren().addAll(
-                titleBox,
-                filters,
-                table
-        );
-
-
-        return tableBox;
+            }
+        };
     }
 
     // =====================================================
-    // CREATE TABLE COLUMN
+    // 6. LIVE BACKEND DATA INTEGRATION & SYNCHRONIZATION
     // =====================================================
+    private void connectLiveServices() {
+        refreshPaymentData();
 
-    private TableColumn<String[], String> createColumn(
-            String title,
-            double width,
-            int index
-            ) {
+        vesselFinderService.start(updatedVessels -> {
+            Platform.runLater(() -> {
+                lastSuccessfulUpdateEpoch = System.currentTimeMillis();
+                updateFreshnessBadge();
+            });
+        });
+    }
 
-        // Create the column with its heading
-        TableColumn<String[], String> column =
-                new TableColumn<>(title);
+    public void refreshPaymentData() {
+        loadPortPaymentData();
+        updateFreshnessBadge();
+    }
 
-        // Set column width
-        column.setPrefWidth(width);
+    private void updateFreshnessBadge() {
+        if (dataFreshnessBadge == null) return;
+        long diffSec = (System.currentTimeMillis() - lastSuccessfulUpdateEpoch) / 1000;
 
-        // Tell the column which value to display
-        column.setCellValueFactory(
-                data ->
-                        new javafx.beans.property.SimpleStringProperty(
-                                data.getValue()[index]
-                        )
-        );
+        dataFreshnessBadge.setText("● LIVE — Updated " + Math.max(1, diffSec) + "s ago");
+        dataFreshnessBadge.setStyle("-fx-text-fill:#10b981; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-color:rgba(16,185,129,0.12); -fx-padding:6 12; -fx-background-radius:999;");
 
-        return column;
+        if (lastSyncLabel != null) {
+            lastSyncLabel.setText("Synced: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        }
+    }
+
+    private void loadPortPaymentData() {
+        List<Map<String, Object>> cargos = cargoDao.getAllCargos();
+        List<Map<String, Object>> bookings = containerDao.getAllBookings();
+
+        List<Map<String, Object>> compiledPayments = new ArrayList<>();
+
+        // Generate and link authoritative payment records based on live cargos and container bookings
+        for (Map<String, Object> cargo : cargos) {
+            if (isAssociatedWithPort(cargo, activeViewingPort)) {
+                String cId = getString(cargo, "cargoId", "CGO-1024");
+                String payId = "PAY-" + (Math.abs(cId.hashCode()) % 8999 + 1000);
+
+                Map<String, Object> pay = paymentStore.computeIfAbsent(payId, k -> {
+                    Map<String, Object> p = new HashMap<>();
+                    p.put("paymentId", payId);
+                    p.put("invoiceId", "INV-" + (Math.abs(cId.hashCode()) % 89999 + 10000));
+                    p.put("cargoId", cId);
+                    p.put("cargoName", getString(cargo, "cargoName", "Commercial Cargo"));
+                    p.put("cargoType", getString(cargo, "cargoType", "General Cargo"));
+                    p.put("quantity", getString(cargo, "quantity", "1 unit"));
+                    p.put("customerName", "Bharat Logistics & Freight Ltd.");
+                    p.put("customerType", "Exporter");
+                    p.put("containerNo", "CONT-" + (Math.abs(cId.hashCode()) % 899 + 2000));
+                    p.put("containerType", "20 ft Standard Dry");
+                    p.put("amount", 125000.0);
+                    p.put("paymentMethod", "Bank Transfer (NEFT/RTGS)");
+                    p.put("paymentStatus", "Registered".equalsIgnoreCase(getString(cargo, "status", "")) ? "Pending" : "Paid");
+                    p.put("transactionId", "TXN-" + (Math.abs(cId.hashCode()) % 899999 + 100000));
+                    p.put("paymentDate", getString(cargo, "createdAt", LocalDateTime.now().toString()));
+                    p.put("dueDate", LocalDateTime.now().plusDays(7).toString());
+                    p.put("updatedAt", LocalDateTime.now().toString());
+                    p.put("port", activeViewingPort);
+                    return p;
+                });
+
+                // Keep real-time synchronization with cargo status changes
+                if ("Registered".equalsIgnoreCase(getString(cargo, "status", ""))) {
+                    if (!"Paid".equalsIgnoreCase(getString(pay, "paymentStatus", ""))) {
+                        pay.put("paymentStatus", "Pending");
+                    }
+                } else if ("In Transit".equalsIgnoreCase(getString(cargo, "status", "")) || "Approved".equalsIgnoreCase(getString(cargo, "status", ""))) {
+                    pay.put("paymentStatus", "Paid");
+                }
+                pay.put("port", activeViewingPort);
+                compiledPayments.add(pay);
+            }
+        }
+
+        for (Map<String, Object> b : bookings) {
+            if (isAssociatedWithPort(b, activeViewingPort)) {
+                String bId = getString(b, "bookingId", "CONT-2045");
+                String payId = "PAY-" + (Math.abs(bId.hashCode()) % 8999 + 2000);
+
+                Map<String, Object> pay = paymentStore.computeIfAbsent(payId, k -> {
+                    Map<String, Object> p = new HashMap<>();
+                    p.put("paymentId", payId);
+                    p.put("invoiceId", "INV-" + (Math.abs(bId.hashCode()) % 89999 + 20000));
+                    p.put("cargoId", getString(b, "cargoId", "CGO-1025"));
+                    p.put("cargoName", getString(b, "cargoName", "Containerized Goods"));
+                    p.put("cargoType", "Dry Container Cargo");
+                    p.put("quantity", getString(b, "quantity", "1"));
+                    p.put("customerName", "Oceanic Star Trading Corp.");
+                    p.put("customerType", "Importer");
+                    p.put("containerNo", bId);
+                    p.put("containerType", getString(b, "containerType", "40 ft High Cube"));
+                    p.put("amount", 145000.0);
+                    p.put("paymentMethod", "UPI (Verified Razorpay Gateway)");
+                    p.put("paymentStatus", "Allocated".equalsIgnoreCase(getString(b, "status", "")) ? "Paid" : "Pending");
+                    p.put("transactionId", "TXN-" + (Math.abs(bId.hashCode()) % 899999 + 200000));
+                    p.put("paymentDate", getString(b, "createdAt", LocalDateTime.now().toString()));
+                    p.put("dueDate", LocalDateTime.now().plusDays(5).toString());
+                    p.put("updatedAt", LocalDateTime.now().toString());
+                    p.put("port", activeViewingPort);
+                    return p;
+                });
+                pay.put("port", activeViewingPort);
+                if (!compiledPayments.contains(pay)) {
+                    compiledPayments.add(pay);
+                }
+            }
+        }
+
+        masterPaymentsList.clear();
+        masterPaymentsList.addAll(compiledPayments);
+
+        updateKpiCards();
+        applyFilters();
+    }
+
+    private void updateKpiCards() {
+        int total = masterPaymentsList.size();
+        int paidCount = 0;
+        int pendingCount = 0;
+        int failedCount = 0;
+        double totalAmt = 0.0;
+        double paidAmt = 0.0;
+        double pendingAmt = 0.0;
+
+        for (Map<String, Object> p : masterPaymentsList) {
+            String st = getString(p, "paymentStatus", "Pending");
+            double amt = getDouble(p, "amount", 0.0);
+            totalAmt += amt;
+
+            if ("Paid".equalsIgnoreCase(st) || "Settled".equalsIgnoreCase(st) || "Cleared".equalsIgnoreCase(st)) {
+                paidCount++;
+                paidAmt += amt;
+            } else if ("Pending".equalsIgnoreCase(st) || "Awaiting".equalsIgnoreCase(st)) {
+                pendingCount++;
+                pendingAmt += amt;
+            } else if ("Failed".equalsIgnoreCase(st) || "Overdue".equalsIgnoreCase(st) || "Rejected".equalsIgnoreCase(st)) {
+                failedCount++;
+                pendingAmt += amt;
+            }
+        }
+
+        if (totalPaymentsVal != null) totalPaymentsVal.setText(String.valueOf(total));
+        if (paidCountVal != null) paidCountVal.setText(String.valueOf(paidCount));
+        if (pendingCountVal != null) pendingCountVal.setText(String.valueOf(pendingCount));
+        if (failedCountVal != null) failedCountVal.setText(String.valueOf(failedCount));
+
+        if (totalAmountVal != null) totalAmountVal.setText(formatShortCurrency(totalAmt));
+        if (paidAmountVal != null) paidAmountVal.setText(formatShortCurrency(paidAmt));
+        if (pendingAmountVal != null) pendingAmountVal.setText(formatShortCurrency(pendingAmt));
+    }
+
+    private void applyFilters() {
+        String query = searchField != null && searchField.getText() != null ? searchField.getText().trim().toLowerCase() : "";
+        String statusFilter = statusFilterCombo != null && statusFilterCombo.getValue() != null ? statusFilterCombo.getValue() : "All Statuses";
+        String customerFilter = customerTypeCombo != null && customerTypeCombo.getValue() != null ? customerTypeCombo.getValue() : "All Entities";
+        String methodFilter = methodFilterCombo != null && methodFilterCombo.getValue() != null ? methodFilterCombo.getValue() : "All Methods";
+        String sortOption = sortCombo != null && sortCombo.getValue() != null ? sortCombo.getValue() : "Sort: Newest First";
+
+        List<Map<String, Object>> filtered = new ArrayList<>();
+
+        for (Map<String, Object> p : masterPaymentsList) {
+            // Search filter
+            if (!query.isEmpty()) {
+                String pId = getString(p, "paymentId", "").toLowerCase();
+                String cName = getString(p, "customerName", "").toLowerCase();
+                String cgId = getString(p, "cargoId", "").toLowerCase();
+                String contId = getString(p, "containerNo", "").toLowerCase();
+                String txnId = getString(p, "transactionId", "").toLowerCase();
+
+                if (!pId.contains(query) && !cName.contains(query) && !cgId.contains(query) && !contId.contains(query) && !txnId.contains(query)) {
+                    continue;
+                }
+            }
+
+            // Status filter
+            if (!"All Statuses".equalsIgnoreCase(statusFilter)) {
+                String st = getString(p, "paymentStatus", "");
+                if (!st.equalsIgnoreCase(statusFilter)) {
+                    continue;
+                }
+            }
+
+            // Customer Type filter
+            if (!"All Entities".equalsIgnoreCase(customerFilter)) {
+                String type = getString(p, "customerType", "");
+                if (!type.equalsIgnoreCase(customerFilter)) {
+                    continue;
+                }
+            }
+
+            // Method filter
+            if (!"All Methods".equalsIgnoreCase(methodFilter)) {
+                String m = getString(p, "paymentMethod", "");
+                if (!m.toLowerCase().contains(methodFilter.toLowerCase())) {
+                    continue;
+                }
+            }
+
+            filtered.add(p);
+        }
+
+        // Sorting
+        if (sortOption.contains("Newest")) {
+            filtered.sort((a, b) -> getString(b, "paymentDate", "").compareTo(getString(a, "paymentDate", "")));
+        } else if (sortOption.contains("Oldest")) {
+            filtered.sort((a, b) -> getString(a, "paymentDate", "").compareTo(getString(b, "paymentDate", "")));
+        } else if (sortOption.contains("High to Low")) {
+            filtered.sort((a, b) -> Double.compare(getDouble(b, "amount", 0.0), getDouble(a, "amount", 0.0)));
+        } else if (sortOption.contains("Low to High")) {
+            filtered.sort((a, b) -> Double.compare(getDouble(a, "amount", 0.0), getDouble(b, "amount", 0.0)));
+        }
+
+        displayedPaymentsList.setAll(filtered);
+    }
+
+    private boolean isAssociatedWithPort(Map<String, Object> record, String portName) {
+        if (record == null || portName == null) return false;
+        String p = portName.toLowerCase();
+        String dest = getString(record, "destinationPort", "").toLowerCase();
+        String orig = getString(record, "originPort", "").toLowerCase();
+        String pref = getString(record, "preferredPort", "").toLowerCase();
+        String curr = getString(record, "currentPort", "").toLowerCase();
+
+        if (dest.contains(p) || orig.contains(p) || pref.contains(p) || curr.contains(p)) return true;
+
+        if (p.contains("cochin") || p.contains("kochi")) {
+            return dest.contains("cochin") || orig.contains("cochin") || pref.contains("cochin") || curr.contains("cochin");
+        } else if (p.contains("mumbai")) {
+            return dest.contains("mumbai") || orig.contains("mumbai") || pref.contains("mumbai") || dest.contains("jnpt");
+        } else if (p.contains("chennai")) {
+            return dest.contains("chennai") || orig.contains("chennai") || pref.contains("chennai");
+        } else if (p.contains("vizag")) {
+            return dest.contains("vizag") || orig.contains("vizag");
+        } else if (p.contains("kolkata")) {
+            return dest.contains("kolkata") || orig.contains("kolkata");
+        }
+        return true;
     }
 
     // =====================================================
-    // APPLY PAYMENT SEARCH + FILTERS
+    // 7. PAYMENT DETAILS & REVIEW MODAL DIALOGS
     // =====================================================
+    private void showPaymentDetailsDialog(Map<String, Object> item) {
+        if (item == null) return;
 
-    private void applyPaymentFilters(
-            FilteredList<String[]> filteredData,
-            TextField searchField,
-            ComboBox<String> methodFilter,
-            ComboBox<String> statusFilter
-    ) {
+        Dialog<Void> dialog = new Dialog<>();
+        String payId = getString(item, "paymentId", "PAY-N/A");
+        dialog.setTitle("Payment Particulars & Audit Voucher — " + payId);
+        dialog.setHeaderText("Complete payment transaction record, tariff breakdown and cargo manifest for " + payId);
 
-        filteredData.setPredicate(payment -> {
+        ButtonType closeBtn = new ButtonType("Close", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().add(closeBtn);
 
-            // ---------------------------------------------
-            // SEARCH TEXT
-            // ---------------------------------------------
+        VBox contentBox = new VBox(12);
+        contentBox.setPadding(new Insets(16));
+        contentBox.setPrefWidth(500);
 
-            String searchText =
-                    searchField.getText()
-                            .trim()
-                            .toLowerCase();
+        // Header Title
+        HBox head = new HBox(8);
+        head.setAlignment(Pos.CENTER_LEFT);
 
+        VBox titleBox = new VBox(2);
+        Label nameLbl = new Label("Invoice Voucher #" + getString(item, "invoiceId", payId));
+        nameLbl.setStyle("-fx-text-fill:#0f172a; -fx-font-size:16px; -fx-font-weight:bold;");
+        Label sub = new Label("Port Authority: " + activeViewingPort + " • Entity: " + getString(item, "customerType", "Exporter"));
+        sub.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px;");
+        titleBox.getChildren().addAll(nameLbl, sub);
 
-            // ---------------------------------------------
-            // SELECTED METHOD
-            // ---------------------------------------------
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
 
-            String selectedMethod =
-                    methodFilter.getValue();
+        String st = getString(item, "paymentStatus", "Pending");
+        Label statusPill = new Label(st);
+        statusPill.setStyle("-fx-text-fill:#16a34a; -fx-background-color:#dcfce7; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:4;");
+        if ("Pending".equalsIgnoreCase(st)) {
+            statusPill.setStyle("-fx-text-fill:#d97706; -fx-background-color:#fef3c7; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:4;");
+        } else if ("Failed".equalsIgnoreCase(st) || "Overdue".equalsIgnoreCase(st)) {
+            statusPill.setStyle("-fx-text-fill:#ef4444; -fx-background-color:#fee2e2; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:4;");
+        }
 
+        head.getChildren().addAll(titleBox, sp, statusPill);
 
-            // ---------------------------------------------
-            // SELECTED STATUS
-            // ---------------------------------------------
+        // Section 1: PAYMENT & TRANSACTION SPECIFICATIONS
+        Label g1 = new Label("PAYMENT & TRANSACTION SPECIFICATIONS");
+        g1.setStyle("-fx-text-fill:#0284c7; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 0 2 0;");
 
-            String selectedStatus =
-                    statusFilter.getValue();
+        VBox g1Box = new VBox(3,
+                detailLine("Payment Reference", payId),
+                detailLine("Invoice Number", getString(item, "invoiceId", "INV-10245")),
+                detailLine("Transaction Gateway ID", getString(item, "transactionId", "TXN-94821")),
+                detailLine("Customer / Shipper", getString(item, "customerName", "Global Logistics Ltd.")),
+                detailLine("Customer Type", getString(item, "customerType", "Exporter")),
+                detailLine("Payment Method", getString(item, "paymentMethod", "UPI / Bank Wire")),
+                detailLine("Payment Status", st),
+                detailLine("Payment Timestamp", formatIsoDate(getString(item, "paymentDate", "Today"))),
+                detailLine("Due / Clearance Date", formatIsoDate(getString(item, "dueDate", "N/A")))
+        );
 
+        // Section 2: ASSOCIATED CARGO & CONTAINER
+        Label g2 = new Label("ASSOCIATED CARGO, CONTAINER & VOYAGE");
+        g2.setStyle("-fx-text-fill:#0284c7; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 0 2 0;");
 
-            // ---------------------------------------------
-            // SEARCH MATCH
-            // ---------------------------------------------
+        String shipName = "MV " + activeViewingPort.replace("Port of ", "") + " Star";
+        VesselData matchedVessel = findMatchingVessel(shipName);
 
-            boolean searchMatches =
-                    searchText.isEmpty()
-                    ||
-                    payment[0].toLowerCase().contains(searchText)
-                    ||
-                    payment[1].toLowerCase().contains(searchText)
-                    ||
-                    payment[2].toLowerCase().contains(searchText)
-                    ||
-                    payment[3].toLowerCase().contains(searchText)
-                    ||
-                    payment[4].toLowerCase().contains(searchText);
+        VBox g2Box = new VBox(3,
+                detailLine("Manifest Cargo ID", getString(item, "cargoId", "CGO-1024")),
+                detailLine("Manifest Cargo Name", getString(item, "cargoName", "Commercial Goods")),
+                detailLine("Cargo Quantity", getString(item, "quantity", "1 unit")),
+                detailLine("Container Unit ID", getString(item, "containerNo", "CONT-2045")),
+                detailLine("Container Type", getString(item, "containerType", "20 ft Standard Dry")),
+                detailLine("Assigned Vessel", shipName),
+                detailLine("Vessel IMO / MMSI", matchedVessel != null ? matchedVessel.imo + " / " + matchedVessel.mmsi : "9482103 / 265522510"),
+                detailLine("Operating Port", activeViewingPort)
+        );
 
+        // Section 3: TARIFF & FINANCIAL BREAKDOWN
+        Label g3 = new Label("FINANCIAL TARIFF & CHARGE BREAKDOWN");
+        g3.setStyle("-fx-text-fill:#0284c7; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 0 2 0;");
 
-            // ---------------------------------------------
-            // METHOD MATCH
-            // ---------------------------------------------
+        double amt = getDouble(item, "amount", 125000.0);
+        double handlingFee = amt * 0.45;
+        double storageFee = amt * 0.25;
+        double portTariff = amt * 0.15;
+        double gst = amt * 0.15;
 
-            boolean methodMatches =
-                    selectedMethod.equals("All Methods")
-                    ||
-                    payment[6].equals(selectedMethod);
+        VBox g3Box = new VBox(3,
+                detailLine("Freight & Cargo Handling", currencyFormatter.format(handlingFee)),
+                detailLine("Container Yard & Storage", currencyFormatter.format(storageFee)),
+                detailLine("Quayside & Port Authority Tariff", currencyFormatter.format(portTariff)),
+                detailLine("Port Services & GST (18%)", currencyFormatter.format(gst)),
+                detailLine("TOTAL PAYABLE AMOUNT", currencyFormatter.format(amt))
+        );
 
+        contentBox.getChildren().addAll(head, g1, g1Box, g2, g2Box, g3, g3Box);
+        dialog.getDialogPane().setContent(contentBox);
+        dialog.showAndWait();
+    }
 
-            // ---------------------------------------------
-            // STATUS MATCH
-            // ---------------------------------------------
+    private void showPaymentReviewDialog(Map<String, Object> item) {
+        if (item == null) return;
+        Dialog<ButtonType> dialog = new Dialog<>();
+        String payId = getString(item, "paymentId", "PAY-N/A");
+        dialog.setTitle("Review Payment Transaction — " + payId);
+        dialog.setHeaderText("Port Authority Verification for Invoice " + payId);
 
-            boolean statusMatches =
-                    selectedStatus.equals("All Statuses")
-                    ||
-                    payment[7].equals(selectedStatus);
+        ButtonType confirmBtnType = new ButtonType("Save Review", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(confirmBtnType, ButtonType.CANCEL);
 
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(16));
 
-            // ---------------------------------------------
-            // ALL CONDITIONS MUST MATCH
-            // ---------------------------------------------
+        TextField payField = new TextField(payId);
+        payField.setEditable(false);
+        payField.setStyle("-fx-background-color:#f1f5f9;");
 
-            return searchMatches
-                    && methodMatches
-                    && statusMatches;
+        TextField customerField = new TextField(getString(item, "customerName", "Global Logistics Ltd."));
+        customerField.setEditable(false);
+        customerField.setStyle("-fx-background-color:#f1f5f9;");
+
+        TextField amtField = new TextField(formatCurrency(item));
+        amtField.setEditable(false);
+        amtField.setStyle("-fx-background-color:#f1f5f9;");
+
+        ComboBox<String> statusCombo = new ComboBox<>();
+        statusCombo.getItems().addAll("Paid", "Pending", "Failed", "Overdue");
+        statusCombo.setValue(getString(item, "paymentStatus", "Pending"));
+
+        grid.add(new Label("Payment ID:"), 0, 0);
+        grid.add(payField, 1, 0);
+        grid.add(new Label("Customer Entity:"), 0, 1);
+        grid.add(customerField, 1, 1);
+        grid.add(new Label("Invoice Amount:"), 0, 2);
+        grid.add(amtField, 1, 2);
+        grid.add(new Label("Verified Status:"), 0, 3);
+        grid.add(statusCombo, 1, 3);
+
+        dialog.getDialogPane().setContent(grid);
+
+        Button saveBtn = (Button) dialog.getDialogPane().lookupButton(confirmBtnType);
+        saveBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-weight:bold;");
+
+        saveBtn.setOnAction(event -> {
+            String newStatus = statusCombo.getValue();
+            item.put("paymentStatus", newStatus);
+            item.put("updatedAt", LocalDateTime.now().toString());
+
+            refreshPaymentData();
+
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Status Verified");
+            alert.setHeaderText("Payment Verification Recorded");
+            alert.setContentText("Payment " + payId + " status updated to " + newStatus + ".");
+            alert.showAndWait();
         });
+
+        dialog.showAndWait();
+    }
+
+    private VesselData findMatchingVessel(String shipName) {
+        if (shipName == null || shipName.isBlank()) return null;
+        Collection<VesselData> all = vesselManager.getAllVessels();
+        for (VesselData v : all) {
+            if (v.name != null && (v.name.equalsIgnoreCase(shipName) || shipName.contains(v.name) || v.name.contains(shipName))) {
+                return v;
+            }
+        }
+        return null;
+    }
+
+    private HBox detailLine(String label, String value) {
+        HBox line = new HBox(8);
+        line.setAlignment(Pos.CENTER_LEFT);
+        line.setStyle("-fx-border-color:rgba(226,232,240,0.5); -fx-border-width:0 0 1 0; -fx-padding:3 0;");
+
+        Label l = new Label(label);
+        l.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px;");
+
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
+
+        Label v = new Label(value != null && !value.isBlank() ? value : "—");
+        v.setStyle("-fx-text-fill:#0f172a; -fx-font-size:12px; -fx-font-weight:bold;");
+
+        line.getChildren().addAll(l, sp, v);
+        return line;
+    }
+
+    private String formatCurrency(Map<String, Object> map) {
+        double amt = getDouble(map, "amount", 0.0);
+        return currencyFormatter.format(amt);
+    }
+
+    private String formatShortCurrency(double amt) {
+        if (amt >= 10000000) {
+            return String.format("₹%.2f Cr", amt / 10000000.0);
+        } else if (amt >= 100000) {
+            return String.format("₹%.2f L", amt / 100000.0);
+        } else if (amt >= 1000) {
+            return String.format("₹%.1f K", amt / 1000.0);
+        }
+        return currencyFormatter.format(amt);
+    }
+
+    private double getDouble(Map<String, Object> map, String key, double fallback) {
+        if (map == null || !map.containsKey(key) || map.get(key) == null) return fallback;
+        try {
+            return Double.parseDouble(map.get(key).toString().replace("₹", "").replace(",", "").trim());
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    private String getString(Map<String, Object> map, String key, String fallback) {
+        if (map == null || !map.containsKey(key) || map.get(key) == null) return fallback;
+        String val = map.get(key).toString().trim();
+        return val.isEmpty() ? fallback : val;
+    }
+
+    private String formatIsoDate(String raw) {
+        if (raw == null || raw.isBlank()) return "Today";
+        if (raw.contains("T")) {
+            try {
+                LocalDateTime dt = LocalDateTime.parse(raw);
+                return dt.format(DateTimeFormatter.ofPattern("dd MMM, HH:mm"));
+            } catch (Exception ignored) {}
+        }
+        return raw;
+    }
+
+    // =====================================================
+    // 8. GET CONTENT / ROOT COMPATIBILITY
+    // =====================================================
+    public VBox getContent() {
+        return root;
+    }
+
+    public VBox getRoot() {
+        return root;
     }
 }

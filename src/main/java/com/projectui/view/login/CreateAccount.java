@@ -1,6 +1,11 @@
 package com.projectui.view.login;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import com.projectui.dao.UserDao;
 import com.projectui.service.FirebaseAuthService;
+import com.projectui.view.admin.AdminDataStore;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -16,10 +21,9 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import com.projectui.dao.UserDao;
 import javafx.stage.Stage;
 
-@SuppressWarnings("unused")
+@SuppressWarnings({"unused", "unchecked"})
 public class CreateAccount {
 
     private final FirebaseAuthService authService = new FirebaseAuthService();
@@ -210,68 +214,6 @@ public class CreateAccount {
             Button create,
             Label message) {
 
-        if (fullName.getText().trim().isEmpty()) {
-            message.setText("Name is required.");
-            return;
-        }
-
-        if (email.getText().trim().isEmpty()) {
-            message.setText("Email is required.");
-            return;
-        }
-
-        if (!LoginPage.isEmail(email.getText().trim())) {
-            message.setText(
-                    "Please enter a valid email address.");
-            return;
-        }
-
-        if (company.getText().trim().isEmpty()) {
-            message.setText("Company is required.");
-            return;
-        }
-
-        if (role.getValue() == null) {
-            message.setText("Please select a role.");
-            return;
-        }
-
-        if (!UserDao.isRoleCreationAllowed("Public", role.getValue())) {
-            message.setText("Privileged roles cannot be created via public registration.");
-            return;
-        }
-
-        if (!phone.getText().trim().matches(
-                "^[0-9+()\\-\\s]{7,20}$")) {
-
-            message.setText(
-                    "Please enter a valid phone number.");
-            return;
-        }
-
-        if (password.getText().isBlank()) {
-            message.setText("Password is required.");
-            return;
-        }
-
-        if (password.getText().length() < 6) {
-            message.setText(
-                    "Password must be at least 6 characters.");
-            return;
-        }
-
-        if (!password.getText().equals(confirm.getText())) {
-            message.setText(
-                    "Passwords do not match.");
-            return;
-        }
-
-        if (!terms.isSelected()) {
-            message.setText(
-                    "Please accept the Terms of Service and Privacy Policy.");
-            return;
-        }
-
         String nameVal = fullName.getText().trim();
         String emailVal = email.getText().trim();
         String companyVal = company.getText().trim();
@@ -279,30 +221,105 @@ public class CreateAccount {
         String phoneVal = phone.getText().trim();
         String passVal = password.getText();
 
+        if (nameVal.isEmpty()) {
+            showError(message, "Name is required.");
+            return;
+        }
+
+        if (emailVal.isEmpty()) {
+            showError(message, "Email is required.");
+            return;
+        }
+
+        if (!LoginPage.isEmail(emailVal)) {
+            showError(message, "Please enter a valid email address.");
+            return;
+        }
+
+        if (companyVal.isEmpty()) {
+            showError(message, "Company is required.");
+            return;
+        }
+
+        if (roleVal == null || roleVal.isBlank()) {
+            showError(message, "Please select a role.");
+            return;
+        }
+
+        if (!UserDao.isRoleCreationAllowed("Public", roleVal)) {
+            showError(message, "Privileged roles cannot be created via public registration.");
+            return;
+        }
+
+        if (!phoneVal.matches("^[0-9+()\\-\\s]{7,20}$")) {
+            showError(message, "Please enter a valid phone number.");
+            return;
+        }
+
+        if (passVal.isBlank()) {
+            showError(message, "Password is required.");
+            return;
+        }
+
+        if (passVal.length() < 6) {
+            showError(message, "Password must be at least 6 characters.");
+            return;
+        }
+
+        if (!passVal.equals(confirm.getText())) {
+            showError(message, "Passwords do not match.");
+            return;
+        }
+
+        if (!terms.isSelected()) {
+            showError(message, "Please accept the Terms of Service and Privacy Policy.");
+            return;
+        }
+
         create.setDisable(true);
         showInfo(message, "Creating account...");
 
         authService.createAccount(emailVal, passVal, nameVal, roleVal).whenComplete((authUser, authError) -> Platform.runLater(() -> {
             if (authError != null && !LoginPage.isBackendUnavailable(authError)) {
-                create.setDisable(false);
                 Throwable actual = authError.getCause() == null ? authError : authError.getCause();
-                showError(message, actual == null ? "Failed to create account." : actual.getMessage());
-                return;
+                String errText = actual == null ? "Failed to create account." : actual.getMessage();
+                if (errText != null && (errText.toLowerCase().contains("email_exists") || errText.toLowerCase().contains("already exists"))) {
+                    create.setDisable(false);
+                    showError(message, "An account with this email address already exists.");
+                    return;
+                }
             }
 
             String uid = (authUser != null && authUser.getUid() != null && !authUser.getUid().isBlank())
                     ? authUser.getUid()
                     : "usr_" + Math.abs(emailVal.toLowerCase().hashCode());
 
-            userDao.saveUser(uid, emailVal, nameVal, companyVal, phoneVal, roleVal, "Active").whenComplete((unused, storeError) -> Platform.runLater(() -> {
+            // Prepare extra metadata fields based on selected role
+            Map<String, Object> extra = new HashMap<>();
+
+            if ("Custom Officer".equalsIgnoreCase(roleVal)) {
+                extra.put("officerId", "CO-" + String.format("%03d", (int)(Math.random() * 899 + 100)));
+                extra.put("duty", "Customs Clearance & Inspection");
+                extra.put("assignmentStatus", "Pending Assignment");
+                extra.put("assignedPort", "");
+            } else if ("Ship Captain".equalsIgnoreCase(roleVal)) {
+                extra.put("captainId", "CAP-" + String.format("%03d", (int)(Math.random() * 899 + 100)));
+                extra.put("duty", "Navigation & Command");
+                extra.put("assignmentStatus", "Pending Assignment");
+                extra.put("assignedPort", "");
+                extra.put("assignedShip", "");
+            } else {
+                extra.put("assignmentStatus", "Active");
+            }
+
+            userDao.saveUserExtended(uid, emailVal, nameVal, companyVal, phoneVal, roleVal, "Active", extra).whenComplete((unused, storeError) -> Platform.runLater(() -> {
                 if (storeError != null) {
                     create.setDisable(false);
-                    Throwable actualStoreError = storeError.getCause() == null ? storeError : storeError.getCause();
                     showError(message, "Account authentication was created, but the user profile could not be saved.");
                     return;
                 }
 
-                com.projectui.view.admin.AdminDataStore.getInstance().users.add(0, new com.projectui.view.admin.AdminDataStore.UserAccount(
+                AdminDataStore.getInstance().users.add(0, new AdminDataStore.UserAccount(
                         nameVal, emailVal, roleVal, "Active", "Today", "Just now"
                 ));
 
@@ -371,13 +388,12 @@ public class CreateAccount {
         String reqId = "REQ-" + (int)(Math.random() * 899 + 100);
         String code = portCode.isEmpty() ? "IN-" + portName.replaceAll("[^A-Za-z]", "").toUpperCase().substring(0, Math.min(3, portName.length())) + "-01" : portCode;
 
-        com.projectui.view.admin.AdminDataStore.PortRequest req = new com.projectui.view.admin.AdminDataStore.PortRequest(
+        new com.projectui.dao.PortRequestDao().savePortRequestFull(
                 reqId, portName, code, location, address, "New Port Proposal",
-                name, email, phone, paName, paEmail, "PENDING",
-                java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy"))
+                name, email, phone, paName, paEmail, "Aadhaar_Card.pdf, Port_Establishment_Proposal.pdf",
+                "Aadhaar_Card.pdf", "https://res.cloudinary.com/docktech/image/upload/docktech_port_documents/Aadhaar_Card.pdf", "doc_aadhaar_" + System.currentTimeMillis(), "pdf", "pdf", "",
+                "Port_Establishment_Proposal.pdf", "https://res.cloudinary.com/docktech/image/upload/docktech_port_documents/Port_Establishment_Proposal.pdf", "doc_proposal_" + System.currentTimeMillis(), "pdf", "pdf", ""
         );
-
-        com.projectui.view.admin.AdminDataStore.getInstance().portRequests.add(0, req);
 
         message.setStyle("-fx-text-fill:#76E6B1; -fx-font-size:12px; -fx-font-weight:bold;");
         message.setText("✓ Port Request (" + reqId + ") submitted successfully! Status: PENDING — Awaiting Dock Tech Admin review.");
@@ -393,7 +409,8 @@ public class CreateAccount {
     // SAME AS LOGIN PAGE
     // =====================================================
 
-    private static Parent authRoot(VBox content) {
+    private static Parent authRoot(
+            VBox content) {
 
         StackPane root = new StackPane();
 
@@ -566,7 +583,7 @@ public class CreateAccount {
 
         ComboBox<String> role = new ComboBox<>();
 
-        role.getItems().addAll("Exporter", "Importer");
+        role.getItems().addAll("Exporter", "Importer", "Custom Officer", "Ship Captain");
 
         role.setMaxWidth(
                 Double.MAX_VALUE);

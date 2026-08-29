@@ -34,9 +34,8 @@ public class SettingsPage {
         String nameStr = user != null && user.get("name") != null ? user.get("name").toString() : "Ship Captain";
         String emailStr = user != null && user.get("email") != null ? user.get("email").toString() : "captain@docktech.com";
         String phoneStr = user != null && user.get("phone") != null ? user.get("phone").toString() : "+91 9800000000";
-        String shipStr = user != null && user.get("assignedShip") != null && !user.get("assignedShip").toString().isBlank()
-                ? user.get("assignedShip").toString()
-                : (user != null && user.get("company") != null ? user.get("company").toString() : "MV DockTech Leader");
+        com.projectui.model.Ship assignedShip = com.projectui.dao.UserDao.getAssignedShipForCaptain(user);
+        String shipStr = assignedShip != null ? assignedShip.getShipName() : (user != null && user.get("assignedShip") != null && !user.get("assignedShip").toString().isBlank() ? user.get("assignedShip").toString() : "Not Assigned");
         String portStr = user != null && user.get("assignedPort") != null ? user.get("assignedPort").toString() : "Mumbai Port";
 
         // PROFILE CARD

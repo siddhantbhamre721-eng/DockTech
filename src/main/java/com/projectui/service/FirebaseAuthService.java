@@ -119,18 +119,31 @@ public class FirebaseAuthService {
         CompletableFuture<AuthUser> future = new CompletableFuture<>();
         ForkJoinPool.commonPool().execute(() -> {
             try {
-                // Try Admin SDK first if initialized
+                // 1. First check if an account with this email already exists in Firebase Auth
+                try {
+                    UserRecord existing = FirebaseAuth.getInstance().getUserByEmail(email);
+                    if (existing != null) {
+                        System.out.println("[Firebase Auth] Reusing existing user record for: " + email + " (UID: " + existing.getUid() + ")");
+                        future.complete(new AuthUser(existing.getUid(), email, displayName != null && !displayName.isBlank() ? displayName : (existing.getDisplayName() != null ? existing.getDisplayName() : email), "token_" + existing.getUid()));
+                        return;
+                    }
+                } catch (Throwable ignored) {}
+
+                // 2. Try Admin SDK createUser if initialized
                 try {
                     UserRecord.CreateRequest createReq = new UserRecord.CreateRequest()
                             .setEmail(email)
                             .setPassword(password)
                             .setDisplayName(displayName);
                     UserRecord record = FirebaseAuth.getInstance().createUser(createReq);
+                    System.out.println("[Firebase Auth] Created Auth user with UID: " + record.getUid());
                     future.complete(new AuthUser(record.getUid(), email, displayName, "token_" + record.getUid()));
                     return;
-                } catch (Throwable ignored) {}
+                } catch (Throwable ex) {
+                    System.err.println("[Firebase Auth Admin SDK createUser notice] " + ex.getMessage());
+                }
 
-                // Use Firebase Identity Toolkit REST API
+                // 3. Use Firebase Identity Toolkit REST API
                 String jsonBody = String.format("{\"email\":\"%s\",\"password\":\"%s\",\"returnSecureToken\":true}",
                         escapeJson(email), escapeJson(password));
 
@@ -146,21 +159,39 @@ public class FirebaseAuthService {
                     String respBody = response.body();
                     String uid = extractJsonField(respBody, "localId");
                     String idToken = extractJsonField(respBody, "idToken");
+                    System.out.println("[Firebase Auth] Identity Toolkit sign-up created UID: " + uid);
                     future.complete(new AuthUser(uid, email, displayName, idToken));
                 } else {
                     String respBody = response.body();
                     System.err.println("[Firebase Auth CreateAccount Failure] HTTP " + response.statusCode() + ": " + respBody);
                     if (respBody != null && respBody.contains("EMAIL_EXISTS")) {
-                        System.out.println("[Firebase Auth] Email already exists in Auth system. Using existing account for: " + email);
-                        String uid = "usr_" + Math.abs(email.toLowerCase().hashCode());
-                        future.complete(new AuthUser(uid, email, displayName, "token_" + uid));
-                        return;
+                        try {
+                            UserRecord exUser = FirebaseAuth.getInstance().getUserByEmail(email);
+                            if (exUser != null) {
+                                System.out.println("[Firebase Auth] Found existing user record with UID: " + exUser.getUid());
+                                future.complete(new AuthUser(exUser.getUid(), email, displayName != null && !displayName.isBlank() ? displayName : (exUser.getDisplayName() != null ? exUser.getDisplayName() : email), "token_" + exUser.getUid()));
+                                return;
+                            }
+                        } catch (Throwable ignored) {}
+
+                        String existingUid = com.projectui.dao.UserDao.getUidForEmail(email);
+                        if (existingUid != null && !existingUid.isBlank()) {
+                            future.complete(new AuthUser(existingUid, email, displayName, "token_" + existingUid));
+                            return;
+                        }
                     }
                     String errorMsg = parseFirebaseErrorMessage(respBody);
                     future.completeExceptionally(new IllegalArgumentException(errorMsg));
                 }
             } catch (Exception ex) {
                 System.err.println("[Firebase Auth CreateAccount Exception] Class: " + ex.getClass().getName() + " | Message: " + ex.getMessage());
+                try {
+                    UserRecord exUser = FirebaseAuth.getInstance().getUserByEmail(email);
+                    if (exUser != null) {
+                        future.complete(new AuthUser(exUser.getUid(), email, displayName, "token_" + exUser.getUid()));
+                        return;
+                    }
+                } catch (Throwable ignored) {}
                 String uid = "usr_" + Math.abs(email.toLowerCase().hashCode());
                 future.complete(new AuthUser(uid, email, displayName, "token_" + uid));
             }

@@ -195,16 +195,23 @@ public class SendSOS {
         HBox info =
                 new HBox(15);
 
+        com.projectui.model.Ship assignedShip = com.projectui.dao.UserDao.getAssignedShipForCaptain(com.projectui.view.login.LoginPage.loggedInUser);
+        String sName = assignedShip != null ? assignedShip.getShipName() : "No Vessel Assigned";
+        String sBerth = assignedShip != null && assignedShip.getBerth() != null ? assignedShip.getBerth() : "Berth B04";
+        String sPort = com.projectui.view.login.LoginPage.loggedInUser != null && com.projectui.view.login.LoginPage.loggedInUser.get("assignedPort") != null
+                ? com.projectui.view.login.LoginPage.loggedInUser.get("assignedPort").toString() : "Port of Mumbai";
+        String sLoc = sPort + " — " + sBerth;
+
         VBox ship =
                 infoBox(
                     "⚓  Current Ship",
-                    "Oceanic Star"
+                    sName
                 );
 
         VBox location =
                 infoBox(
                     "⌖  Current Location",
-                    "Port of Mumbai — Berth B04"
+                    sLoc
                 );
 
         HBox.setHgrow(

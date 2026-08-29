@@ -708,19 +708,19 @@ public class UserManagementPage extends AdminTheme {
             javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
             alert.setTitle("Delete User?");
             alert.setHeaderText("Delete User?");
-            alert.setContentText("Are you sure you want to permanently delete this user? This action cannot be undone.");
+            alert.setContentText("Are you sure you want to permanently delete " + user.name + "?\nThis action cannot be undone.");
 
-            javafx.scene.control.ButtonType deleteBtnType = new javafx.scene.control.ButtonType("Delete User", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+            javafx.scene.control.ButtonType deleteBtnType = new javafx.scene.control.ButtonType("Delete", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
             javafx.scene.control.ButtonType cancelBtnType = new javafx.scene.control.ButtonType("Cancel", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
-            alert.getButtonTypes().setAll(deleteBtnType, cancelBtnType);
+            alert.getButtonTypes().setAll(cancelBtnType, deleteBtnType);
 
             alert.showAndWait().ifPresent(type -> {
                 if (type == deleteBtnType) {
-                    userDao.deleteUserAccount(user.email).whenComplete((res, err) -> javafx.application.Platform.runLater(() -> {
+                    userDao.deleteUserAccount(user.uid, user.email).whenComplete((res, err) -> javafx.application.Platform.runLater(() -> {
                         if (err != null) {
-                            showToast("Cannot delete the only system administrator.", false);
+                            showToast("Unable to delete user. The account could not be completely removed. Please try again.", false);
                         } else {
-                            showToast("User deleted successfully.", true);
+                            showToast("User " + user.name + " deleted successfully.", true);
                             loadLiveUsersFromFirestore();
                         }
                     }));
