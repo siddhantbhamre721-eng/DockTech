@@ -3,8 +3,6 @@ package com.projectui.dao;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -148,6 +146,19 @@ public class NotificationDao extends Dao {
         List<Notification> userList = getNotificationsForUser(userId);
         for (Notification n : userList) {
             if (n != null && !n.isRead()) {
+                markAsRead(n.getId());
+            }
+        }
+    }
+
+    /**
+     * Mark customs duty assignment notifications as completed/read.
+     */
+    public void markDutyNotificationsAsCompleted(String userId) {
+        if (userId == null || userId.isBlank()) return;
+        List<Notification> userList = getNotificationsForUser(userId);
+        for (Notification n : userList) {
+            if (n != null && "CUSTOMS_DUTY_ASSIGNED".equalsIgnoreCase(n.getType())) {
                 markAsRead(n.getId());
             }
         }

@@ -1,5 +1,6 @@
 package com.projectui.view.portauthority;
 
+import java.io.File;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -7,6 +8,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import com.projectui.dao.CargoDao;
@@ -130,14 +132,7 @@ public class CargoManagementPage {
     }
 
     private String normalizePortName(String raw) {
-        if (raw == null) return "Cochin Port";
-        String lower = raw.toLowerCase().trim();
-        if (lower.contains("cochin") || lower.contains("kochi")) return "Cochin Port";
-        if (lower.contains("mumbai") || lower.contains("bombay")) return "Port of Mumbai";
-        if (lower.contains("chennai") || lower.contains("madras")) return "Port of Chennai";
-        if (lower.contains("vizag") || lower.contains("visakhapatnam")) return "Port of Vizag";
-        if (lower.contains("kolkata") || lower.contains("calcutta")) return "Port of Kolkata";
-        return raw;
+        return com.projectui.dao.UserDao.normalizePort(raw);
     }
 
     // =====================================================
@@ -296,7 +291,7 @@ public class CargoManagementPage {
         // Pending & Importer Requests Table
         pendingRequestsTable = new TableView<>();
         pendingRequestsTable.setPrefHeight(220);
-        pendingRequestsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        pendingRequestsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         pendingRequestsTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");
         pendingRequestsTable.setPlaceholder(new Label("No pending cargo requests for " + activeViewingPort));
 
@@ -402,10 +397,15 @@ public class CargoManagementPage {
             }
         });
 
+        TableColumn<Map<String, Object>, String> colReqPayStatus = new TableColumn<>("Payment Status");
+        colReqPayStatus.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "paymentStatus", "PENDING")));
+        colReqPayStatus.setCellFactory(col -> createPaymentBadgeCell());
+        colReqPayStatus.setStyle("-fx-alignment:CENTER; -fx-font-size:12px; -fx-font-weight:bold;");
+
         pendingRequestsTable.getColumns().addAll(
                 colReqId, colCargo, colType, colQty, colWeight,
                 colImporter, colExporter, colVessel, colOrigin, colDest,
-                colDate, colStatus, colAction
+                colDate, colStatus, colReqPayStatus, colAction
         );
         pendingRequestsTable.setItems(pendingRequestsList);
 
@@ -499,7 +499,7 @@ public class CargoManagementPage {
         // Table
         cargoOperationsTable = new TableView<>();
         cargoOperationsTable.setPrefHeight(380);
-        cargoOperationsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        cargoOperationsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         cargoOperationsTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");
         cargoOperationsTable.setPlaceholder(new Label("No cargo records available for " + activeViewingPort));
 
@@ -600,9 +600,14 @@ public class CargoManagementPage {
             }
         });
 
+        TableColumn<Map<String, Object>, String> colPayStatus = new TableColumn<>("Payment Status");
+        colPayStatus.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "paymentStatus", "PENDING")));
+        colPayStatus.setCellFactory(col -> createPaymentBadgeCell());
+        colPayStatus.setStyle("-fx-alignment:CENTER; -fx-font-size:12px; -fx-font-weight:bold;");
+
         cargoOperationsTable.getColumns().addAll(
                 colCgoId, colType, colShip, colImporter, colExporter,
-                colQtyWeight, colOrigin, colDest, colStatus, colEta,
+                colQtyWeight, colOrigin, colDest, colStatus, colPayStatus, colEta,
                 colUpdated, colAction
         );
         cargoOperationsTable.setItems(allCargoOperationsList);
@@ -620,6 +625,28 @@ public class CargoManagementPage {
 
         container.getChildren().addAll(controls, cargoOperationsTable);
         return container;
+    }
+
+    private TableCell<Map<String, Object>, String> createPaymentBadgeCell() {
+        return new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setGraphic(null);
+                    setText(null);
+                } else {
+                    boolean isPaid = "PAID".equalsIgnoreCase(item) || "PAYMENT COMPLETED".equalsIgnoreCase(item) || item.toUpperCase().contains("PAID");
+                    Label badge = new Label(isPaid ? "✓ PAID" : "PENDING");
+                    String color = isPaid ? "#16a34a" : "#d97706";
+                    String bg = isPaid ? "#dcfce7" : "#fef3c7";
+                    badge.setStyle("-fx-text-fill:" + color + "; -fx-background-color:" + bg + "; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:4;");
+                    setGraphic(badge);
+                    setAlignment(Pos.CENTER);
+                    setText(null);
+                }
+            }
+        };
     }
 
     private TableCell<Map<String, Object>, String> createStatusBadgeCell() {
@@ -1121,7 +1148,51 @@ public class CargoManagementPage {
                 detailLine("Estimated Arrival (ETA)", deriveCargoEta(c))
         );
 
-        // Section 3: WORKFLOW TIMELINE
+        // Section 3: PAYMENT & TRANSACTION DETAILS
+        Label gPay = new Label("PAYMENT & TRANSACTION DETAILS");
+        gPay.setStyle("-fx-text-fill:#16a34a; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:6 0 2 0;");
+
+        String paySt = getString(c, "paymentStatus", "PENDING");
+        boolean isPaid = "PAID".equalsIgnoreCase(paySt) || "PAYMENT COMPLETED".equalsIgnoreCase(paySt) || paySt.toUpperCase().contains("PAID");
+        double payAmt = getDouble(c, "paymentAmount", 0.0);
+        String payAmtStr = payAmt > 0 ? ("₹ " + String.format(Locale.US, "%,.0f", payAmt)) : (isPaid ? "Paid via Razorpay" : "Pending Payment");
+        String rzpPayId = getString(c, "razorpayPaymentId", "—");
+        String rzpOrdId = getString(c, "razorpayOrderId", "—");
+        String receiptNum = getString(c, "receiptNumber", "—");
+        String paidDate = formatIsoDate(getString(c, "paidAt", "—"));
+
+        VBox gPayBox = new VBox(3,
+                detailLine("Payment Status", isPaid ? "✓ Payment Completed" : "Payment Pending"),
+                detailLine("Amount Paid", payAmtStr),
+                detailLine("Razorpay Payment ID", rzpPayId),
+                detailLine("Razorpay Order ID", rzpOrdId),
+                detailLine("Receipt Number", receiptNum),
+                detailLine("Payment Date & Time", paidDate)
+        );
+
+        if (isPaid) {
+            Button viewReceiptBtn = new Button("📄  View / Download Payment Receipt (PDF)");
+            viewReceiptBtn.setMaxWidth(Double.MAX_VALUE);
+            viewReceiptBtn.setStyle("-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-radius:6; -fx-padding:8 14; -fx-cursor:hand;");
+            viewReceiptBtn.setOnAction(e -> {
+                Map<String, Object> payData = new com.projectui.dao.PaymentDao().getPaymentByCargoId(id);
+                if (payData == null) {
+                    payData = new HashMap<>(c);
+                    payData.put("amount", payAmt);
+                    payData.put("receiptNumber", receiptNum);
+                    payData.put("razorpayPaymentId", rzpPayId);
+                    payData.put("razorpayOrderId", rzpOrdId);
+                    payData.put("paymentStatus", "PAID");
+                }
+                File pdf = com.projectui.service.ReceiptPdfService.generateReceipt(payData);
+                if (pdf != null) {
+                    com.projectui.service.ReceiptPdfService.openReceipt(pdf);
+                }
+            });
+            gPayBox.getChildren().add(viewReceiptBtn);
+        }
+
+        // Section 4: WORKFLOW TIMELINE
         Label g3 = new Label("WORKFLOW & CLEARANCE TIMELINE");
         g3.setStyle("-fx-text-fill:#0284c7; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 0 2 0;");
 
@@ -1129,7 +1200,7 @@ public class CargoManagementPage {
         timelineLbl.setWrapText(true);
         timelineLbl.setStyle("-fx-text-fill:#1e293b; -fx-font-size:11px; -fx-background-color:#f8fafc; -fx-padding:8; -fx-border-color:#e2e8f0; -fx-border-radius:4; -fx-background-radius:4;");
 
-        contentBox.getChildren().addAll(head, g1, g1Box, g2, g2Box, g3, timelineLbl);
+        contentBox.getChildren().addAll(head, g1, g1Box, g2, g2Box, gPay, gPayBox, g3, timelineLbl);
         dialog.getDialogPane().setContent(contentBox);
         dialog.showAndWait();
     }
@@ -1313,6 +1384,15 @@ public class CargoManagementPage {
         if (map == null || !map.containsKey(key) || map.get(key) == null) return fallback;
         String val = map.get(key).toString().trim();
         return val.isEmpty() ? fallback : val;
+    }
+
+    private double getDouble(Map<String, Object> map, String key, double fallback) {
+        if (map == null || !map.containsKey(key) || map.get(key) == null) return fallback;
+        try {
+            return Double.parseDouble(map.get(key).toString().replace("₹", "").replace(",", "").trim());
+        } catch (Exception ignored) {
+            return fallback;
+        }
     }
 
     private String formatIsoDate(String raw) {

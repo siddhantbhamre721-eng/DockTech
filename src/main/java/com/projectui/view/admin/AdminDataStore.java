@@ -15,6 +15,58 @@ import java.util.List;
 public class AdminDataStore {
 
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm");
+    private static final String PERSIST_DELETED_PORTS = System.getProperty("user.home") + "/.docktech_deleted_ports.properties";
+    private static final java.util.Set<String> deletedPortKeys = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    static {
+        loadDeletedPorts();
+    }
+
+    private static void loadDeletedPorts() {
+        if (deletedPortKeys == null) return;
+        try {
+            java.io.File file = new java.io.File(PERSIST_DELETED_PORTS);
+            if (file.exists()) {
+                java.util.Properties props = new java.util.Properties();
+                try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
+                    props.load(in);
+                }
+                for (String key : props.stringPropertyNames()) {
+                    if (key != null && !key.isBlank()) {
+                        deletedPortKeys.add(key.trim().toLowerCase());
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private static void saveDeletedPort(String portName, String portCode) {
+        if (deletedPortKeys == null) return;
+        if (portName != null && !portName.isBlank()) {
+            deletedPortKeys.add(portName.trim().toLowerCase());
+        }
+        if (portCode != null && !portCode.isBlank()) {
+            deletedPortKeys.add(portCode.trim().toLowerCase());
+        }
+        try {
+            java.util.Properties props = new java.util.Properties();
+            for (String key : deletedPortKeys) {
+                props.setProperty(key, "DELETED");
+            }
+            java.io.File file = new java.io.File(PERSIST_DELETED_PORTS);
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                props.store(out, "DockTech Deleted Ports");
+            }
+        } catch (Exception ignored) {}
+    }
+
+    public static boolean isPortDeleted(String name, String code) {
+        if (deletedPortKeys == null || deletedPortKeys.isEmpty()) return false;
+        if (name != null && deletedPortKeys.contains(name.trim().toLowerCase())) return true;
+        if (code != null && deletedPortKeys.contains(code.trim().toLowerCase())) return true;
+        return false;
+    }
+
     private static final AdminDataStore INSTANCE = new AdminDataStore();
 
     public final List<Port> ports = new ArrayList<>();
@@ -22,8 +74,8 @@ public class AdminDataStore {
     public final List<ReportRow> reports = new ArrayList<>();
     public final List<PortRequest> portRequests = new ArrayList<>();
 
-    public String adminName = "Dock Tech Admin";
-    public String adminEmail = "";
+    public String adminName = "Babu";
+    public String adminEmail = "babu@gmail.com";
     public String adminPassword = "admin123";
     public String accountCreated = "01 Jan 2026, 09:00";
     public String language = "English";
@@ -35,20 +87,34 @@ public class AdminDataStore {
     public String lastExportPath = "";
 
     private AdminDataStore() {
-        ports.add(new Port("Port of Mumbai", "Mumbai, Maharashtra", "IN-MUM-01", "Mumbai Port Authority", 18, 12,
-                "Operational", "Mixed cargo, containers", "82%", "Clear", now(), 18.9439, 72.8354, "APPROVED"));
-        ports.add(new Port("Port of Chennai", "Chennai, Tamil Nadu", "IN-MAA-01", "Chennai Port Authority", 14, 8,
-                "Operational", "Automobiles, containers", "76%", "Clear", now(), 13.0827, 80.2707, "APPROVED"));
-        ports.add(new Port("Port of Vizag", "Visakhapatnam, Andhra Pradesh", "IN-VTZ-01",
-                "Visakhapatnam Port Authority", 12, 5, "Maintenance", "Bulk cargo, minerals", "58%",
-                "Crane service in progress", now(), 17.6868, 83.2185, "APPROVED"));
-        ports.add(new Port("Port of Kolkata", "Kolkata, West Bengal", "IN-CCU-01",
-                "Syama Prasad Mookerjee Port Authority", 10, 9, "Busy", "River cargo, containers", "91%",
-                "High congestion watch", now(), 22.5726, 88.3639, "APPROVED"));
-        ports.add(new Port("Cochin Port", "Kochi, Kerala", "IN-COK-01",
-                "Cochin Port Authority", 16, 10, "Operational", "Crude oil, containers, spices", "78%",
-                "Clear", now(), 9.9600, 76.2600, "APPROVED"));
+        loadDeletedPorts();
 
+        if (!isPortDeleted("Port of Mumbai", "IN-MUM-01")) {
+            ports.add(new Port("Port of Mumbai", "Mumbai, Maharashtra", "IN-MUM-01", "Mumbai Port Authority", 18, 12,
+                    "Operational", "Mixed cargo, containers", "82%", "Clear", now(), 18.9439, 72.8354, "APPROVED"));
+        }
+        if (!isPortDeleted("Port of Chennai", "IN-MAA-01")) {
+            ports.add(new Port("Port of Chennai", "Chennai, Tamil Nadu", "IN-MAA-01", "Chennai Port Authority", 14, 8,
+                    "Operational", "Automobiles, containers", "76%", "Clear", now(), 13.0827, 80.2707, "APPROVED"));
+        }
+        if (!isPortDeleted("Port of Vizag", "IN-VTZ-01")) {
+            ports.add(new Port("Port of Vizag", "Visakhapatnam, Andhra Pradesh", "IN-VTZ-01",
+                    "Visakhapatnam Port Authority", 12, 5, "Maintenance", "Bulk cargo, minerals", "58%",
+                    "Crane service in progress", now(), 17.6868, 83.2185, "APPROVED"));
+        }
+        if (!isPortDeleted("Port of Kolkata", "IN-CCU-01")) {
+            ports.add(new Port("Port of Kolkata", "Kolkata, West Bengal", "IN-CCU-01",
+                    "Syama Prasad Mookerjee Port Authority", 10, 9, "Busy", "River cargo, containers", "91%",
+                    "High congestion watch", now(), 22.5726, 88.3639, "APPROVED"));
+        }
+        if (!isPortDeleted("Cochin Port", "IN-COK-01")) {
+            ports.add(new Port("Cochin Port", "Kochi, Kerala", "IN-COK-01",
+                    "Cochin Port Authority", 16, 10, "Operational", "Crude oil, containers, spices", "78%",
+                    "Clear", now(), 9.9600, 76.2600, "APPROVED"));
+        }
+
+        users.add(new UserAccount("usr_admin_babu", "Babu", "babu@gmail.com", "Admin",
+                "Active", "01 Jan 2026, 09:00", "Just now"));
         users.add(new UserAccount("pa_mum_01", "Mumbai Port Authority", "pa_mumbai@docktech.com", "Port Authority",
                 "Active", "01 Jan 2026, 09:00", "Just now"));
         users.add(new UserAccount("pa_maa_01", "Chennai Port Authority", "pa_chennai@docktech.com", "Port Authority",
@@ -106,6 +172,76 @@ public class AdminDataStore {
         return count;
     }
 
+    public List<String> getApprovedPortNames() {
+        List<String> list = new ArrayList<>();
+        for (Port p : ports) {
+            if (p != null && p.name != null && !isPortDeleted(p.name, p.code)) {
+                if ("APPROVED".equalsIgnoreCase(p.approvalStatus) || p.approvalStatus == null) {
+                    if (!list.contains(p.name)) {
+                        list.add(p.name);
+                    }
+                }
+            }
+        }
+        return list;
+    }
+
+    public Port getPortByName(String name) {
+        if (name == null || name.isBlank()) return null;
+        String target = name.trim().toLowerCase();
+        for (Port p : ports) {
+            if (p != null && p.name != null && p.name.trim().equalsIgnoreCase(target)) {
+                return p;
+            }
+        }
+        for (Port p : ports) {
+            if (p != null && p.name != null) {
+                String pLower = p.name.toLowerCase();
+                if (pLower.contains(target) || target.contains(pLower)) {
+                    return p;
+                }
+            }
+        }
+        return null;
+    }
+
+    public boolean deletePort(Port port) {
+        if (port == null) return false;
+        saveDeletedPort(port.name, port.code);
+        ports.remove(port);
+        ports.removeIf(p -> (p.name != null && p.name.equalsIgnoreCase(port.name)) || (p.code != null && p.code.equalsIgnoreCase(port.code)));
+        
+        try {
+            com.google.cloud.firestore.Firestore db = com.projectui.config.FirebaseConfig.getFirestore();
+            if (db != null) {
+                String docId = port.code != null ? port.code : (port.name != null ? port.name.replaceAll("[^A-Za-z0-9]", "_") : "unknown");
+                if (docId != null) {
+                    db.collection("registered_ports").document(docId).delete();
+                }
+            }
+        } catch (Exception ignored) {}
+
+        com.projectui.view.admin.GeoTileMapCanvas.refreshAllMapInstances();
+        return true;
+    }
+
+    public boolean deletePortByName(String name) {
+        if (name == null || name.isBlank()) return false;
+        saveDeletedPort(name, null);
+        ports.removeIf(p -> p.name != null && p.name.equalsIgnoreCase(name.trim()));
+        
+        try {
+            com.google.cloud.firestore.Firestore db = com.projectui.config.FirebaseConfig.getFirestore();
+            if (db != null) {
+                String docId = name.replaceAll("[^A-Za-z0-9]", "_");
+                db.collection("registered_ports").document(docId).delete();
+            }
+        } catch (Exception ignored) {}
+
+        com.projectui.view.admin.GeoTileMapCanvas.refreshAllMapInstances();
+        return true;
+    }
+
     public int maintenancePorts() {
         int count = 0;
         for (Port port : ports) {
@@ -118,6 +254,8 @@ public class AdminDataStore {
     }
 
     public int activeVessels() {
+        int liveCount = com.projectui.service.VesselManager.getInstance().getActiveVesselCount();
+        if (liveCount > 0) return liveCount;
         int count = 0;
         for (Port port : ports) {
             if ("APPROVED".equalsIgnoreCase(port.approvalStatus) || port.approvalStatus == null) {
@@ -125,6 +263,31 @@ public class AdminDataStore {
             }
         }
         return count;
+    }
+
+    public int totalLiveVessels() {
+        int liveCount = com.projectui.service.VesselManager.getInstance().getTotalLiveCount();
+        return liveCount > 0 ? liveCount : activeVessels();
+    }
+
+    public int arrivingVessels() {
+        return com.projectui.service.VesselManager.getInstance().getArrivingCount();
+    }
+
+    public int departingVessels() {
+        return com.projectui.service.VesselManager.getInstance().getDepartingCount();
+    }
+
+    public int inTransitVessels() {
+        return com.projectui.service.VesselManager.getInstance().getInTransitCount();
+    }
+
+    public int anchoredVessels() {
+        return com.projectui.service.VesselManager.getInstance().getAnchoredCount();
+    }
+
+    public int inPortVessels() {
+        return com.projectui.service.VesselManager.getInstance().getInPortCount();
     }
 
     public int cargoHandled() {
@@ -155,6 +318,27 @@ public class AdminDataStore {
             if ("PENDING".equalsIgnoreCase(req.status))
                 count++;
         }
+        return count;
+    }
+
+    public int pendingInspectionsCount() {
+        int count = 0;
+        try {
+            com.projectui.dao.CargoDao cargoDao = new com.projectui.dao.CargoDao();
+            List<java.util.Map<String, Object>> cargos = cargoDao.getAllCargos();
+            if (cargos != null) {
+                for (java.util.Map<String, Object> c : cargos) {
+                    if (c == null) continue;
+                    String inspectStatus = c.get("inspectionStatus") != null ? String.valueOf(c.get("inspectionStatus")).trim() : "";
+                    String status = c.get("status") != null ? String.valueOf(c.get("status")).trim() : "";
+                    if ("Pending".equalsIgnoreCase(inspectStatus) || "Under Inspection".equalsIgnoreCase(inspectStatus)
+                            || "Pending Inspection".equalsIgnoreCase(inspectStatus)
+                            || "Under Inspection".equalsIgnoreCase(status) || "Pending Inspection".equalsIgnoreCase(status)) {
+                        count++;
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
         return count;
     }
 

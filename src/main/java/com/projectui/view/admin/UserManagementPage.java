@@ -86,10 +86,19 @@ public class UserManagementPage extends AdminTheme {
                             String key = !email.isBlank() ? email : uid;
 
                             if (key.isBlank() || seenKeys.contains(key)) continue;
+
+                            if (email.equalsIgnoreCase("pravin@gmail.com") || email.equalsIgnoreCase("goa@gmail.com")) {
+                                continue;
+                            }
+
+                            String role = u.get("role") != null ? u.get("role").toString() : "Port Authority";
+                            if ("Admin".equalsIgnoreCase(role) && !email.equalsIgnoreCase("babu@gmail.com") && !email.contains("admin")) {
+                                continue;
+                            }
+
                             seenKeys.add(key);
 
                             String name = u.get("name") != null ? u.get("name").toString() : "User";
-                            String role = u.get("role") != null ? u.get("role").toString() : "Port Authority";
                             String status = u.get("status") != null ? u.get("status").toString() : "Active";
                             String created = u.get("createdAt") != null ? u.get("createdAt").toString() : "Today";
                             String lastActive = u.get("updatedAt") != null ? u.get("updatedAt").toString() : "Recently";
@@ -97,6 +106,20 @@ public class UserManagementPage extends AdminTheme {
                             users.add(new AdminDataStore.UserAccount(uid, name, email, role, status, created, lastActive));
                         }
                     }
+
+                    boolean hasBabu = false;
+                    for (AdminDataStore.UserAccount ua : users) {
+                        if (ua.email != null && ua.email.equalsIgnoreCase("babu@gmail.com")) {
+                            hasBabu = true;
+                            ua.name = "Babu";
+                            ua.role = "Admin";
+                            break;
+                        }
+                    }
+                    if (!hasBabu) {
+                        users.add(0, new AdminDataStore.UserAccount("usr_" + Math.abs("babu@gmail.com".hashCode()), "Babu", "babu@gmail.com", "Admin", "Active", "01 Jan 2026, 09:00", "Just now"));
+                    }
+
                     refreshTable();
                     refreshStats();
                     if (toastMessage != null) {

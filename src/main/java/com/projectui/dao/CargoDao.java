@@ -77,6 +77,11 @@ public class CargoDao extends Dao {
 
     public CompletableFuture<Map<String, Object>> saveCargo(String cargoId, String cargoName, String cargoType,
             String quantity, String weight, String originPort, String destinationPort, String status) {
+        return saveCargo(cargoId, cargoName, cargoType, quantity, weight, "0", originPort, destinationPort, "Normal", status);
+    }
+
+    public CompletableFuture<Map<String, Object>> saveCargo(String cargoId, String cargoName, String cargoType,
+            String quantity, String weight, String value, String originPort, String destinationPort, String priority, String status) {
         
         CompletableFuture<Map<String, Object>> future = new CompletableFuture<>();
         try {
@@ -90,11 +95,16 @@ public class CargoDao extends Dao {
             if (cargoType != null) cargoData.put("cargoType", cargoType.trim());
             if (quantity != null) cargoData.put("quantity", quantity.trim());
             if (weight != null) cargoData.put("weight", weight.trim());
+            if (value != null) cargoData.put("value", value.trim());
             if (originPort != null) cargoData.put("originPort", originPort.trim());
             if (destinationPort != null) cargoData.put("destinationPort", destinationPort.trim());
+            if (priority != null) cargoData.put("priority", priority.trim());
             if (status != null && !status.isBlank()) {
                 cargoData.put("status", status);
                 cargoData.put("customsStatus", status);
+            }
+            if (!cargoData.containsKey("paymentStatus")) {
+                cargoData.put("paymentStatus", "PAYMENT PENDING");
             }
             cargoData.put("updatedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")));
             if (!cargoData.containsKey("createdAt")) {
@@ -142,6 +152,10 @@ public class CargoDao extends Dao {
         return list;
     }
 
+    public List<Map<String, Object>> getAllCargo() {
+        return getAllCargos();
+    }
+
     public List<Map<String, Object>> getCargosByPort(String portName) {
         List<Map<String, Object>> res = new ArrayList<>();
         if (portName == null || portName.isBlank() || "all ports".equalsIgnoreCase(portName.trim())) {
@@ -159,7 +173,7 @@ public class CargoDao extends Dao {
             String dNorm = UserDao.normalizePort(dest).toLowerCase();
             String aNorm = UserDao.normalizePort(assigned).toLowerCase();
 
-            if (oNorm.contains(norm) || dNorm.contains(norm) || aNorm.contains(norm) || norm.contains("mumbai") || (origin.isBlank() && dest.isBlank())) {
+            if (oNorm.contains(norm) || dNorm.contains(norm) || aNorm.contains(norm) || (origin.isBlank() && dest.isBlank())) {
                 res.add(c);
             }
         }
@@ -318,5 +332,81 @@ public class CargoDao extends Dao {
         } catch (Exception ignored) {}
 
         return true;
+    }
+
+    public boolean updateCargoPaymentStatus(String cargoId, String paymentStatus, String paymentId, String orderId, double amount, String receiptNo) {
+        if (cargoId == null) return false;
+        Map<String, Object> cargo = localCargoStore.get(cargoId);
+        if (cargo == null) {
+            cargo = new HashMap<>();
+            cargo.put("cargoId", cargoId);
+            localCargoStore.put(cargoId, cargo);
+        }
+        String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm"));
+        cargo.put("paymentStatus", paymentStatus != null ? paymentStatus : "PAID");
+        if (paymentId != null) cargo.put("razorpayPaymentId", paymentId);
+        if (orderId != null) cargo.put("razorpayOrderId", orderId);
+        if (amount > 0) cargo.put("paymentAmount", amount);
+        if (receiptNo != null) cargo.put("receiptNumber", receiptNo);
+        cargo.put("paidAt", nowStr);
+        cargo.put("updatedAt", nowStr);
+        notifyListeners();
+
+        try {
+            Firestore db = db();
+            if (db != null) {
+                db.collection("cargos").document(cargoId).set(cargo, com.google.cloud.firestore.SetOptions.merge());
+            }
+        } catch (Exception ignored) {}
+
+        return true;
+    }
+
+    public boolean confirmDelivery(String cargoId, String confirmedBy, String notes) {
+        if (cargoId == null || cargoId.isBlank()) return false;
+        Map<String, Object> cargo = localCargoStore.get(cargoId);
+        if (cargo == null) return false;
+
+        String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm"));
+        cargo.put("status", "Delivered");
+        cargo.put("deliveryStatus", "Delivered");
+        cargo.put("deliveredAt", nowStr);
+        cargo.put("deliveredBy", confirmedBy != null ? confirmedBy : "Importer");
+        if (notes != null) cargo.put("deliveryNotes", notes);
+        cargo.put("updatedAt", nowStr);
+        notifyListeners();
+
+        try {
+            Firestore db = db();
+            if (db != null) {
+                db.collection("cargos").document(cargoId).set(cargo, com.google.cloud.firestore.SetOptions.merge());
+            }
+        } catch (Exception ignored) {}
+
+        return true;
+    }
+
+    public List<Map<String, Object>> getShipmentsForImporter(String importerIdentifier) {
+        List<Map<String, Object>> res = new ArrayList<>();
+        if (importerIdentifier == null || importerIdentifier.isBlank() || "all".equalsIgnoreCase(importerIdentifier.trim())) {
+            return getAllCargos();
+        }
+
+        String filter = importerIdentifier.trim().toLowerCase();
+
+        for (Map<String, Object> c : localCargoStore.values()) {
+            if (c == null) continue;
+            String impName = String.valueOf(c.getOrDefault("importerName", c.getOrDefault("importer", ""))).toLowerCase();
+            String impEmail = String.valueOf(c.getOrDefault("importerEmail", "")).toLowerCase();
+            String impComp = String.valueOf(c.getOrDefault("importerCompany", c.getOrDefault("company", ""))).toLowerCase();
+            String consignee = String.valueOf(c.getOrDefault("consignee", "")).toLowerCase();
+
+            if (impName.contains(filter) || impEmail.contains(filter) || impComp.contains(filter) || consignee.contains(filter)
+                    || filter.contains(impName) || filter.contains(impEmail) || filter.contains(impComp)) {
+                res.add(c);
+            }
+        }
+        Collections.reverse(res);
+        return res;
     }
 }

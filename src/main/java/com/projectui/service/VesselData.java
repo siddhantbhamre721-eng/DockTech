@@ -43,4 +43,8 @@ public class VesselData {
     public boolean isStale(long maxAgeMillis) {
         return (System.currentTimeMillis() - lastUpdateEpoch) > maxAgeMillis;
     }
+
+    public String getFormattedTimestamp() {
+        return (timestamp != null && !timestamp.isBlank()) ? timestamp : LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+    }
 }

@@ -39,7 +39,7 @@ public class VesselFinderService {
     private boolean isRateLimited = false;
     private int reconnectAttempts = 0;
     private long lastBackoffUntilEpoch = 0;
-    private Consumer<java.util.Collection<VesselData>> onUpdateListener;
+    private final List<Consumer<java.util.Collection<VesselData>>> listeners = new java.util.concurrent.CopyOnWriteArrayList<>();
     private Map<Long, Map<String, String>> cachedMeta = new HashMap<>();
 
     public static VesselFinderService getInstance() {
@@ -63,15 +63,14 @@ public class VesselFinderService {
     }
 
     public synchronized void start(Consumer<java.util.Collection<VesselData>> listener) {
-        this.onUpdateListener = listener;
+        if (listener != null && !listeners.contains(listener)) {
+            listeners.add(listener);
+        }
+        java.util.Collection<VesselData> existing = VesselManager.getInstance().getAllVessels();
+        if (!existing.isEmpty() && listener != null) {
+            Platform.runLater(() -> listener.accept(existing));
+        }
         if (isRunning) {
-            // Already running single scheduler. Simply pass cached vessels to listener if present.
-            if (onUpdateListener != null) {
-                java.util.Collection<VesselData> existing = VesselManager.getInstance().getAllVessels();
-                if (!existing.isEmpty()) {
-                    Platform.runLater(() -> onUpdateListener.accept(existing));
-                }
-            }
             return;
         }
 
@@ -146,15 +145,21 @@ public class VesselFinderService {
                 System.out.println("[AIS] Map updated");
                 System.out.println("[AIS] Next update in " + interval + " seconds");
 
-                if (onUpdateListener != null) {
-                    java.util.Collection<VesselData> vessels = manager.getAllVessels();
-                    Platform.runLater(() -> onUpdateListener.accept(vessels));
-                }
+                java.util.Collection<VesselData> vessels = manager.getAllVessels();
+                notifyListeners(vessels);
             }
         } catch (Exception ex) {
             handleConnectionFailure(ex.getMessage());
         } finally {
             isFetching = false;
+        }
+    }
+
+    private void notifyListeners(java.util.Collection<VesselData> vessels) {
+        for (Consumer<java.util.Collection<VesselData>> l : listeners) {
+            try {
+                Platform.runLater(() -> l.accept(vessels));
+            } catch (Exception ignored) {}
         }
     }
 
@@ -291,11 +296,9 @@ public class VesselFinderService {
         System.err.println("[AIS] Keeping last successful vessel data");
         System.err.println("[AIS] Backing off before next request (" + backoffSec + "s)");
 
-        // Send last cached vessel collection to listener to preserve map telemetry
-        if (onUpdateListener != null) {
-            java.util.Collection<VesselData> cached = VesselManager.getInstance().getAllVessels();
-            Platform.runLater(() -> onUpdateListener.accept(cached));
-        }
+        // Send last cached vessel collection to listeners to preserve map telemetry
+        java.util.Collection<VesselData> cached = VesselManager.getInstance().getAllVessels();
+        notifyListeners(cached);
     }
 
     private void handleConnectionFailure(String reason) {
@@ -373,32 +376,61 @@ public class VesselFinderService {
                         double rawLng = Double.parseDouble(parts[0].trim());
                         double rawLat = Double.parseDouble(parts[1].trim());
 
-                        // Map coordinates strictly into maritime sea waters across major Indian ports
-                        int portSlot = featureIdx % 5;
-                        String defaultDest;
+                        // Distribute across regional maritime approaches and open transit sea lanes in the Indian Ocean:
+                        int zone = featureIdx % 8;
                         double lat;
                         double lng;
+                        String defaultDest;
 
-                        if (portSlot == 0) {
-                            defaultDest = "Cochin Port";
-                            lat = 9.40 + (Math.abs(rawLat * 10.0) % 1.10);
-                            lng = 75.40 + (Math.abs(rawLng * 10.0) % 0.75);
-                        } else if (portSlot == 1) {
-                            defaultDest = "Port of Mumbai";
-                            lat = 18.20 + (Math.abs(rawLat * 10.0) % 1.20);
-                            lng = 71.50 + (Math.abs(rawLng * 10.0) % 1.20);
-                        } else if (portSlot == 2) {
-                            defaultDest = "Port of Chennai";
-                            lat = 12.50 + (Math.abs(rawLat * 10.0) % 1.20);
-                            lng = 80.40 + (Math.abs(rawLng * 10.0) % 1.20);
-                        } else if (portSlot == 3) {
-                            defaultDest = "Port of Vizag";
-                            lat = 17.00 + (Math.abs(rawLat * 10.0) % 1.20);
-                            lng = 83.40 + (Math.abs(rawLng * 10.0) % 1.20);
-                        } else {
-                            defaultDest = "Port of Kolkata";
-                            lat = 21.00 + (Math.abs(rawLat * 10.0) % 1.00);
-                            lng = 87.50 + (Math.abs(rawLng * 10.0) % 1.00);
+                        switch (zone) {
+                            case 0:
+                                // Cochin / Malabar Coast Approach (Arabian Sea)
+                                lat = 9.40 + (Math.abs(rawLat * 10.0) % 1.2);   // 9.40 to 10.60° N
+                                lng = 75.40 + (Math.abs(rawLng * 10.0) % 0.85); // 75.40 to 76.25° E
+                                defaultDest = "Cochin Port";
+                                break;
+                            case 1:
+                                // Mumbai / Konkan Coast Approach (Arabian Sea)
+                                lat = 18.40 + (Math.abs(rawLat * 10.0) % 1.2);  // 18.40 to 19.60° N
+                                lng = 72.20 + (Math.abs(rawLng * 10.0) % 0.75); // 72.20 to 72.95° E
+                                defaultDest = "Port of Mumbai";
+                                break;
+                            case 2:
+                                // Chennai / Coromandel Coast Approach (Bay of Bengal)
+                                lat = 12.60 + (Math.abs(rawLat * 10.0) % 1.2);  // 12.60 to 13.80° N
+                                lng = 80.20 + (Math.abs(rawLng * 10.0) % 0.75); // 80.20 to 80.95° E
+                                defaultDest = "Port of Chennai";
+                                break;
+                            case 3:
+                                // Visakhapatnam / Vizag Coast Approach (Bay of Bengal)
+                                lat = 17.20 + (Math.abs(rawLat * 10.0) % 1.2);  // 17.20 to 18.40° N
+                                lng = 83.15 + (Math.abs(rawLng * 10.0) % 0.85); // 83.15 to 84.00° E
+                                defaultDest = "Port of Vizag";
+                                break;
+                            case 4:
+                                // Kolkata / Haldia / Bengal Coast Approach (Bay of Bengal)
+                                lat = 21.30 + (Math.abs(rawLat * 10.0) % 1.1);  // 21.30 to 22.40° N
+                                lng = 87.80 + (Math.abs(rawLng * 10.0) % 0.75); // 87.80 to 88.55° E
+                                defaultDest = "Port of Kolkata";
+                                break;
+                            case 5:
+                                // Hazira / Gulf of Khambhat Approach (Arabian Sea)
+                                lat = 20.80 + (Math.abs(rawLat * 10.0) % 1.0);  // 20.80 to 21.80° N
+                                lng = 72.20 + (Math.abs(rawLng * 10.0) % 0.55); // 72.20 to 72.75° E
+                                defaultDest = "Port of Hazira";
+                                break;
+                            case 6:
+                                // Arabian Sea Deep Water Transit Route
+                                lat = 8.0 + (Math.abs(rawLat * 10.0) % 12.0);   // 8.0 to 20.0° N
+                                lng = 64.0 + (Math.abs(rawLng * 10.0) % 7.5);   // 64.0 to 71.5° E
+                                defaultDest = (featureIdx % 2 == 0) ? "Cochin Port" : "Port of Mumbai";
+                                break;
+                            default:
+                                // Bay of Bengal Deep Water Transit Route
+                                lat = 9.0 + (Math.abs(rawLat * 10.0) % 11.0);   // 9.0 to 20.0° N
+                                lng = 84.0 + (Math.abs(rawLng * 10.0) % 7.5);   // 84.0 to 91.5° E
+                                defaultDest = (featureIdx % 2 == 0) ? "Port of Chennai" : "Port of Vizag";
+                                break;
                         }
 
                         int searchStart = Math.max(0, pos - 200);

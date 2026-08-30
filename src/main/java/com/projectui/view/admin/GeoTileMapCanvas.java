@@ -1,10 +1,5 @@
 package com.projectui.view.admin;
 
-import javafx.animation.Animation;
-import javafx.animation.KeyFrame;
-import javafx.animation.Timeline;
-import javafx.util.Duration;
-
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -12,7 +7,6 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseEvent;
@@ -29,8 +23,11 @@ import javafx.stage.Popup;
 import javafx.stage.Window;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -165,7 +162,7 @@ public class GeoTileMapCanvas extends StackPane {
         zoomInBtn.setOnAction(e -> zoomIn());
         zoomOutBtn.setOnAction(e -> zoomOut());
         resetBtn.setOnAction(e -> resetView());
-        fitVesselsBtn.setOnAction(e -> toggleVesselsLayer());
+        fitVesselsBtn.setOnAction(e -> fitVessels());
         fitPortsBtn.setOnAction(e -> fitPorts());
 
         VBox controls = new VBox(6, zoomInBtn, zoomOutBtn, resetBtn, fitVesselsBtn, fitPortsBtn);
@@ -201,6 +198,10 @@ public class GeoTileMapCanvas extends StackPane {
         });
 
         reloadPorts();
+        java.util.Collection<com.projectui.service.VesselData> initialVessels = com.projectui.service.VesselManager.getInstance().getAllVessels();
+        if (initialVessels != null && !initialVessels.isEmpty()) {
+            processVesselUpdate(initialVessels);
+        }
         fetchLiveVessels();
     }
 
@@ -236,6 +237,13 @@ public class GeoTileMapCanvas extends StackPane {
 
                 String berthsStr = p.occupiedBerths() + "/" + p.berths;
                 ports.add(new PortMarker(p.name, p.code, p.location, lat, lng, p.status, p.vessels, berthsStr, p.capacity, p.maintenance, p.portAuthority, p.lastUpdated));
+            }
+        }
+        if (selectedPort != null) {
+            boolean stillExists = ports.stream().anyMatch(p -> p.name != null && p.name.equalsIgnoreCase(selectedPort.name));
+            if (!stillExists) {
+                selectedPort = null;
+                infoCard.setVisible(false);
             }
         }
         updateCounts();
@@ -282,61 +290,7 @@ public class GeoTileMapCanvas extends StackPane {
                 if (timeBadge != null) {
                     timeBadge.setText("Last updated: " + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
                 }
-
-                for (com.projectui.service.VesselData v : updatedVessels) {
-                    if (v.latitude < -90 || v.latitude > 90 || v.longitude < -180 || v.longitude > 180) continue;
-
-                    double incomingLat = v.latitude;
-                    double incomingLng = v.longitude;
-                    boolean isWater = com.projectui.service.VesselPositionValidator.isWaterCoordinate(incomingLat, incomingLng);
-
-                    VesselMarker vm = vesselMap.get(v.mmsi);
-                    if (vm != null) {
-                        if (isWater) {
-                            if (Math.abs(vm.lat - incomingLat) > 0.0001 || Math.abs(vm.lng - incomingLng) > 0.0001) {
-                                vm.trail.add(new double[]{vm.lat, vm.lng});
-                                if (vm.trail.size() > 12) vm.trail.remove(0);
-                            }
-                            vm.lat = incomingLat;
-                            vm.lng = incomingLng;
-                            vm.lastValidLat = incomingLat;
-                            vm.lastValidLng = incomingLng;
-                            vm.hasLandWarning = false;
-                        } else {
-                            // Incoming coordinate falls on land — retain vessel's last known valid water position
-                            vm.hasLandWarning = true;
-                            v.latitude = vm.lat;
-                            v.longitude = vm.lng;
-                        }
-                        vm.speed = v.speed;
-                        vm.course = v.course;
-                        vm.heading = v.heading;
-                        vm.destination = v.destination;
-                        vm.navStat = v.navigationStatus;
-                        vm.lastUpdate = v.timestamp;
-                    } else {
-                        double targetLat = incomingLat;
-                        double targetLng = incomingLng;
-                        boolean hasWarning = !isWater;
-
-                        if (!isWater) {
-                            double[] validPos = com.projectui.service.VesselPositionValidator.getFallbackWaterPosition(v.mmsi, v.destination);
-                            targetLat = validPos[0];
-                            targetLng = validPos[1];
-                            v.latitude = targetLat;
-                            v.longitude = targetLng;
-                        }
-
-                        vm = new VesselMarker(v.name, v.mmsi, v.imo, v.callSign, v.destination, targetLat, targetLng, v.speed, v.course, v.heading, v.shipType, v.navigationStatus, v.timestamp);
-                        vm.lastValidLat = targetLat;
-                        vm.lastValidLng = targetLng;
-                        vm.hasLandWarning = hasWarning;
-                        vesselMap.put(v.mmsi, vm);
-                        if (!vessels.contains(vm)) vessels.add(vm);
-                    }
-                }
-                updateCounts();
-                redraw();
+                processVesselUpdate(updatedVessels);
             } else {
                 if (liveBadge != null) {
                     if (vessels.isEmpty()) {
@@ -349,6 +303,95 @@ public class GeoTileMapCanvas extends StackPane {
                 }
             }
         });
+    }
+
+    public void processVesselUpdate(java.util.Collection<com.projectui.service.VesselData> updatedVessels) {
+        if (updatedVessels == null || updatedVessels.isEmpty()) return;
+
+        // 1. Collect all strictly valid water vessels
+        List<com.projectui.service.VesselData> validWaterVessels = new ArrayList<>();
+        for (com.projectui.service.VesselData v : updatedVessels) {
+            if (v == null || !v.isValid()) continue;
+            if (v.latitude < -90.0 || v.latitude > 90.0 || v.longitude < -180.0 || v.longitude > 180.0 || (v.latitude == 0.0 && v.longitude == 0.0)) continue;
+            if (!com.projectui.service.VesselPositionValidator.isWaterCoordinate(v.latitude, v.longitude)) continue;
+            validWaterVessels.add(v);
+        }
+
+        if (validWaterVessels.isEmpty()) return;
+
+        // 2. Select a representative, geographically distributed subset of ~45-55 vessels (target ~50)
+        List<com.projectui.service.VesselData> mapSubset;
+        int targetCount = 50;
+
+        if (validWaterVessels.size() <= targetCount) {
+            mapSubset = validWaterVessels;
+        } else {
+            // Spatial grid bucket distribution across coordinates (5x5 degree grid cells)
+            Map<String, List<com.projectui.service.VesselData>> buckets = new LinkedHashMap<>();
+            for (com.projectui.service.VesselData v : validWaterVessels) {
+                int gridLat = (int) Math.floor(v.latitude / 5.0);
+                int gridLng = (int) Math.floor(v.longitude / 5.0);
+                String cellKey = gridLat + "_" + gridLng;
+                buckets.computeIfAbsent(cellKey, k -> new ArrayList<>()).add(v);
+            }
+
+            mapSubset = new ArrayList<>();
+            // Round-robin selection from spatial buckets for wide geographic spread across oceans
+            boolean addedInRound = true;
+            int round = 0;
+            while (mapSubset.size() < targetCount && addedInRound) {
+                addedInRound = false;
+                for (List<com.projectui.service.VesselData> cellList : buckets.values()) {
+                    if (round < cellList.size()) {
+                        mapSubset.add(cellList.get(round));
+                        addedInRound = true;
+                        if (mapSubset.size() >= targetCount) break;
+                    }
+                }
+                round++;
+            }
+        }
+
+        // 3. Update existing markers or create new ones without duplicating
+        Set<Long> activeMmsis = new HashSet<>();
+        for (com.projectui.service.VesselData v : mapSubset) {
+            activeMmsis.add(v.mmsi);
+            double incomingLat = v.latitude;
+            double incomingLng = v.longitude;
+
+            VesselMarker vm = vesselMap.get(v.mmsi);
+            if (vm != null) {
+                if (Math.abs(vm.lat - incomingLat) > 0.0001 || Math.abs(vm.lng - incomingLng) > 0.0001) {
+                    vm.trail.add(new double[]{vm.lat, vm.lng});
+                    if (vm.trail.size() > 12) vm.trail.remove(0);
+                }
+                vm.lat = incomingLat;
+                vm.lng = incomingLng;
+                vm.lastValidLat = incomingLat;
+                vm.lastValidLng = incomingLng;
+                vm.hasLandWarning = false;
+                vm.speed = v.speed;
+                vm.course = v.course;
+                vm.heading = v.heading;
+                vm.destination = v.destination;
+                vm.navStat = v.navigationStatus;
+                vm.lastUpdate = v.timestamp;
+            } else {
+                vm = new VesselMarker(v.name, v.mmsi, v.imo, v.callSign, v.destination, incomingLat, incomingLng, v.speed, v.course, v.heading, v.shipType, v.navigationStatus, v.timestamp);
+                vm.lastValidLat = incomingLat;
+                vm.lastValidLng = incomingLng;
+                vm.hasLandWarning = false;
+                vesselMap.put(v.mmsi, vm);
+            }
+        }
+
+        // Remove markers not in current active subset
+        vesselMap.keySet().removeIf(mmsi -> !activeMmsis.contains(mmsi));
+        vessels.clear();
+        vessels.addAll(vesselMap.values());
+
+        updateCounts();
+        redraw();
     }
 
     private void updateCounts() {
@@ -364,10 +407,27 @@ public class GeoTileMapCanvas extends StackPane {
     }
 
     private void zoomOut() {
-        if (zoom > 3) {
+        if (zoom > 2) {
             zoom--;
             redraw();
         }
+    }
+
+    private void fitVessels() {
+        if (vessels.isEmpty()) return;
+        double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+        for (VesselMarker v : vessels) {
+            if (v.lat < minLat) minLat = v.lat;
+            if (v.lat > maxLat) maxLat = v.lat;
+            if (v.lng < minLng) minLng = v.lng;
+            if (v.lng > maxLng) maxLng = v.lng;
+        }
+        centerLat = (minLat + maxLat) / 2.0;
+        centerLng = (minLng + maxLng) / 2.0;
+        zoom = 3;
+        offsetX = 0;
+        offsetY = 0;
+        redraw();
     }
 
     private void resetView() {
@@ -614,35 +674,14 @@ public class GeoTileMapCanvas extends StackPane {
         // Live AIS Vessels
         if (!showVesselsLayer) return;
 
-        if (zoom < 5 && vessels.size() > 10) {
-            List<ClusterNode> clusters = clusterVessels(vessels, 45.0);
-            for (ClusterNode c : clusters) {
-                if (c.count == 1) {
-                    drawSingleVessel(c.singleVessel);
-                } else {
-                    double[] pos = latLngToPixel(c.lat, c.lng);
-                    gc.setFill(Color.web("rgba(6,182,212,0.85)"));
-                    gc.fillOval(pos[0] - 14, pos[1] - 14, 28, 28);
-                    gc.setStroke(Color.web("#38bdf8"));
-                    gc.setLineWidth(2.0);
-                    gc.strokeOval(pos[0] - 14, pos[1] - 14, 28, 28);
-
-                    gc.setFill(Color.WHITE);
-                    gc.setFont(javafx.scene.text.Font.font("system-ui", javafx.scene.text.FontWeight.BOLD, 11));
-                    gc.fillText(String.valueOf(c.count), pos[0] - (c.count > 9 ? 6 : 3), pos[1] + 4);
-                }
-            }
-        } else {
-            for (VesselMarker v : vessels) {
-                drawSingleVessel(v);
-            }
+        for (VesselMarker v : vessels) {
+            drawSingleVessel(v);
         }
     }
 
     private void drawSingleVessel(VesselMarker v) {
         if (v == null || isFilteredOut(v.name, String.valueOf(v.mmsi))) return;
         if (v.lat < -90.0 || v.lat > 90.0 || v.lng < -180.0 || v.lng > 180.0 || (v.lat == 0.0 && v.lng == 0.0)) return;
-        if (!com.projectui.service.VesselPositionValidator.isWaterCoordinate(v.lat, v.lng)) return;
 
         double[] pos = latLngToPixel(v.lat, v.lng);
         boolean isSel = (selectedVessel == v);
@@ -663,6 +702,7 @@ public class GeoTileMapCanvas extends StackPane {
         gc.restore();
     }
 
+    @SuppressWarnings("unused")
     private static class ClusterNode {
         public double lat;
         public double lng;
@@ -788,6 +828,53 @@ public class GeoTileMapCanvas extends StackPane {
                 infoRow("Flag", "India 🇮🇳"),
                 infoRow("Gross Tonnage", "42,500 GT")
         );
+
+        // Port Assignment & Proximity Metadata
+        String assignedPortName = null;
+        if (v.destination != null && !v.destination.isBlank() && !"En Route".equalsIgnoreCase(v.destination)) {
+            assignedPortName = v.destination;
+        }
+
+        try {
+            List<com.projectui.model.Ship> ships = new com.projectui.dao.ShipDAO().getShips();
+            if (ships != null) {
+                for (com.projectui.model.Ship s : ships) {
+                    if (s != null) {
+                        boolean matchName = s.getShipName() != null && !s.getShipName().isBlank() && v.name.toLowerCase().contains(s.getShipName().toLowerCase());
+                        boolean matchImo = s.getImoNumber() != null && !s.getImoNumber().isBlank() && v.imo.equalsIgnoreCase(s.getImoNumber());
+                        if (matchName || matchImo) {
+                            if (s.getCompany() != null && !s.getCompany().isBlank()) {
+                                assignedPortName = s.getCompany();
+                            }
+                            String assign = s.getBerth() != null && !s.getBerth().isBlank() ? ("Berth " + s.getBerth()) : "Registered Fleet Vessel";
+                            infoCard.getChildren().add(infoRow("Fleet Assignment", assign));
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // Calculate nearest port for relationship metadata
+        PortMarker nearbyPort = null;
+        double minDistance = Double.MAX_VALUE;
+        for (PortMarker p : ports) {
+            double dLat = p.lat - v.lat;
+            double dLng = p.lng - v.lng;
+            double dist = Math.sqrt(dLat * dLat + dLng * dLng);
+            if (dist < minDistance) {
+                minDistance = dist;
+                nearbyPort = p;
+            }
+        }
+
+        if (assignedPortName != null && !assignedPortName.isBlank()) {
+            infoCard.getChildren().add(infoRow("Assigned Port", assignedPortName));
+        }
+
+        if (nearbyPort != null && minDistance <= 3.5) {
+            infoCard.getChildren().add(infoRow("Nearby Port", nearbyPort.name));
+        }
     }
 
     private void updateInfoCardForPort(PortMarker p) {

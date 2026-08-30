@@ -30,8 +30,97 @@ public class UserDao extends Dao {
                     ? System.getenv("FIREBASE_API_KEY")
                     : "AIzaSyDO3l4YIlfgO9qvU2XB54k2pBvayr_ID1U";
 
+    private static final String PERSIST_USERS_FILE = System.getProperty("user.home") + "/.docktech_users.properties";
+
     static {
+        restoreLocalDiskUsers();
         ensureDefaultPortAuthorities();
+    }
+
+    public static void restoreLocalDiskUsers() {
+        try {
+            java.io.File file = new java.io.File(PERSIST_USERS_FILE);
+            if (file.exists()) {
+                java.util.Properties props = new java.util.Properties();
+                try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
+                    props.load(in);
+                }
+                for (String key : props.stringPropertyNames()) {
+                    if (key.endsWith(".role")) {
+                        String prefix = key.substring(0, key.length() - 5);
+                        String email = props.getProperty(prefix + ".email", prefix);
+                        String uid = props.getProperty(prefix + ".uid", "usr_" + Math.abs(email.toLowerCase().hashCode()));
+                        String name = props.getProperty(prefix + ".name", "User");
+                        String role = props.getProperty(prefix + ".role", "Port Authority");
+                        String roleCode = props.getProperty(prefix + ".roleCode", "PORT_AUTHORITY");
+                        String status = props.getProperty(prefix + ".status", "Active");
+                        String company = props.getProperty(prefix + ".company", "Port Authority");
+                        String assignedPort = props.getProperty(prefix + ".assignedPort", "Port of Mumbai");
+                        String tempPassword = props.getProperty(prefix + ".tempPassword", "");
+                        String accountId = props.getProperty(prefix + ".accountId", email);
+                        String phone = props.getProperty(prefix + ".phone", "");
+
+                        Map<String, Object> data = new HashMap<>();
+                        data.put("uid", uid);
+                        data.put("email", email.toLowerCase().trim());
+                        data.put("name", name);
+                        data.put("role", role);
+                        data.put("roleCode", roleCode);
+                        data.put("status", status);
+                        data.put("company", company);
+                        data.put("organization", company);
+                        data.put("assignedPort", assignedPort);
+                        data.put("tempPassword", tempPassword);
+                        data.put("password", tempPassword);
+                        data.put("accountId", accountId);
+                        data.put("phone", phone);
+                        data.put("mustChangePassword", false);
+                        data.put("createdAt", LocalDateTime.now().toString());
+
+                        localProfileStore.put(uid, data);
+                        localProfileStore.put(email.toLowerCase().trim(), data);
+                        if (!accountId.isBlank()) {
+                            localProfileStore.put(accountId.toLowerCase().trim(), data);
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    public static void saveLocalDiskUser(Map<String, Object> userData) {
+        if (userData == null) return;
+        Object emailObj = userData.get("email");
+        if (emailObj == null || emailObj.toString().isBlank()) return;
+        String email = emailObj.toString().toLowerCase().trim();
+
+        try {
+            java.util.Properties props = new java.util.Properties();
+            java.io.File file = new java.io.File(PERSIST_USERS_FILE);
+            if (file.exists()) {
+                try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
+                    props.load(in);
+                } catch (Exception ignored) {}
+            }
+
+            String prefix = email;
+            props.setProperty(prefix + ".email", email);
+            if (userData.get("uid") != null) props.setProperty(prefix + ".uid", userData.get("uid").toString());
+            if (userData.get("name") != null) props.setProperty(prefix + ".name", userData.get("name").toString());
+            if (userData.get("role") != null) props.setProperty(prefix + ".role", userData.get("role").toString());
+            if (userData.get("roleCode") != null) props.setProperty(prefix + ".roleCode", userData.get("roleCode").toString());
+            if (userData.get("status") != null) props.setProperty(prefix + ".status", userData.get("status").toString());
+            if (userData.get("company") != null) props.setProperty(prefix + ".company", userData.get("company").toString());
+            if (userData.get("assignedPort") != null) props.setProperty(prefix + ".assignedPort", userData.get("assignedPort").toString());
+            if (userData.get("tempPassword") != null) props.setProperty(prefix + ".tempPassword", userData.get("tempPassword").toString());
+            if (userData.get("accountId") != null) props.setProperty(prefix + ".accountId", userData.get("accountId").toString());
+            if (userData.get("phone") != null) props.setProperty(prefix + ".phone", userData.get("phone").toString());
+
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                props.store(out, "DockTech User Profiles");
+            }
+        } catch (Exception ignored) {}
     }
 
     public static void ensureDefaultPortAuthorities() {
@@ -41,19 +130,183 @@ public class UserDao extends Dao {
         seedPortAuthority("pa_kolkata@docktech.com", "Kolkata Port Authority", "Port of Kolkata");
         seedPortAuthority("pa_cochin@docktech.com", "Cochin Port Authority", "Cochin Port");
         seedPortAuthority("pa_kochi@docktech.com", "Cochin Port Authority", "Cochin Port");
+        cleanseAdminAccounts();
+    }
+
+    public static void cleanseAdminAccounts() {
+        try {
+            // 1. Remove unwanted admin keys from in-memory localProfileStore
+            List<String> keysToRemove = new ArrayList<>();
+            for (Map.Entry<String, Map<String, Object>> entry : localProfileStore.entrySet()) {
+                Map<String, Object> prof = entry.getValue();
+                if (prof == null) continue;
+                String email = prof.get("email") != null ? prof.get("email").toString().trim().toLowerCase() : "";
+                String role = prof.get("role") != null ? prof.get("role").toString().trim() : "";
+                if (email.equalsIgnoreCase("pravin@gmail.com") || email.equalsIgnoreCase("goa@gmail.com")) {
+                    keysToRemove.add(entry.getKey());
+                } else if ("Admin".equalsIgnoreCase(role) && !email.equalsIgnoreCase("babu@gmail.com") && !email.contains("admin")) {
+                    if (isPortEmailOrKeywords(email) || hasApprovedPortAuthority(email)) {
+                        prof.put("role", "Port Authority");
+                        prof.put("roleCode", "PORT_AUTHORITY");
+                    } else if (email.contains("captain")) {
+                        prof.put("role", "Ship Captain");
+                    } else if (email.contains("officer") || email.contains("custom")) {
+                        prof.put("role", "Custom Officer");
+                    } else if (email.contains("importer")) {
+                        prof.put("role", "Importer");
+                    } else {
+                        prof.put("role", "Exporter");
+                    }
+                }
+            }
+            for (String k : keysToRemove) {
+                localProfileStore.remove(k);
+            }
+
+            // 2. Ensure Babu is the single Admin profile in local storage
+            Map<String, Object> babuProfile = new HashMap<>();
+            babuProfile.put("uid", "usr_" + Math.abs("babu@gmail.com".hashCode()));
+            babuProfile.put("email", "babu@gmail.com");
+            babuProfile.put("name", "Babu");
+            babuProfile.put("role", "Admin");
+            babuProfile.put("roleCode", "ADMIN");
+            babuProfile.put("status", "Active");
+            babuProfile.put("organization", "Dock Tech Administration");
+            babuProfile.put("company", "Dock Tech");
+            babuProfile.put("createdAt", "01 Jan 2026, 09:00");
+            localProfileStore.put("babu@gmail.com", babuProfile);
+            localProfileStore.put(babuProfile.get("uid").toString(), babuProfile);
+            saveLocalDiskUser(babuProfile);
+
+            // 3. Remove unwanted Admin entries from AdminDataStore.users
+            AdminDataStore store = AdminDataStore.getInstance();
+            store.adminName = "Babu";
+            store.adminEmail = "babu@gmail.com";
+            store.users.removeIf(u -> u.email != null && (u.email.equalsIgnoreCase("pravin@gmail.com") || u.email.equalsIgnoreCase("goa@gmail.com") || ("Admin".equalsIgnoreCase(u.role) && !u.email.equalsIgnoreCase("babu@gmail.com"))));
+
+            boolean hasBabu = false;
+            for (AdminDataStore.UserAccount u : store.users) {
+                if (u.email != null && u.email.equalsIgnoreCase("babu@gmail.com")) {
+                    hasBabu = true;
+                    u.name = "Babu";
+                    u.role = "Admin";
+                    break;
+                }
+            }
+            if (!hasBabu) {
+                store.users.add(0, new AdminDataStore.UserAccount(babuProfile.get("uid").toString(), "Babu", "babu@gmail.com", "Admin", "Active", "01 Jan 2026, 09:00", "Just now"));
+            }
+
+            // 4. Background purge from Firestore and ~/.docktech_users.properties
+            ForkJoinPool.commonPool().execute(() -> {
+                try {
+                    Firestore db = new UserDao().db();
+                    if (db != null) {
+                        com.google.cloud.firestore.QuerySnapshot snap = db.collection("users").get().get();
+                        if (snap != null) {
+                            for (com.google.cloud.firestore.DocumentSnapshot doc : snap.getDocuments()) {
+                                if (doc.exists() && doc.getData() != null) {
+                                    String em = doc.getString("email");
+                                    String rl = doc.getString("role");
+                                    String dId = doc.getId();
+                                    if (em != null && (em.equalsIgnoreCase("pravin@gmail.com") || em.equalsIgnoreCase("goa@gmail.com"))) {
+                                        db.collection("users").document(dId).delete();
+                                        System.out.println("[CLEANSE] Deleted invalid user from Firestore: " + em);
+                                    } else if ("Admin".equalsIgnoreCase(rl) && em != null && !em.equalsIgnoreCase("babu@gmail.com") && !em.contains("admin")) {
+                                        db.collection("users").document(dId).delete();
+                                        System.out.println("[CLEANSE] Deleted invalid Admin document from Firestore: " + em);
+                                    }
+                                }
+                            }
+                        }
+                        db.collection("users").document(babuProfile.get("uid").toString()).set(babuProfile, com.google.cloud.firestore.SetOptions.merge());
+                    }
+                } catch (Throwable ignored) {}
+
+                try {
+                    java.io.File file = new java.io.File(PERSIST_USERS_FILE);
+                    if (file.exists()) {
+                        java.util.Properties props = new java.util.Properties();
+                        try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
+                            props.load(in);
+                        }
+                        List<String> pToRemove = new ArrayList<>();
+                        for (String key : props.stringPropertyNames()) {
+                            String val = props.getProperty(key);
+                            if (key.toLowerCase().contains("pravin@gmail.com") || key.toLowerCase().contains("goa@gmail.com") || (val != null && (val.toLowerCase().contains("pravin@gmail.com") || val.toLowerCase().contains("goa@gmail.com")))) {
+                                pToRemove.add(key);
+                            } else if (val != null && val.contains("role=Admin") && !key.equalsIgnoreCase("babu@gmail.com") && !val.contains("babu@gmail.com")) {
+                                pToRemove.add(key);
+                            }
+                        }
+                        for (String k : pToRemove) {
+                            props.remove(k);
+                        }
+                        try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                            props.store(out, "DockTech User Storage (Cleansed)");
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            });
+        } catch (Exception ignored) {}
     }
 
     public static String normalizePort(String raw) {
-        if (raw == null || raw.isBlank()) return "Port of Mumbai";
+        if (raw == null || raw.isBlank()) {
+            try {
+                List<String> ports = AdminDataStore.getInstance().getApprovedPortNames();
+                if (ports != null && !ports.isEmpty()) return ports.get(0);
+            } catch (Exception ignored) {}
+            return "Port of Mumbai";
+        }
         String lower = raw.toLowerCase().trim();
-        if (lower.contains("cochin") || lower.contains("kochi")) return "Cochin Port";
-        if (lower.contains("mumbai") || lower.contains("bombay")) return "Port of Mumbai";
-        if (lower.contains("chennai") || lower.contains("madras")) return "Port of Chennai";
-        if (lower.contains("vizag") || lower.contains("visakhapatnam")) return "Port of Vizag";
-        if (lower.contains("kolkata") || lower.contains("calcutta")) return "Port of Kolkata";
-        if (lower.contains("hazira")) return "Port of Hazira";
-        if (lower.contains("port")) return raw.trim();
-        return "Port of Mumbai";
+        try {
+            // 1. Direct match with registered port names
+            for (AdminDataStore.Port p : AdminDataStore.getInstance().ports) {
+                if (p != null && p.name != null && !AdminDataStore.isPortDeleted(p.name, p.code)) {
+                    String pLower = p.name.toLowerCase().trim();
+                    if (pLower.equals(lower) || lower.contains(pLower) || pLower.contains(lower)) {
+                        return p.name;
+                    }
+                    if (p.code != null && !p.code.isBlank() && lower.contains(p.code.toLowerCase().trim())) {
+                        return p.name;
+                    }
+                }
+            }
+
+            // 2. Common regional aliases mapped to existing registered port names
+            for (AdminDataStore.Port p : AdminDataStore.getInstance().ports) {
+                if (p != null && p.name != null && !AdminDataStore.isPortDeleted(p.name, p.code)) {
+                    String pLower = p.name.toLowerCase();
+                    if ((lower.contains("cochin") || lower.contains("kochi") || lower.contains("cok"))
+                            && (pLower.contains("cochin") || pLower.contains("kochi") || pLower.contains("cok"))) {
+                        return p.name;
+                    }
+                    if ((lower.contains("mumbai") || lower.contains("bombay") || lower.contains("jnpt") || lower.contains("mum"))
+                            && (pLower.contains("mumbai") || pLower.contains("bombay") || pLower.contains("jnpt") || pLower.contains("mum"))) {
+                        return p.name;
+                    }
+                    if ((lower.contains("chennai") || lower.contains("madras") || lower.contains("maa"))
+                            && (pLower.contains("chennai") || pLower.contains("madras") || pLower.contains("maa"))) {
+                        return p.name;
+                    }
+                    if ((lower.contains("vizag") || lower.contains("visakhapatnam") || lower.contains("vtz"))
+                            && (pLower.contains("vizag") || pLower.contains("visakhapatnam") || pLower.contains("vtz"))) {
+                        return p.name;
+                    }
+                    if ((lower.contains("kolkata") || lower.contains("calcutta") || lower.contains("ccu"))
+                            && (pLower.contains("kolkata") || pLower.contains("calcutta") || pLower.contains("ccu"))) {
+                        return p.name;
+                    }
+                    if ((lower.contains("hazira") || lower.contains("haz"))
+                            && (pLower.contains("hazira") || pLower.contains("haz"))) {
+                        return p.name;
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        return raw.trim();
     }
 
     public static List<Map<String, Object>> getPersonnelForPort(String portName, String roleKeyword) {
@@ -236,6 +489,85 @@ public class UserDao extends Dao {
                 }
             }
         }
+    }
+
+    public static java.util.concurrent.CompletableFuture<Boolean> completeOfficerDuty(String uidOrEmail, String officerName, String remarks) {
+        java.util.concurrent.CompletableFuture<Boolean> future = new java.util.concurrent.CompletableFuture<>();
+        if (uidOrEmail == null || uidOrEmail.isBlank()) {
+            future.complete(false);
+            return future;
+        }
+
+        java.util.concurrent.ForkJoinPool.commonPool().execute(() -> {
+            try {
+                String key = uidOrEmail.toLowerCase().trim();
+                String nowStr = LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm"));
+
+                for (Map<String, Object> prof : localProfileStore.values()) {
+                    if (prof == null) continue;
+                    Object u = prof.get("uid");
+                    Object e = prof.get("email");
+                    if ((u != null && u.toString().equalsIgnoreCase(key)) || (e != null && e.toString().equalsIgnoreCase(key))) {
+                        String currentDuty = prof.get("duty") != null ? prof.get("duty").toString() : "Customs Inspection";
+                        String currentShip = prof.get("assignedShip") != null ? prof.get("assignedShip").toString() : "General Port Area";
+                        String port = prof.get("assignedPort") != null ? prof.get("assignedPort").toString() : "Port of Mumbai";
+                        String resolvedName = (officerName != null && !officerName.isBlank()) ? officerName : (prof.get("name") != null ? prof.get("name").toString() : "Custom Officer");
+
+                        prof.put("duty", "Standby / Available");
+                        prof.put("assignmentStatus", "Available");
+                        prof.put("lastCompletedDuty", currentDuty);
+                        prof.put("lastCompletedVessel", currentShip);
+                        prof.put("completedBy", resolvedName);
+                        prof.put("completedAt", nowStr);
+                        prof.put("updatedAt", nowStr);
+                        if (remarks != null && !remarks.isBlank()) prof.put("dutyRemarks", remarks);
+
+                        if (com.projectui.view.login.LoginPage.loggedInUser != null) {
+                            com.projectui.view.login.LoginPage.loggedInUser.put("duty", "Standby / Available");
+                            com.projectui.view.login.LoginPage.loggedInUser.put("assignmentStatus", "Available");
+                            com.projectui.view.login.LoginPage.loggedInUser.put("lastCompletedDuty", currentDuty);
+                            com.projectui.view.login.LoginPage.loggedInUser.put("lastCompletedVessel", currentShip);
+                            com.projectui.view.login.LoginPage.loggedInUser.put("completedBy", resolvedName);
+                            com.projectui.view.login.LoginPage.loggedInUser.put("completedAt", nowStr);
+                            com.projectui.view.login.LoginPage.loggedInUser.put("updatedAt", nowStr);
+                        }
+
+                        // Persist to Firestore
+                        String docUid = u != null ? u.toString() : key;
+                        Firestore db = new UserDao().db();
+                        if (db != null) {
+                            Map<String, Object> update = new HashMap<>();
+                            update.put("duty", "Standby / Available");
+                            update.put("assignmentStatus", "Available");
+                            update.put("lastCompletedDuty", currentDuty);
+                            update.put("lastCompletedVessel", currentShip);
+                            update.put("completedBy", resolvedName);
+                            update.put("completedAt", nowStr);
+                            update.put("updatedAt", nowStr);
+                            if (remarks != null && !remarks.isBlank()) update.put("dutyRemarks", remarks);
+                            db.collection("users").document(docUid).set(update, com.google.cloud.firestore.SetOptions.merge());
+                        }
+
+                        // Log activity for 30-day history / audit trail
+                        logActivity(
+                            resolvedName,
+                            e != null ? e.toString() : key,
+                            "DUTY_COMPLETED",
+                            "Operational Duty '" + currentDuty + "' on '" + currentShip + "' was completed and certified at " + port + "."
+                        );
+
+                        // Mark notifications as read
+                        new NotificationDao().markDutyNotificationsAsCompleted(docUid);
+                        break;
+                    }
+                }
+                future.complete(true);
+            } catch (Exception ex) {
+                System.err.println("[completeOfficerDuty error] " + ex.getMessage());
+                future.complete(false);
+            }
+        });
+        return future;
     }
 
     public static void assignPersonnelDuty(String uidOrEmail, String shipName, String duty) {
@@ -428,7 +760,9 @@ public class UserDao extends Dao {
         boolean isAdminOrAuthority = normTarget.equalsIgnoreCase("Admin") ||
                                     normTarget.equalsIgnoreCase("Administrator") ||
                                     normTarget.equalsIgnoreCase("Dock Tech Admin") ||
-                                    normTarget.equalsIgnoreCase("Port Authority");
+                                    normTarget.equalsIgnoreCase("Port Authority") ||
+                                    normTarget.equalsIgnoreCase("PORT_AUTHORITY") ||
+                                    normTarget.equalsIgnoreCase("PORT AUTHORITY");
 
         // Public / Unauthenticated registration
         if (creatorRole == null || creatorRole.isBlank() || creatorRole.equalsIgnoreCase("Public")) {
@@ -439,11 +773,13 @@ public class UserDao extends Dao {
         if (normCreator.equalsIgnoreCase("Admin") || normCreator.equalsIgnoreCase("Administrator") || normCreator.equalsIgnoreCase("Dock Tech Admin")) {
             // Dock Tech Admin can manage/create Port Authority, Exporter, Importer
             return normTarget.equalsIgnoreCase("Port Authority") ||
+                   normTarget.equalsIgnoreCase("PORT_AUTHORITY") ||
+                   normTarget.equalsIgnoreCase("PORT AUTHORITY") ||
                    normTarget.equalsIgnoreCase("Exporter") ||
                    normTarget.equalsIgnoreCase("Importer");
         }
 
-        if (normCreator.equalsIgnoreCase("Port Authority")) {
+        if (normCreator.equalsIgnoreCase("Port Authority") || normCreator.equalsIgnoreCase("PORT_AUTHORITY")) {
             // Port Authority can manage/create Custom Officer, Ship Captain, Exporter, Importer
             return normTarget.equalsIgnoreCase("Custom Officer") ||
                    normTarget.equalsIgnoreCase("Customs Officer") ||
@@ -485,6 +821,9 @@ public class UserDao extends Dao {
             userData.put("company", company);
             userData.put("phone", phone);
             userData.put("role", role);
+            if ("Port Authority".equalsIgnoreCase(role) || "PORT_AUTHORITY".equalsIgnoreCase(role)) {
+                userData.put("roleCode", "PORT_AUTHORITY");
+            }
             userData.put("status", status != null && !status.isBlank() ? status : "Active");
             userData.put("mustChangePassword", false);
             userData.put("createdAt", LocalDateTime.now().toString());
@@ -492,8 +831,9 @@ public class UserDao extends Dao {
             // Synchronize with local profile cache by exact UID and email
             localProfileStore.put(uid, userData);
             if (email != null && !email.isBlank()) {
-                localProfileStore.put(email.toLowerCase(), userData);
+                localProfileStore.put(email.toLowerCase().trim(), userData);
             }
+            saveLocalDiskUser(userData);
 
             Firestore db = db();
             if (db != null) {
@@ -548,6 +888,9 @@ public class UserDao extends Dao {
             userData.put("company", company);
             userData.put("phone", phone);
             userData.put("role", role);
+            if ("Port Authority".equalsIgnoreCase(role) || "PORT_AUTHORITY".equalsIgnoreCase(role)) {
+                userData.put("roleCode", "PORT_AUTHORITY");
+            }
             userData.put("status", status != null && !status.isBlank() ? status : "Active");
             userData.put("mustChangePassword", false);
             userData.put("createdAt", LocalDateTime.now().toString());
@@ -558,8 +901,20 @@ public class UserDao extends Dao {
 
             localProfileStore.put(uid, userData);
             if (email != null && !email.isBlank()) {
-                localProfileStore.put(email.toLowerCase(), userData);
+                localProfileStore.put(email.toLowerCase().trim(), userData);
             }
+            if (extraFields != null) {
+                if (extraFields.get("accountId") != null) {
+                    localProfileStore.put(extraFields.get("accountId").toString().toLowerCase().trim(), userData);
+                }
+                if (extraFields.get("proposedPaEmail") != null) {
+                    localProfileStore.put(extraFields.get("proposedPaEmail").toString().toLowerCase().trim(), userData);
+                }
+                if (extraFields.get("requesterEmail") != null) {
+                    localProfileStore.put(extraFields.get("requesterEmail").toString().toLowerCase().trim(), userData);
+                }
+            }
+            saveLocalDiskUser(userData);
 
             Firestore db = db();
             if (db != null) {
@@ -653,23 +1008,29 @@ public class UserDao extends Dao {
             String id;
             if (role.toLowerCase().contains("captain")) {
                 id = "CAP-" + String.format("%03d", (int)(Math.random() * 899 + 1));
-            } else if (role.toLowerCase().contains("authority")) {
+            } else if (role.toLowerCase().contains("authority") || role.toUpperCase().contains("PORT")) {
                 id = (email != null && !email.isBlank()) ? email.trim() : ("PA-" + String.format("%03d", (int)(Math.random() * 899 + 1)));
             } else {
                 id = "CO-" + String.format("%03d", (int)(Math.random() * 899 + 1));
             }
 
             Map<String, Object> extended = extraFields != null ? new HashMap<>(extraFields) : new HashMap<>();
+            extended.put("tempPassword", tempPassword);
+            extended.put("password", tempPassword);
             if (role.toLowerCase().contains("captain")) {
                 extended.put("captainId", id);
+                extended.put("roleCode", "SHIP_CAPTAIN");
                 if (!extended.containsKey("assignedShip")) extended.put("assignedShip", company != null ? company : "MV DockTech Leader");
                 if (!extended.containsKey("assignedPort")) extended.put("assignedPort", "Mumbai Port");
-            } else if (role.toLowerCase().contains("authority")) {
+            } else if (role.toLowerCase().contains("authority") || role.toUpperCase().contains("PORT")) {
                 extended.put("accountId", id);
                 extended.put("paId", id);
+                extended.put("roleCode", "PORT_AUTHORITY");
+                extended.put("role", "Port Authority");
                 if (!extended.containsKey("assignedPort")) extended.put("assignedPort", company != null ? company : "Mumbai Port");
             } else {
                 extended.put("officerId", id);
+                extended.put("roleCode", "CUSTOMS_OFFICER");
                 if (!extended.containsKey("assignedPort")) extended.put("assignedPort", company != null ? company : "Mumbai Port");
             }
             extended.put("mustChangePassword", false);
@@ -846,6 +1207,79 @@ public class UserDao extends Dao {
         return future;
     }
 
+    public static boolean hasApprovedPortAuthority(String email) {
+        if (email == null || email.isBlank()) return false;
+        String e = email.toLowerCase().trim();
+
+        try {
+            for (AdminDataStore.PortRequest req : AdminDataStore.getInstance().portRequests) {
+                if ("APPROVED".equalsIgnoreCase(req.status)) {
+                    if ((req.proposedPaEmail != null && req.proposedPaEmail.equalsIgnoreCase(e))
+                     || (req.requesterEmail != null && req.requesterEmail.equalsIgnoreCase(e))
+                     || (req.requestId != null && req.requestId.equalsIgnoreCase(e))) {
+                        return true;
+                    }
+                }
+            }
+            for (Map<String, Object> reqMap : PortRequestDao.getLocalRequestStore().values()) {
+                Object st = reqMap.get("status");
+                if (st != null && "APPROVED".equalsIgnoreCase(st.toString())) {
+                    Object paE = reqMap.get("proposedPaEmail");
+                    Object reqE = reqMap.get("requesterEmail");
+                    Object reqId = reqMap.get("requestId");
+                    if ((paE != null && paE.toString().equalsIgnoreCase(e))
+                     || (reqE != null && reqE.toString().equalsIgnoreCase(e))
+                     || (reqId != null && reqId.toString().equalsIgnoreCase(e))) {
+                        return true;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        return isPortEmailOrKeywords(email);
+    }
+
+    public static boolean isPortEmailOrKeywords(String email) {
+        if (email == null || email.isBlank()) return false;
+        String e = email.toLowerCase().trim();
+        if (e.contains("admin") || e.equalsIgnoreCase("babu@gmail.com")) return false;
+
+        if (e.contains("port") || e.contains("authority") || e.startsWith("pa_") || e.startsWith("pa-") || e.contains("pa@") || e.contains("pa.")
+                || e.contains("kochin") || e.contains("cochin") || e.contains("mumbai") || e.contains("chennai")
+                || e.contains("vizag") || e.contains("visakhapatnam") || e.contains("kolkata") || e.contains("calcutta")
+                || e.contains("hazira") || e.contains("jnpt") || e.contains("kandla") || e.contains("mundra")
+                || e.contains("paradip") || e.contains("paradeep") || e.contains("tuticorin") || e.contains("mormugao")
+                || e.contains("mangalore") || e.contains("harbor") || e.contains("dock")) {
+            return true;
+        }
+
+        try {
+            for (AdminDataStore.PortRequest req : AdminDataStore.getInstance().portRequests) {
+                if ((req.proposedPaEmail != null && req.proposedPaEmail.equalsIgnoreCase(e))
+                 || (req.requesterEmail != null && req.requesterEmail.equalsIgnoreCase(e))) {
+                    return true;
+                }
+            }
+            for (Map<String, Object> reqMap : PortRequestDao.getLocalRequestStore().values()) {
+                Object paE = reqMap.get("proposedPaEmail");
+                Object reqE = reqMap.get("requesterEmail");
+                if ((paE != null && paE.toString().equalsIgnoreCase(e))
+                 || (reqE != null && reqE.toString().equalsIgnoreCase(e))) {
+                    return true;
+                }
+            }
+            for (AdminDataStore.Port p : AdminDataStore.getInstance().ports) {
+                if (p.name != null) {
+                    String pClean = p.name.toLowerCase().replaceAll("[^a-z0-9]", "");
+                    String eClean = e.replaceAll("[^a-z0-9]", "");
+                    if (eClean.contains(pClean) || pClean.contains(eClean.split("@")[0])) return true;
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        return false;
+    }
+
     private Map<String, Object> repairIncompleteProfile(String docId, Map<String, Object> data, String hintEmail) {
         if (data == null) data = new HashMap<>();
 
@@ -859,16 +1293,27 @@ public class UserDao extends Dao {
 
         String roleVal = data.get("role") != null ? data.get("role").toString().trim() : "";
         if (roleVal.isBlank()) {
+            for (String altKey : new String[] { "roleCode", "userRole", "accountRole", "user_role", "roleName", "role_name", "type", "accountType", "roles" }) {
+                if (data.get(altKey) != null && !data.get(altKey).toString().isBlank()) {
+                    roleVal = data.get(altKey).toString().trim();
+                    break;
+                }
+            }
+        }
+        if (roleVal.isBlank() || ((roleVal.equalsIgnoreCase("Admin") || roleVal.equalsIgnoreCase("User")) && (!emailVal.equalsIgnoreCase("babu@gmail.com") && !emailVal.contains("admin")))) {
             if (!emailVal.isBlank() && (emailVal.contains("admin") || emailVal.equalsIgnoreCase("babu@gmail.com"))) {
                 roleVal = "Admin";
             } else if (emailVal.contains("captain")) {
                 roleVal = "Ship Captain";
             } else if (emailVal.contains("officer") || emailVal.contains("custom")) {
                 roleVal = "Custom Officer";
-            } else if (emailVal.contains("port") || emailVal.contains("authority")) {
+            } else if (isPortEmailOrKeywords(emailVal) || hasApprovedPortAuthority(emailVal)) {
                 roleVal = "Port Authority";
+                data.put("roleCode", "PORT_AUTHORITY");
+            } else if (emailVal.contains("importer") || emailVal.contains("import")) {
+                roleVal = "Importer";
             } else {
-                roleVal = "Admin";
+                roleVal = "Exporter";
             }
             data.put("role", roleVal);
             modified = true;
@@ -953,7 +1398,7 @@ public class UserDao extends Dao {
             }
         }
 
-        // 4. Scan AdminDataStore for matching user
+        // 4. Scan AdminDataStore for matching user or port requests
         try {
             for (AdminDataStore.UserAccount ua : AdminDataStore.getInstance().users) {
                 String accountUid = "usr_" + Math.abs(ua.email.toLowerCase().hashCode());
@@ -973,13 +1418,73 @@ public class UserDao extends Dao {
                     else if (ua.email.toLowerCase().contains("chennai") || ua.name.toLowerCase().contains("chennai")) data.put("assignedPort", "Port of Chennai");
                     else if (ua.email.toLowerCase().contains("vizag") || ua.name.toLowerCase().contains("visakhapatnam")) data.put("assignedPort", "Port of Vizag");
                     else if (ua.email.toLowerCase().contains("kolkata") || ua.name.toLowerCase().contains("kolkata")) data.put("assignedPort", "Port of Kolkata");
-                    else if (ua.email.toLowerCase().contains("cochin") || ua.name.toLowerCase().contains("cochin") || ua.email.toLowerCase().contains("kochi") || ua.name.toLowerCase().contains("kochi")) data.put("assignedPort", "Cochin Port");
+                    else if (ua.email.toLowerCase().contains("cochin") || ua.name.toLowerCase().contains("cochin") || ua.email.toLowerCase().contains("kochi") || ua.name.toLowerCase().contains("kochi") || ua.email.toLowerCase().contains("kochin")) data.put("assignedPort", "Cochin Port");
                     else data.put("assignedPort", "Port of Mumbai");
 
                     localProfileStore.put(accountUid, data);
                     localProfileStore.put(ua.email.toLowerCase(), data);
                     System.out.println(
                             "[PROFILE FOUND (AdminStore)] email=" + ua.email + " -> role=" + ua.role + ", status=" + ua.status);
+                    return data;
+                }
+            }
+
+            for (AdminDataStore.PortRequest req : AdminDataStore.getInstance().portRequests) {
+                if ((emailKey != null && ((req.proposedPaEmail != null && req.proposedPaEmail.equalsIgnoreCase(emailKey))
+                        || (req.requesterEmail != null && req.requesterEmail.equalsIgnoreCase(emailKey))))
+                 || (uidKey != null && req.proposedPaEmail != null && ("usr_" + Math.abs(req.proposedPaEmail.toLowerCase().hashCode())).equals(uidKey))) {
+                    String accountUid = (uidKey != null && !uidKey.isBlank()) ? uidKey : "usr_" + Math.abs(req.proposedPaEmail.toLowerCase().hashCode());
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("uid", accountUid);
+                    data.put("email", req.proposedPaEmail.toLowerCase().trim());
+                    data.put("name", req.proposedPaName != null && !req.proposedPaName.isBlank() ? req.proposedPaName : "Port Authority");
+                    data.put("organization", req.portName != null ? req.portName : "Port Authority Operations");
+                    data.put("company", req.portName != null ? req.portName : "Port Authority");
+                    data.put("assignedPort", req.portName != null ? req.portName : "Port of Mumbai");
+                    data.put("phone", req.requesterPhone != null ? req.requesterPhone : "+91 9800000000");
+                    data.put("role", "Port Authority");
+                    data.put("roleCode", "PORT_AUTHORITY");
+                    data.put("status", "Active");
+                    data.put("createdAt", LocalDateTime.now().toString());
+
+                    localProfileStore.put(accountUid, data);
+                    localProfileStore.put(data.get("email").toString().toLowerCase(), data);
+                    saveLocalDiskUser(data);
+                    System.out.println("[PROFILE FOUND (PortRequest)] email=" + data.get("email") + " -> role=Port Authority");
+                    return data;
+                }
+            }
+
+            for (Map<String, Object> reqMap : PortRequestDao.getLocalRequestStore().values()) {
+                Object paE = reqMap.get("proposedPaEmail");
+                Object reqE = reqMap.get("requesterEmail");
+                Object reqId = reqMap.get("requestId");
+                if ((emailKey != null && ((paE != null && paE.toString().equalsIgnoreCase(emailKey))
+                        || (reqE != null && reqE.toString().equalsIgnoreCase(emailKey))
+                        || (reqId != null && reqId.toString().equalsIgnoreCase(emailKey))))
+                 || (uidKey != null && paE != null && ("usr_" + Math.abs(paE.toString().toLowerCase().hashCode())).equals(uidKey))) {
+                    String cleanPaEmail = paE != null ? paE.toString().toLowerCase().trim() : (emailKey != null ? emailKey : "");
+                    String accountUid = (uidKey != null && !uidKey.isBlank()) ? uidKey : "usr_" + Math.abs(cleanPaEmail.hashCode());
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("uid", accountUid);
+                    data.put("email", cleanPaEmail);
+                    Object paN = reqMap.get("proposedPaName");
+                    data.put("name", paN != null && !paN.toString().isBlank() ? paN.toString() : "Port Authority");
+                    Object pName = reqMap.get("portName");
+                    String pNameStr = pName != null ? pName.toString() : "Port of Mumbai";
+                    data.put("organization", pNameStr);
+                    data.put("company", pNameStr);
+                    data.put("assignedPort", pNameStr);
+                    data.put("role", "Port Authority");
+                    data.put("roleCode", "PORT_AUTHORITY");
+                    data.put("status", "Active");
+                    data.put("createdAt", LocalDateTime.now().toString());
+
+                    localProfileStore.put(accountUid, data);
+                    localProfileStore.put(cleanPaEmail, data);
+                    if (emailKey != null) localProfileStore.put(emailKey.toLowerCase().trim(), data);
+                    saveLocalDiskUser(data);
+                    System.out.println("[PROFILE FOUND (PortRequestDao)] email=" + data.get("email") + " -> role=Port Authority");
                     return data;
                 }
             }
@@ -994,13 +1499,19 @@ public class UserDao extends Dao {
                 name = Character.toUpperCase(name.charAt(0)) + name.substring(1);
             }
 
-            String inferredRole = "Admin";
-            if (rawEmail.contains("captain")) {
+            String inferredRole = "Exporter";
+            if (rawEmail.equalsIgnoreCase("babu@gmail.com") || rawEmail.contains("admin")) {
+                inferredRole = "Admin";
+            } else if (rawEmail.contains("captain")) {
                 inferredRole = "Ship Captain";
             } else if (rawEmail.contains("officer") || rawEmail.contains("custom")) {
                 inferredRole = "Custom Officer";
-            } else if (rawEmail.contains("port") || rawEmail.contains("authority")) {
+            } else if (isPortEmailOrKeywords(rawEmail) || hasApprovedPortAuthority(rawEmail)) {
                 inferredRole = "Port Authority";
+            } else if (rawEmail.contains("importer") || rawEmail.contains("import")) {
+                inferredRole = "Importer";
+            } else if (rawEmail.contains("exporter") || rawEmail.contains("export")) {
+                inferredRole = "Exporter";
             }
 
             String syncUid = (uidKey != null && !uidKey.isBlank()) ? uidKey : "usr_" + Math.abs(rawEmail.hashCode());
@@ -1051,14 +1562,19 @@ public class UserDao extends Dao {
                         String email = user.getEmail();
                         if (email != null && !email.isBlank()) {
                             String rawEmail = email.toLowerCase().trim();
+                            if (rawEmail.equalsIgnoreCase("pravin@gmail.com") || rawEmail.equalsIgnoreCase("goa@gmail.com")) {
+                                continue;
+                            }
                             String name = user.getDisplayName() != null && !user.getDisplayName().isBlank()
                                     ? user.getDisplayName()
                                     : (rawEmail.contains("@") ? rawEmail.substring(0, rawEmail.indexOf("@")) : "User");
 
-                            String inferredRole = "Admin";
-                            if (rawEmail.contains("captain")) inferredRole = "Ship Captain";
+                            String inferredRole = "Exporter";
+                            if (rawEmail.equalsIgnoreCase("babu@gmail.com") || rawEmail.contains("admin")) inferredRole = "Admin";
+                            else if (rawEmail.contains("captain")) inferredRole = "Ship Captain";
                             else if (rawEmail.contains("officer") || rawEmail.contains("custom")) inferredRole = "Custom Officer";
-                            else if (rawEmail.contains("port") || rawEmail.contains("authority")) inferredRole = "Port Authority";
+                            else if (isPortEmailOrKeywords(rawEmail) || hasApprovedPortAuthority(rawEmail)) inferredRole = "Port Authority";
+                            else if (rawEmail.contains("importer")) inferredRole = "Importer";
 
                             Map<String, Object> docData = new HashMap<>();
                             docData.put("uid", uid);
@@ -1098,6 +1614,10 @@ public class UserDao extends Dao {
                             String email = data.get("email") != null ? data.get("email").toString() : "";
                             data.put("uid", uid);
 
+                            if (email.equalsIgnoreCase("pravin@gmail.com") || email.equalsIgnoreCase("goa@gmail.com")) {
+                                continue;
+                            }
+
                             if (!uid.isBlank()) localProfileStore.put(uid, data);
                             if (!email.isBlank()) localProfileStore.put(email.toLowerCase(), data);
                         }
@@ -1117,6 +1637,9 @@ public class UserDao extends Dao {
                             String email = user.getEmail();
                             if (email != null && !email.isBlank()) {
                                 String rawEmail = email.toLowerCase().trim();
+                                if (rawEmail.equalsIgnoreCase("pravin@gmail.com") || rawEmail.equalsIgnoreCase("goa@gmail.com")) {
+                                    continue;
+                                }
                                 Map<String, Object> existing = localProfileStore.get(uid);
                                 if (existing == null) existing = localProfileStore.get(rawEmail);
 
@@ -1125,12 +1648,12 @@ public class UserDao extends Dao {
                                             ? user.getDisplayName()
                                             : (rawEmail.contains("@") ? rawEmail.substring(0, rawEmail.indexOf("@")) : "User");
 
-                                    String inferredRole = "Ship Captain";
-                                    if (rawEmail.contains("officer") || rawEmail.contains("custom")) inferredRole = "Custom Officer";
-                                    else if (rawEmail.contains("port") || rawEmail.contains("authority")) inferredRole = "Port Authority";
-                                    else if (rawEmail.contains("admin")) inferredRole = "Admin";
+                                    String inferredRole = "Exporter";
+                                    if (rawEmail.equalsIgnoreCase("babu@gmail.com") || rawEmail.contains("admin")) inferredRole = "Admin";
+                                    else if (rawEmail.contains("captain")) inferredRole = "Ship Captain";
+                                    else if (rawEmail.contains("officer") || rawEmail.contains("custom")) inferredRole = "Custom Officer";
+                                    else if (isPortEmailOrKeywords(rawEmail) || hasApprovedPortAuthority(rawEmail)) inferredRole = "Port Authority";
                                     else if (rawEmail.contains("importer")) inferredRole = "Importer";
-                                    else if (rawEmail.contains("exporter")) inferredRole = "Exporter";
 
                                     Map<String, Object> docData = new HashMap<>();
                                     docData.put("uid", uid);
@@ -1206,18 +1729,35 @@ public class UserDao extends Dao {
 
     public static String getUidForEmail(String email) {
         if (email == null || email.isBlank()) return null;
-        Map<String, Object> prof = localProfileStore.get(email.toLowerCase().trim());
-        if (prof != null && prof.get("uid") != null) {
-            return prof.get("uid").toString();
+        String e = email.toLowerCase().trim();
+        Map<String, Object> p = localProfileStore.get(e);
+        if (p != null && p.get("uid") != null) return p.get("uid").toString();
+        for (Map<String, Object> val : localProfileStore.values()) {
+            if (val != null && val.get("email") != null && e.equalsIgnoreCase(val.get("email").toString())) {
+                if (val.get("uid") != null) return val.get("uid").toString();
+            }
         }
         return null;
     }
 
     public static java.util.List<Map<String, Object>> getFirebaseAuthUsersWithProfiles() {
+        cleanseAdminAccounts();
         com.projectui.config.FirebaseConfig.getFirestore();
         syncFirestoreUsers();
 
         java.util.Map<String, Map<String, Object>> usersByEmail = new java.util.LinkedHashMap<>();
+
+        // Always register Babu as the primary Admin
+        Map<String, Object> babuEntry = new HashMap<>();
+        String babuUid = "usr_" + Math.abs("babu@gmail.com".hashCode());
+        babuEntry.put("uid", babuUid);
+        babuEntry.put("email", "babu@gmail.com");
+        babuEntry.put("name", "Babu");
+        babuEntry.put("role", "Admin");
+        babuEntry.put("status", "Active");
+        babuEntry.put("createdAt", "01 Jan 2026, 09:00");
+        babuEntry.put("updatedAt", "Just now");
+        usersByEmail.put("babu@gmail.com", babuEntry);
 
         if (com.projectui.config.FirebaseConfig.hasAdminAuth()) {
             try {
@@ -1229,6 +1769,10 @@ public class UserDao extends Dao {
                             String uid = authUser.getUid();
                             String email = authUser.getEmail() != null ? authUser.getEmail().toLowerCase().trim() : "";
                             String authName = authUser.getDisplayName() != null ? authUser.getDisplayName().trim() : "";
+
+                            if (email.equalsIgnoreCase("pravin@gmail.com") || email.equalsIgnoreCase("goa@gmail.com")) {
+                                continue;
+                            }
 
                             String key = !email.isBlank() ? email : (uid != null ? uid : "");
                             if (key.isBlank() || usersByEmail.containsKey(key)) continue;
@@ -1256,7 +1800,12 @@ public class UserDao extends Dao {
 
                             String role = profile != null && profile.get("role") != null
                                     ? profile.get("role").toString().trim()
-                                    : (email.contains("captain") ? "Ship Captain" : (email.contains("officer") || email.contains("custom") ? "Custom Officer" : "Port Authority"));
+                                    : (email.equalsIgnoreCase("babu@gmail.com") || email.contains("admin") ? "Admin" : (email.contains("captain") ? "Ship Captain" : (email.contains("officer") || email.contains("custom") ? "Custom Officer" : (isPortEmailOrKeywords(email) || hasApprovedPortAuthority(email) ? "Port Authority" : "Exporter"))));
+
+                            // Strict enforcement: Only Babu can have Admin role
+                            if ("Admin".equalsIgnoreCase(role) && !email.equalsIgnoreCase("babu@gmail.com") && !email.contains("admin")) {
+                                role = (isPortEmailOrKeywords(email) || hasApprovedPortAuthority(email)) ? "Port Authority" : (email.contains("captain") ? "Ship Captain" : (email.contains("officer") || email.contains("custom") ? "Custom Officer" : "Exporter"));
+                            }
                             userMap.put("role", role);
 
                             String status = profile != null && profile.get("status") != null
@@ -1290,6 +1839,10 @@ public class UserDao extends Dao {
             String email = prof.get("email") != null ? prof.get("email").toString().toLowerCase().trim() : "";
             String uid = prof.get("uid") != null ? prof.get("uid").toString().trim() : "";
 
+            if (email.equalsIgnoreCase("pravin@gmail.com") || email.equalsIgnoreCase("goa@gmail.com")) {
+                continue;
+            }
+
             String key = !email.isBlank() ? email : uid;
             if (key.isBlank()) continue;
 
@@ -1307,6 +1860,9 @@ public class UserDao extends Dao {
                 if (name.isBlank()) name = "User";
 
                 String role = prof.get("role") != null ? prof.get("role").toString().trim() : "Port Authority";
+                if ("Admin".equalsIgnoreCase(role) && !email.equalsIgnoreCase("babu@gmail.com") && !email.contains("admin")) {
+                    role = (isPortEmailOrKeywords(email) || hasApprovedPortAuthority(email)) ? "Port Authority" : "Exporter";
+                }
                 String status = prof.get("status") != null ? prof.get("status").toString().trim() : "Active";
                 String createdAt = prof.get("createdAt") != null ? prof.get("createdAt").toString().trim() : "Registered";
                 String updatedAt = prof.get("updatedAt") != null ? prof.get("updatedAt").toString().trim() : "Recently";
@@ -1328,7 +1884,10 @@ public class UserDao extends Dao {
                     existing.put("uid", uid);
                 }
                 if (prof.get("role") != null && !prof.get("role").toString().isBlank()) {
-                    existing.put("role", prof.get("role").toString().trim());
+                    String r = prof.get("role").toString().trim();
+                    if (!"Admin".equalsIgnoreCase(r) || email.equalsIgnoreCase("babu@gmail.com") || email.contains("admin")) {
+                        existing.put("role", r);
+                    }
                 }
                 if (prof.get("name") != null && !prof.get("name").toString().isBlank() && !prof.get("name").toString().equalsIgnoreCase("User")) {
                     existing.put("name", prof.get("name").toString().trim());
@@ -1406,6 +1965,52 @@ public class UserDao extends Dao {
         }
 
         future.complete(null);
+        return future;
+    }
+
+    public CompletableFuture<Boolean> updateUserProfileFields(String uidOrEmail, Map<String, Object> fieldsToUpdate) {
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
+        if (uidOrEmail == null || uidOrEmail.isBlank() || fieldsToUpdate == null || fieldsToUpdate.isEmpty()) {
+            future.complete(false);
+            return future;
+        }
+
+        ForkJoinPool.commonPool().execute(() -> {
+            try {
+                String key = uidOrEmail.toLowerCase().trim();
+                Map<String, Object> profile = localProfileStore.get(key);
+                if (profile == null) profile = localProfileStore.get(uidOrEmail.trim());
+                if (profile == null) profile = readFirestoreRest(uidOrEmail);
+                if (profile == null) profile = new HashMap<>();
+
+                profile.putAll(fieldsToUpdate);
+                String uid = profile.get("uid") != null ? profile.get("uid").toString() : uidOrEmail;
+                String email = profile.get("email") != null ? profile.get("email").toString().toLowerCase() : key;
+
+                localProfileStore.put(uid, profile);
+                localProfileStore.put(email, profile);
+
+                if (com.projectui.view.login.LoginPage.loggedInUser != null) {
+                    Object currUid = com.projectui.view.login.LoginPage.loggedInUser.get("uid");
+                    Object currEmail = com.projectui.view.login.LoginPage.loggedInUser.get("email");
+                    if ((currUid != null && currUid.toString().equalsIgnoreCase(uid)) ||
+                        (currEmail != null && currEmail.toString().equalsIgnoreCase(email))) {
+                        com.projectui.view.login.LoginPage.loggedInUser.putAll(fieldsToUpdate);
+                    }
+                }
+
+                Firestore db = db();
+                if (db != null) {
+                    db.collection("users").document(uid).set(fieldsToUpdate, com.google.cloud.firestore.SetOptions.merge());
+                } else {
+                    writeFirestoreRest(uid, fieldsToUpdate);
+                }
+                future.complete(true);
+            } catch (Exception ex) {
+                System.err.println("[UserDao updateUserProfileFields] " + ex.getMessage());
+                future.complete(false);
+            }
+        });
         return future;
     }
 

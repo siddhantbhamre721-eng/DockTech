@@ -19,6 +19,8 @@ import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.util.Duration;
 import java.time.format.DateTimeFormatter;
+import javafx.scene.Node;
+import java.util.List;
 import java.util.Map;
 
 @SuppressWarnings("unused")
@@ -28,23 +30,32 @@ public class DashboardLayoutHelper {
     private static final String TEXT = "#111827";
 
     public static HBox createHeader(Stage stage, String pageTitle, String breadcrumb, String roleName, Runnable logoutAction, Button profileBtn) {
+        Label title = new Label(pageTitle);
+        title.setStyle("-fx-text-fill:#111827; -fx-font-size:17; -fx-font-weight:bold;");
+        Label bc = new Label(breadcrumb);
+        bc.setStyle("-fx-text-fill:#8a93a1; -fx-font-size:10;");
+        return createHeader(stage, title, bc, roleName, logoutAction, profileBtn);
+    }
+
+    public static HBox createHeader(Stage stage, Label title, Label bc, String roleName, Runnable logoutAction, Button profileBtn) {
         HBox header = new HBox(14);
         header.setPadding(new Insets(12, 18, 12, 18));
         header.setAlignment(Pos.CENTER_LEFT);
         header.setStyle("-fx-background-color:white; -fx-border-color:transparent transparent #e8edf3 transparent;");
 
         VBox pageInfo = new VBox(3);
-        Label title = new Label(pageTitle);
-        title.setStyle("-fx-text-fill:#111827; -fx-font-size:17; -fx-font-weight:bold;");
-        Label bc = new Label(breadcrumb);
-        bc.setStyle("-fx-text-fill:#8a93a1; -fx-font-size:10;");
+        if (title.getStyle() == null || title.getStyle().isBlank()) {
+            title.setStyle("-fx-text-fill:#111827; -fx-font-size:17; -fx-font-weight:bold;");
+        }
+        if (bc.getStyle() == null || bc.getStyle().isBlank()) {
+            bc.setStyle("-fx-text-fill:#8a93a1; -fx-font-size:10;");
+        }
         pageInfo.getChildren().addAll(title, bc);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Label notification = new Label("🔔");
-        notification.setStyle("-fx-text-fill:#0f172a; -fx-font-size:16;");
+        Node notification = createNotificationBellNode(stage, roleName);
 
         String date = java.time.LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy"));
         Label dateLabel = new Label(date);
@@ -374,6 +385,190 @@ public class DashboardLayoutHelper {
         nav.getChildren().add(spacer);
 
         return nav;
+    }
+
+    public static Node createNotificationBellNode(Stage stage, String roleName) {
+        Button bellBtn = new Button("🔔");
+        bellBtn.setStyle("-fx-background-color:#f1f5f9; -fx-text-fill:#0f172a; -fx-font-size:14; -fx-padding:6 10; -fx-background-radius:8; -fx-cursor:hand;");
+
+        Label badge = new Label();
+        badge.setVisible(false);
+        badge.setManaged(false);
+
+        HBox wrapper = new HBox(4, bellBtn, badge);
+        wrapper.setAlignment(Pos.CENTER_LEFT);
+
+        Runnable updateBadge = () -> {
+            int emCount = com.projectui.service.SosEmergencyService.getUnreadEmergencyCount();
+            if (emCount > 0) {
+                badge.setText("🔴 " + emCount + " SOS");
+                badge.setStyle("-fx-background-color:#fee2e2; -fx-text-fill:#dc2626; -fx-font-size:11; -fx-font-weight:bold; -fx-padding:3 7; -fx-background-radius:999; -fx-border-color:#ef4444; -fx-border-radius:999;");
+                badge.setVisible(true);
+                badge.setManaged(true);
+                bellBtn.setStyle("-fx-background-color:#fee2e2; -fx-text-fill:#dc2626; -fx-font-size:14; -fx-padding:6 10; -fx-background-radius:8; -fx-cursor:hand; -fx-border-color:#fca5a5; -fx-border-radius:8;");
+            } else {
+                badge.setVisible(false);
+                badge.setManaged(false);
+                bellBtn.setStyle("-fx-background-color:#f1f5f9; -fx-text-fill:#0f172a; -fx-font-size:14; -fx-padding:6 10; -fx-background-radius:8; -fx-cursor:hand;");
+            }
+        };
+
+        com.projectui.service.SosEmergencyService.addChangeListener(updateBadge);
+        updateBadge.run();
+
+        bellBtn.setOnAction(e -> {
+            showNotificationPopup(bellBtn, stage, roleName, updateBadge);
+        });
+
+        return wrapper;
+    }
+
+    private static void showNotificationPopup(Button anchor, Stage stage, String roleName, Runnable refreshBadgeCallback) {
+        Popup popup = new Popup();
+        popup.setAutoHide(true);
+
+        VBox contentBox = new VBox(10);
+        contentBox.setStyle("-fx-background-color:white; -fx-padding:16; -fx-background-radius:12; -fx-effect: dropshadow(gaussian, rgba(14,30,70,0.18), 16, 0.5, 0, 4); -fx-border-color:#e2e8f0; -fx-border-radius:12;");
+        contentBox.setPrefWidth(420);
+        contentBox.setMaxWidth(440);
+
+        // Header
+        HBox topBar = new HBox(8);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+
+        Label popTitle = new Label("🔔 Notifications & Alerts");
+        popTitle.setStyle("-fx-font-size:15; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
+
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
+
+        Button markAllBtn = new Button("Mark All Read");
+        markAllBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#2563eb; -fx-font-size:11; -fx-cursor:hand; -fx-font-weight:bold; -fx-padding:2 4;");
+
+        topBar.getChildren().addAll(popTitle, sp, markAllBtn);
+        contentBox.getChildren().addAll(topBar, new Separator());
+
+        VBox listContainer = new VBox(8);
+
+        // 1. Emergency SOS Notifications (High Priority)
+        List<com.projectui.service.SosEmergencyService.SosAlert> sosList = com.projectui.service.SosEmergencyService.getAllAlerts();
+        for (com.projectui.service.SosEmergencyService.SosAlert a : sosList) {
+            boolean isAck = "ACKNOWLEDGED".equalsIgnoreCase(a.getStatus());
+            VBox sosCard = new VBox(6);
+            sosCard.setPadding(new Insets(10, 12, 10, 12));
+            sosCard.setStyle(isAck
+                    ? "-fx-background-color:#f8fafc; -fx-border-color:#e2e8f0; -fx-border-radius:8; -fx-background-radius:8;"
+                    : "-fx-background-color:#fef2f2; -fx-border-color:#fca5a5; -fx-border-radius:8; -fx-background-radius:8; -fx-effect: dropshadow(gaussian, rgba(220,38,38,0.12), 6, 0.3, 0, 2);");
+
+            HBox cardHeader = new HBox(6);
+            cardHeader.setAlignment(Pos.CENTER_LEFT);
+
+            Label emBadge = new Label(isAck ? "✓ SOS ACKNOWLEDGED" : "🔴 EMERGENCY SOS RECEIVED");
+            emBadge.setStyle(isAck
+                    ? "-fx-background-color:#dcfce7; -fx-text-fill:#16a34a; -fx-font-size:11; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:4;"
+                    : "-fx-background-color:#fee2e2; -fx-text-fill:#dc2626; -fx-font-size:11; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:4;");
+
+            Region spH = new Region();
+            HBox.setHgrow(spH, Priority.ALWAYS);
+
+            Label timeLbl = new Label(a.getTimestamp());
+            timeLbl.setStyle("-fx-font-size:10; -fx-text-fill:#64748b;");
+
+            cardHeader.getChildren().addAll(emBadge, spH, timeLbl);
+
+            Label vName = new Label("🚢 " + a.getVesselName().toUpperCase());
+            vName.setStyle("-fx-font-size:13; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
+
+            Label line1 = new Label("Captain: " + a.getCaptainName() + " | Incident ID: " + a.getIncidentId());
+            line1.setStyle("-fx-font-size:11; -fx-text-fill:#475569;");
+
+            Label line2 = new Label("Severity: " + a.getSeverity() + " — " + a.getCategory());
+            line2.setStyle("-fx-font-size:11; -fx-font-weight:bold; -fx-text-fill:" + (isAck ? "#16a34a" : "#dc2626") + ";");
+
+            Label line3 = new Label("Location: " + a.getLocation() + " (Speed: " + a.getSpeed() + ", Heading: " + a.getHeading() + ")");
+            line3.setStyle("-fx-font-size:11; -fx-text-fill:#334155;");
+
+            Label line4 = new Label("Route: " + a.getPort() + " ➔ " + a.getDestination());
+            line4.setStyle("-fx-font-size:11; -fx-text-fill:#64748b;");
+
+            Button actionBtn = new Button(isAck ? "🔍 View Incident Details" : "⚡ View SOS & Acknowledge");
+            actionBtn.setStyle(isAck
+                    ? "-fx-background-color:#e2e8f0; -fx-text-fill:#334155; -fx-font-size:11; -fx-font-weight:bold; -fx-padding:5 12; -fx-background-radius:5; -fx-cursor:hand;"
+                    : "-fx-background-color:#dc2626; -fx-text-fill:white; -fx-font-size:11; -fx-font-weight:bold; -fx-padding:5 12; -fx-background-radius:5; -fx-cursor:hand;");
+            actionBtn.setMaxWidth(Double.MAX_VALUE);
+            actionBtn.setOnAction(ev -> {
+                popup.hide();
+                Window ownerWin = anchor.getScene() != null ? anchor.getScene().getWindow() : null;
+                com.projectui.service.SosEmergencyService.showSosDetailsDialog(ownerWin, a, roleName + " Operations", () -> {
+                    if (refreshBadgeCallback != null) refreshBadgeCallback.run();
+                });
+            });
+
+            sosCard.getChildren().addAll(cardHeader, vName, line1, line2, line3, line4, actionBtn);
+            listContainer.getChildren().add(sosCard);
+        }
+
+        // 2. Standard Notifications for current user / Port Authority
+        String currentUid = "";
+        if (com.projectui.view.login.LoginPage.loggedInUser != null) {
+            Object uIdObj = com.projectui.view.login.LoginPage.loggedInUser.get("uid");
+            if (uIdObj != null) currentUid = uIdObj.toString();
+        }
+
+        com.projectui.dao.NotificationDao notifDao = new com.projectui.dao.NotificationDao();
+        List<com.projectui.model.Notification> normalList = notifDao.getNotificationsForUser(currentUid.isBlank() ? "PORT_AUTHORITY_GLOBAL" : currentUid);
+        for (com.projectui.model.Notification n : normalList) {
+            if ("EMERGENCY_SOS".equalsIgnoreCase(n.getType())) continue; // already rendered above
+
+            VBox notifRow = new VBox(3);
+            notifRow.setPadding(new Insets(8, 10, 8, 10));
+            notifRow.setStyle(n.isRead()
+                    ? "-fx-background-color:#f8fafc; -fx-border-color:#e2e8f0; -fx-border-radius:6;"
+                    : "-fx-background-color:#eff6ff; -fx-border-color:#bfdbfe; -fx-border-radius:6;");
+
+            HBox rTop = new HBox(6);
+            Label nTitle = new Label(n.getTitle() != null ? n.getTitle() : "Notification");
+            nTitle.setStyle("-fx-font-size:12; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
+            Region spR = new Region();
+            HBox.setHgrow(spR, Priority.ALWAYS);
+            Label nTime = new Label(n.getTimestamp() != null ? n.getTimestamp() : "Recently");
+            nTime.setStyle("-fx-font-size:10; -fx-text-fill:#64748b;");
+            rTop.getChildren().addAll(nTitle, spR, nTime);
+
+            Label nMsg = new Label(n.getMessage() != null ? n.getMessage() : "");
+            nMsg.setStyle("-fx-font-size:11; -fx-text-fill:#334155; -fx-wrap-text:true;");
+
+            notifRow.getChildren().addAll(rTop, nMsg);
+            listContainer.getChildren().add(notifRow);
+        }
+
+        if (listContainer.getChildren().isEmpty()) {
+            Label emptyLbl = new Label("No active notifications or emergency distress alerts.");
+            emptyLbl.setStyle("-fx-text-fill:#64748b; -fx-font-size:12; -fx-padding:14; -fx-alignment:center;");
+            listContainer.getChildren().add(emptyLbl);
+        }
+
+        javafx.scene.control.ScrollPane scroll = new javafx.scene.control.ScrollPane(listContainer);
+        scroll.setFitToWidth(true);
+        scroll.setMaxHeight(380);
+        scroll.setStyle("-fx-background-color:transparent; -fx-background:transparent; -fx-border-color:transparent;");
+
+        contentBox.getChildren().add(scroll);
+        popup.getContent().add(contentBox);
+
+        final String finalUid = currentUid;
+        markAllBtn.setOnAction(e -> {
+            notifDao.markAllAsRead(finalUid.isBlank() ? "PORT_AUTHORITY_GLOBAL" : finalUid);
+            popup.hide();
+            if (refreshBadgeCallback != null) refreshBadgeCallback.run();
+        });
+
+        Bounds b = anchor.localToScreen(anchor.getBoundsInLocal());
+        if (b != null) {
+            double x = b.getMinX() - 360;
+            double y = b.getMaxY() + 8;
+            popup.show(anchor.getScene().getWindow(), x, y);
+        }
     }
 
     private static String navStyle(boolean hover, boolean selected) {

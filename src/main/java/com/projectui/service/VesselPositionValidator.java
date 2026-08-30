@@ -8,79 +8,89 @@ public class VesselPositionValidator {
      */
     public static boolean isWaterCoordinate(double lat, double lng) {
         if (lat < -90.0 || lat > 90.0 || lng < -180.0 || lng > 180.0) return false;
+        if (lat == 0.0 && lng == 0.0) return false;
 
         // Specific Port Harbors & Coastal Approaches (Valid Water - Always Preserve):
-        // Mumbai Harbor: 18.82 - 18.98° N, 72.72 - 72.88° E
-        if (lat >= 18.82 && lat <= 18.98 && lng >= 72.72 && lng <= 72.88) return true;
-        // JNPT Harbor: 18.90 - 18.97° N, 72.89 - 72.96° E
-        if (lat >= 18.90 && lat <= 18.97 && lng >= 72.89 && lng <= 72.96) return true;
+        // Mumbai Harbor / JNPT: 18.82 - 18.99° N, 72.70 - 72.96° E
+        if (lat >= 18.82 && lat <= 18.99 && lng >= 72.70 && lng <= 72.96) return true;
         // Mormugao / Goa Harbor & Approach: 15.20 - 15.60° N, 73.50 - 73.85° E
         if (lat >= 15.20 && lat <= 15.60 && lng >= 73.50 && lng <= 73.85) return true;
         // Mangalore Harbor & Approach: 12.75 - 13.05° N, 74.50 - 74.85° E
         if (lat >= 12.75 && lat <= 13.05 && lng >= 74.50 && lng <= 74.85) return true;
         // Kochi / Cochin Harbor & Coastal Approach: 9.00 - 10.50° N, 75.00 - 76.28° E
         if (lat >= 9.00 && lat <= 10.50 && lng >= 75.00 && lng <= 76.28) return true;
-        // Malabar Coast Approach (Kerala): 8.00 - 12.50° N, 74.80 - 76.80° E
-        if (lat >= 8.00 && lat <= 12.50 && lng >= 74.80 && lng <= 76.30) return true;
-        // Tuticorin Harbor: 8.70 - 8.80° N, 78.15 - 78.25° E
-        if (lat >= 8.70 && lat <= 8.80 && lng >= 78.15 && lng <= 78.25) return true;
-        // Chennai Port Approach: 13.05 - 13.15° N, 80.28 - 80.38° E
-        if (lat >= 13.05 && lat <= 13.15 && lng >= 80.28 && lng <= 80.38) return true;
-        // Visakhapatnam / Vizag Port Approach: 17.65 - 17.72° N, 83.26 - 83.36° E
-        if (lat >= 17.65 && lat <= 17.72 && lng >= 83.26 && lng <= 83.36) return true;
-        // Paradip Port Approach: 20.20 - 20.30° N, 86.68 - 86.78° E
-        if (lat >= 20.20 && lat <= 20.30 && lng >= 86.68 && lng <= 86.78) return true;
+        // Tuticorin Harbor: 8.70 - 8.85° N, 78.15 - 78.30° E
+        if (lat >= 8.70 && lat <= 8.85 && lng >= 78.15 && lng <= 78.30) return true;
+        // Chennai Port Approach: 13.05 - 13.15° N, 80.25 - 80.40° E
+        if (lat >= 13.05 && lat <= 13.15 && lng >= 80.25 && lng <= 80.40) return true;
+        // Visakhapatnam / Vizag Port Approach: 17.65 - 17.75° N, 83.22 - 83.40° E
+        if (lat >= 17.65 && lat <= 17.75 && lng >= 83.22 && lng <= 83.40) return true;
+        // Paradip Port Approach: 20.20 - 20.35° N, 86.65 - 86.85° E
+        if (lat >= 20.20 && lat <= 20.35 && lng >= 86.65 && lng <= 86.85) return true;
         // Haldia River Channel / Kolkata approach: 21.50 - 22.10° N, 87.80 - 88.25° E
         if (lat >= 21.50 && lat <= 22.10 && lng >= 87.80 && lng <= 88.25) return true;
+        // Gulf of Kutch water: 22.3-22.9°N, 69.0-70.3°E
+        if (lat >= 22.3 && lat <= 22.9 && lng >= 69.0 && lng <= 70.3) return true;
+        // Gulf of Khambhat water: 20.5-21.8°N, 72.1-72.7°E
+        if (lat >= 20.5 && lat <= 21.8 && lng >= 72.1 && lng <= 72.7) return true;
 
-        // Gulf of Kutch water: 22.3-22.9°N, 69.0-70.5°E
-        if (lat >= 22.3 && lat <= 22.9 && lng >= 69.0 && lng <= 70.5) return true;
-        // Gulf of Khambhat water: 20.5-22.0°N, 72.0-72.7°E
-        if (lat >= 20.5 && lat <= 22.0 && lng >= 72.0 && lng <= 72.7) return true;
-
-        // Open Sea / Ocean Zones:
-        // Arabian Sea: West of Indian West Coast
-        if (lat >= -10.0 && lat <= 25.0 && lng >= 45.0) {
-            if (lat >= 20.0 && lng <= 72.8) return true;
-            if (lat >= 15.0 && lat < 20.0 && lng <= 73.2) return true;
-            if (lat >= 12.0 && lat < 15.0 && lng <= 74.7) return true;
-            if (lat >= 8.0 && lat < 12.0 && lng <= 76.28) return true;
-            if (lat < 8.0 && lng <= 77.5) return true;
-        }
-
-        // Bay of Bengal: East of coast line up to 98°E
-        if (lng >= 80.2 && lng <= 98.0 && lat >= -10.0 && lat <= 22.0) return true;
-
-        // Southern Indian Ocean
-        if (lat >= -30.0 && lat <= 7.5 && lng >= 50.0 && lng <= 100.0) return true;
-
-        // 1. Inland Landmass Guard for Indian Subcontinent:
-        // West Coast Inland Landmass (Gujarat to Kerala):
-        if (lat >= 8.5 && lat <= 24.0 && lng >= 73.0 && lng <= 79.5) {
-            if (lat > 20.0 && lng > 70.8 && lng < 72.0) return false; // Inland Gujarat
-            if (lat >= 15.0 && lat <= 20.0 && lng >= 73.5 && lng <= 79.5) return false; // Maharashtra / Karnataka inland
-            if (lat >= 8.5 && lat < 15.0 && lng >= 76.5 && lng <= 79.5) return false; // South India inland
-        }
-
-        // East Coast Inland Landmass (Tamil Nadu, Andhra Pradesh, Odisha):
-        if (lat >= 13.5 && lat <= 18.0) {
-            double coastalMinLng = 80.2 + (lat - 13.5) * (3.1 / 4.5);
-            if (lng >= 78.0 && lng < coastalMinLng) return false;
-        }
-
-        if (lat >= 18.0 && lat <= 21.5) {
-            double coastalMinLng = 83.3 + (lat - 18.0) * (3.4 / 3.5);
-            if (lng >= 79.0 && lng < coastalMinLng) return false;
-        }
-
-        if (lat > 21.5 && lng < 88.0) return false; // Inland West Bengal / Bangladesh
-
-        // Generic broad land guard
-        if (lat >= 8.5 && lat <= 35.0 && lng >= 68.0 && lng <= 92.0) {
+        // Strict Inland Landmass Checks for Indian Subcontinent (Return false for all inland areas):
+        // 1. Northern & Central Inland (lat >= 22.5 N):
+        if (lat >= 22.5 && lat <= 38.0 && lng >= 68.0 && lng <= 95.0) {
             return false;
         }
 
-        return true;
+        // 2. Gujarat / Maharashtra / Odisha (lat 20.0 to 22.5 N):
+        if (lat >= 20.0 && lat < 22.5) {
+            if (lng >= 69.6 && lng <= 72.1) return false; // Saurashtra peninsula
+            if (lng >= 73.0 && lng <= 87.2) return false; // Central India (MH, MP, CG, OD)
+            if (lng > 87.2 && lng < 88.0 && lat > 21.5) return false; // Inland West Bengal
+        }
+
+        // 3. Maharashtra / Telangana / Andhra / Odisha (lat 17.5 to 20.0 N):
+        if (lat >= 17.5 && lat < 20.0) {
+            double eastCoastLng = 83.2 + (lat - 17.5) * 1.38;
+            if (lng >= 73.0 && lng < eastCoastLng) return false;
+        }
+
+        // 4. Goa / Karnataka / Andhra Pradesh (lat 14.5 to 17.5 N):
+        if (lat >= 14.5 && lat < 17.5) {
+            double eastCoastLng = 80.2 + (lat - 14.5) * 0.85;
+            if (lng >= 73.5 && lng < eastCoastLng) return false;
+        }
+
+        // 5. Karnataka / Tamil Nadu / Andhra (lat 11.5 to 14.5 N):
+        if (lat >= 11.5 && lat < 14.5) {
+            if (lng >= 74.8 && lng < 80.25) return false;
+        }
+
+        // 6. Kerala / Tamil Nadu / Southern Tip (lat 8.0 to 11.5 N):
+        if (lat >= 8.0 && lat < 11.5) {
+            if (lng >= 76.5 && lng <= 79.8) return false;
+        }
+
+        // 7. Sri Lanka Landmass:
+        if (lat >= 5.8 && lat <= 9.8 && lng >= 79.6 && lng <= 81.9) {
+            return false;
+        }
+
+        // Valid Maritime Water Zones:
+        // Arabian Sea:
+        if (lat >= -10.0 && lat <= 25.0 && lng >= 45.0 && lng <= 77.5) {
+            return true;
+        }
+
+        // Bay of Bengal & Andaman Sea:
+        if (lat >= -10.0 && lat <= 22.5 && lng >= 80.2 && lng <= 98.0) {
+            return true;
+        }
+
+        // Southern Indian Ocean:
+        if (lat >= -35.0 && lat < 8.0 && lng >= 45.0 && lng <= 105.0) {
+            return true;
+        }
+
+        return false;
     }
 
     /**

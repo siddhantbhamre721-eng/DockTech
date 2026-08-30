@@ -3,7 +3,6 @@ package com.projectui.view.login;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import com.projectui.view.admin.AdminDataStore;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;

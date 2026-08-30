@@ -17,6 +17,7 @@ import com.projectui.view.login.LoginPage;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -210,7 +211,6 @@ public class DashBoard extends Application {
         Button dashboard = createNavButton("⌂", "Dashboard");
         Button document = createNavButton("▣", "Document Verification");
         Button cargo = createNavButton("◇", "Cargo Inspection");
-        Button clearance = createNavButton("✓", "Approve / Reject Cargo");
         Button reports = createNavButton("📊", "Reports & Analytics");
         Button settings = createNavButton("⚙", "Settings");
 
@@ -218,7 +218,6 @@ public class DashBoard extends Application {
         navButtons.put("Dashboard", dashboard);
         navButtons.put("Document Verification", document);
         navButtons.put("Cargo Inspection", cargo);
-        navButtons.put("Approve / Reject Cargo", clearance);
         navButtons.put("Reports & Analytics", reports);
         navButtons.put("Settings", settings);
 
@@ -226,14 +225,13 @@ public class DashBoard extends Application {
         dashboard.setOnAction(e -> navigateTo("Dashboard", createDashboardContent(), "Dock Tech / Custom Officer / Dashboard"));
         document.setOnAction(e -> navigateTo("Document Verification", new DocumentVerification().getContent(), "Dock Tech / Custom Officer / Document Verification"));
         cargo.setOnAction(e -> navigateTo("Cargo Inspection", new CargoInspection().getContent(), "Dock Tech / Custom Officer / Cargo Inspection"));
-        clearance.setOnAction(e -> navigateTo("Approve / Reject Cargo", new CargoClearance().getContent(), "Dock Tech / Custom Officer / Approve / Reject Cargo"));
         reports.setOnAction(e -> navigateTo("Reports & Analytics", new ReportsAnalytics().getContent(), "Dock Tech / Custom Officer / Reports & Analytics"));
         settings.setOnAction(e -> navigateTo("Settings", new SettingsPage().getContent(), "Dock Tech / Custom Officer / Settings"));
 
         Region gap = new Region();
         VBox.setVgrow(gap, Priority.ALWAYS);
 
-        nav.getChildren().addAll(brandBox, dashboard, document, cargo, clearance, reports, settings, gap);
+        nav.getChildren().addAll(brandBox, dashboard, document, cargo, reports, settings, gap);
         return nav;
     }
 
@@ -552,8 +550,16 @@ public class DashBoard extends Application {
         String assignedBy = profile.get("assignedBy") != null ? profile.get("assignedBy").toString() : (activeAssignedPort + " Authority");
         String updatedAt = profile.get("updatedAt") != null ? profile.get("updatedAt").toString() : "Recent";
         String priority = profile.get("dutyPriority") != null ? profile.get("dutyPriority").toString() : "High Priority";
+        String lastCompleted = profile.get("lastCompletedDuty") != null ? profile.get("lastCompletedDuty").toString() : null;
+        String completedAt = profile.get("completedAt") != null ? profile.get("completedAt").toString() : null;
 
-        boolean hasActiveDuty = !duty.isBlank() && !duty.equalsIgnoreCase("Not Assigned") && !duty.equalsIgnoreCase("Standby");
+        boolean hasActiveDuty = duty != null && !duty.isBlank()
+                && !duty.equalsIgnoreCase("Not Assigned")
+                && !duty.equalsIgnoreCase("Standby")
+                && !duty.equalsIgnoreCase("Standby / Available")
+                && !duty.equalsIgnoreCase("Completed")
+                && !"Completed".equalsIgnoreCase(assignStatus)
+                && !"Available".equalsIgnoreCase(assignStatus);
 
         if (hasActiveDuty) {
             HBox dutyRow = new HBox(16);
@@ -595,7 +601,8 @@ public class DashBoard extends Application {
             Button ackBtn = new Button("Mark In Progress");
             ackBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:6 12; -fx-cursor:hand;");
             ackBtn.setOnAction(e -> {
-                UserDao.assignPersonnelDutyExtended(officerUid, assignedShip, duty, "In Progress", assignedBy, priority, null);
+                String targetUid = !officerUid.isBlank() ? officerUid : officerEmail;
+                UserDao.assignPersonnelDutyExtended(targetUid, assignedShip, duty, "In Progress", assignedBy, priority, null);
                 refreshDashboardData();
                 Alert a = new Alert(Alert.AlertType.INFORMATION);
                 a.setTitle("Duty Acknowledged");
@@ -607,13 +614,25 @@ public class DashBoard extends Application {
             Button completeBtn = new Button("Complete Duty");
             completeBtn.setStyle("-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:6 12; -fx-cursor:hand;");
             completeBtn.setOnAction(e -> {
-                UserDao.assignPersonnelDutyExtended(officerUid, "General Port Duty", "Standby / Available", "Available", assignedBy, "Normal", null);
-                refreshDashboardData();
-                Alert a = new Alert(Alert.AlertType.INFORMATION);
-                a.setTitle("Duty Completed");
-                a.setHeaderText("Duty Marked as Completed");
-                a.setContentText("Duty '" + duty + "' has been successfully completed and archived. Status set to Standby.");
-                a.showAndWait();
+                String targetUid = !officerUid.isBlank() ? officerUid : officerEmail;
+                UserDao.completeOfficerDuty(targetUid, officerName, "Completed by Officer").thenAccept(success -> {
+                    Platform.runLater(() -> {
+                        if (success) {
+                            refreshDashboardData();
+                            Alert a = new Alert(Alert.AlertType.INFORMATION);
+                            a.setTitle("Duty Completed");
+                            a.setHeaderText("Duty Successfully Completed");
+                            a.setContentText("Operational Duty '" + duty + "' on '" + assignedShip + "' has been marked as COMPLETED and synchronized with Port Authority.\n\nOfficer: " + officerName + "\nStatus: Standby / Available");
+                            a.showAndWait();
+                        } else {
+                            Alert a = new Alert(Alert.AlertType.ERROR);
+                            a.setTitle("Completion Error");
+                            a.setHeaderText("Database Update Failed");
+                            a.setContentText("Unable to record duty completion in central ledger. Please check network connection.");
+                            a.showAndWait();
+                        }
+                    });
+                });
             });
 
             dutyRow.getChildren().addAll(d1, d2, d3, d4, sp, ackBtn, completeBtn);
@@ -628,6 +647,15 @@ public class DashBoard extends Application {
             standbyLbl.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px;");
 
             standbyRow.getChildren().add(standbyLbl);
+
+            if (lastCompleted != null && !lastCompleted.isBlank()) {
+                Region sp = new Region();
+                HBox.setHgrow(sp, Priority.ALWAYS);
+                Label lastDoneLbl = new Label("✓ Last Duty Completed: " + lastCompleted + (completedAt != null ? " (" + completedAt + ")" : ""));
+                lastDoneLbl.setStyle("-fx-text-fill:#16a34a; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-color:#ecfdf5; -fx-background-radius:4; -fx-padding:3 8;");
+                standbyRow.getChildren().addAll(sp, lastDoneLbl);
+            }
+
             assignedDutyContentBox.getChildren().add(standbyRow);
         }
     }
@@ -933,7 +961,8 @@ public class DashBoard extends Application {
         renderAssignedDutyContent(activeProfile);
 
         String duty = activeProfile.get("duty") != null ? activeProfile.get("duty").toString() : "";
-        if (!duty.isBlank() && !duty.equalsIgnoreCase("Not Assigned") && !duty.equalsIgnoreCase("Standby")) {
+        String aStatus = activeProfile.get("assignmentStatus") != null ? activeProfile.get("assignmentStatus").toString() : "";
+        if (!duty.isBlank() && !duty.equalsIgnoreCase("Not Assigned") && !duty.equalsIgnoreCase("Standby") && !duty.equalsIgnoreCase("Standby / Available") && !duty.equalsIgnoreCase("Completed") && !"Completed".equalsIgnoreCase(aStatus) && !"Available".equalsIgnoreCase(aStatus)) {
             liveNotificationList.add("Port Authority Assigned Duty: " + duty + " (" + activeAssignedPort + ")");
         }
         updateNotificationBadge();
@@ -958,7 +987,7 @@ public class DashBoard extends Application {
                 String destNorm = UserDao.normalizePort(dest).toLowerCase();
 
                 // Check port match
-                if (originNorm.contains(normPort) || destNorm.contains(normPort) || normPort.contains("mumbai")) {
+                if (originNorm.contains(normPort) || destNorm.contains(normPort) || (origin.isBlank() && dest.isBlank())) {
                     String id = c.get("cargoId") != null ? c.get("cargoId").toString() : "CGO-1000";
                     String name = c.get("cargoName") != null ? c.get("cargoName").toString() : "General Cargo";
                     String type = c.get("cargoType") != null ? c.get("cargoType").toString() : "Containerized";
@@ -987,7 +1016,7 @@ public class DashBoard extends Application {
                         pendingVerifCount++;
                     }
 
-                    String vesselName = "MV " + activeAssignedPort.replace("Port of ", "").replace(" Port", "") + " Trader";
+                    String vesselName = c.get("assignedShip") != null ? c.get("assignedShip").toString() : (c.get("vessel") != null ? c.get("vessel").toString() : ("MV " + activeAssignedPort.replace("Port of ", "").replace(" Port", "") + " Trader"));
                     String company = c.get("company") != null ? c.get("company").toString() : "Maritime Logistics Ltd.";
 
                     tableMasterList.add(new CustomsCargoItem(

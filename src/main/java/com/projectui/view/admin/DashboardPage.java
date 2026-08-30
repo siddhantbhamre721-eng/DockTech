@@ -67,7 +67,7 @@ public class DashboardPage extends AdminTheme {
     }
 
     private void buildContent() {
-        int pendingInspections = store.pendingUsers() + store.pendingPortRequestsCount();
+        int pendingInspections = store.pendingInspectionsCount();
         HBox kpis = new HBox(12,
             kpiCard("⚓", "Total Ports", String.valueOf(store.totalPorts()), "All Registered", "#1d4ed8", "#eaf3ff"),
             kpiCard("⬟", "Active Ports", String.valueOf(store.activePorts()), "Operational", "#0f9f6e", "#e7f8ef"),
@@ -626,7 +626,7 @@ public class DashboardPage extends AdminTheme {
             }
         }
 
-        int pendingInspections = store.pendingUsers() + store.pendingPortRequestsCount();
+        int pendingInspections = store.pendingInspectionsCount();
         if (pendingInspections > 0) {
             card.getChildren().add(alertLine("▣", pendingInspections + " Inspections", "Pending admin verification & compliance check", "Action Required", "#f97316"));
             alertCount++;

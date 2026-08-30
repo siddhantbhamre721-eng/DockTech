@@ -68,11 +68,14 @@ public class FirebaseAuthService {
                         com.projectui.dao.UserDao userDao = new com.projectui.dao.UserDao();
                         java.util.Map<String, Object> profile = userDao.getUserProfile("usr_" + Math.abs(email.toLowerCase().hashCode()), email).get();
                         if (profile != null && profile.get("email") != null && password != null && !password.isBlank()) {
-                            String uid = profile.get("uid") != null ? profile.get("uid").toString() : "usr_" + Math.abs(email.toLowerCase().hashCode());
-                            String name = profile.get("name") != null ? profile.get("name").toString() : email;
-                            System.out.println("[Firebase Auth Fallback] Authenticated user via stored profile for: " + email + " (UID: " + uid + ")");
-                            future.complete(new AuthUser(uid, email, name, "token_" + uid));
-                            return;
+                            Object storedPass = profile.get("tempPassword") != null ? profile.get("tempPassword") : profile.get("password");
+                            if (storedPass == null || storedPass.toString().isBlank() || storedPass.toString().equals(password) || storedPass.toString().equalsIgnoreCase(password)) {
+                                String uid = profile.get("uid") != null ? profile.get("uid").toString() : "usr_" + Math.abs(email.toLowerCase().hashCode());
+                                String name = profile.get("name") != null ? profile.get("name").toString() : email;
+                                System.out.println("[Firebase Auth Fallback] Authenticated user via stored profile for: " + email + " (UID: " + uid + ")");
+                                future.complete(new AuthUser(uid, email, name, "token_" + uid));
+                                return;
+                            }
                         }
                     } catch (Throwable ignored) {}
 
@@ -97,11 +100,14 @@ public class FirebaseAuthService {
                     com.projectui.dao.UserDao userDao = new com.projectui.dao.UserDao();
                     java.util.Map<String, Object> profile = userDao.getUserProfile("usr_" + Math.abs(email.toLowerCase().hashCode()), email).get();
                     if (profile != null && profile.get("email") != null && password != null && !password.isBlank()) {
-                        String uid = profile.get("uid") != null ? profile.get("uid").toString() : "usr_" + Math.abs(email.toLowerCase().hashCode());
-                        String name = profile.get("name") != null ? profile.get("name").toString() : email;
-                        System.out.println("[Firebase Auth Fallback] Authenticated user via stored profile after exception for: " + email);
-                        future.complete(new AuthUser(uid, email, name, "token_" + uid));
-                        return;
+                        Object storedPass = profile.get("tempPassword") != null ? profile.get("tempPassword") : profile.get("password");
+                        if (storedPass == null || storedPass.toString().isBlank() || storedPass.toString().equals(password) || storedPass.toString().equalsIgnoreCase(password)) {
+                            String uid = profile.get("uid") != null ? profile.get("uid").toString() : "usr_" + Math.abs(email.toLowerCase().hashCode());
+                            String name = profile.get("name") != null ? profile.get("name").toString() : email;
+                            System.out.println("[Firebase Auth Fallback] Authenticated user via stored profile after exception for: " + email);
+                            future.complete(new AuthUser(uid, email, name, "token_" + uid));
+                            return;
+                        }
                     }
                 } catch (Throwable ignored) {}
 

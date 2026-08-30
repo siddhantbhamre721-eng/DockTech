@@ -347,7 +347,22 @@ public class PortManagementPage extends AdminTheme {
                         "-fx-cursor:hand;");
         clearBtn.setOnAction(event -> clearFormFields());
 
-        HBox buttonRow = new HBox(10, clearBtn, saveBtn);
+        Button deletePortBtn = new Button("🗑  Delete Port");
+        deletePortBtn.setStyle(
+                "-fx-background-color:#fef2f2;" +
+                        "-fx-text-fill:#ef4444;" +
+                        "-fx-font-size:14;" +
+                        "-fx-font-weight:bold;" +
+                        "-fx-padding:10 16;" +
+                        "-fx-background-radius:6;" +
+                        "-fx-cursor:hand;");
+        deletePortBtn.setOnAction(event -> {
+            if (editingIndex >= 0 && editingIndex < ports.size()) {
+                deletePortAtIndex(editingIndex);
+            }
+        });
+
+        HBox buttonRow = new HBox(10, deletePortBtn, clearBtn, saveBtn);
         buttonRow.setAlignment(Pos.CENTER_RIGHT);
 
         VBox gridFields = new VBox(10,
@@ -1010,8 +1025,20 @@ public class PortManagementPage extends AdminTheme {
                         DashboardPage.refreshAllDashboards();
                         renderPortRequests(container);
 
-                        userDao.provisionAccount("Admin", req.proposedPaName, req.proposedPaEmail, req.portName,
-                                req.requesterPhone, "Port Authority", "Active")
+                        java.util.Map<String, Object> extraFields = new java.util.HashMap<>();
+                        extraFields.put("requestId", req.requestId);
+                        extraFields.put("portName", req.portName);
+                        extraFields.put("portCode", req.portCode);
+                        extraFields.put("assignedPort", req.portName);
+                        extraFields.put("company", req.portName);
+                        extraFields.put("organization", req.portName);
+                        extraFields.put("requesterEmail", req.requesterEmail);
+                        extraFields.put("proposedPaEmail", req.proposedPaEmail);
+                        extraFields.put("roleCode", "PORT_AUTHORITY");
+                        extraFields.put("role", "Port Authority");
+
+                        userDao.provisionAccountExtended("Admin", req.proposedPaName, req.proposedPaEmail, req.portName,
+                                req.requesterPhone, "Port Authority", "Active", extraFields)
                                 .whenComplete((creds, err) -> javafx.application.Platform.runLater(() -> {
                                     String accId = (creds != null && creds.get("id") != null && !creds.get("id").isBlank()) ? creds.get("id")
                                             : req.proposedPaEmail;
@@ -1547,7 +1574,18 @@ public class PortManagementPage extends AdminTheme {
                         "-fx-cursor:hand;");
         editBtn.setOnAction(e -> startEdit(index));
 
-        HBox cell = new HBox(editBtn);
+        Button deleteBtn = new Button("🗑 Delete");
+        deleteBtn.setStyle(
+                "-fx-background-color:#fef2f2;" +
+                        "-fx-text-fill:#ef4444;" +
+                        "-fx-font-size:13;" +
+                        "-fx-font-weight:bold;" +
+                        "-fx-padding:4 10;" +
+                        "-fx-background-radius:6;" +
+                        "-fx-cursor:hand;");
+        deleteBtn.setOnAction(e -> deletePortAtIndex(index));
+
+        HBox cell = new HBox(8, editBtn, deleteBtn);
         cell.setAlignment(Pos.CENTER_LEFT);
         cell.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(cell, Priority.ALWAYS);
@@ -1555,6 +1593,21 @@ public class PortManagementPage extends AdminTheme {
         cell.setPadding(new Insets(0, 12, 0, 12));
         cell.setStyle("-fx-background-color:white; -fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0;");
         return cell;
+    }
+
+    private void deletePortAtIndex(int index) {
+        if (index < 0 || index >= ports.size()) return;
+        Port removed = ports.remove(index);
+        store.deletePort(removed);
+        formSubtitle.setText("✓ Port '" + removed.name + "' was permanently deleted.");
+        if (editingIndex == index) {
+            startAdd();
+        } else if (editingIndex > index) {
+            editingIndex--;
+        }
+        GeoTileMapCanvas.refreshAllMapInstances();
+        refreshTable();
+        refreshStats();
     }
 
     private Label headerCell(String text) {

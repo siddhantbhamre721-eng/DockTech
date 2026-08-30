@@ -1,7 +1,6 @@
 package com.projectui.service;
 
 import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -21,7 +20,6 @@ public class DigitrafficService {
     private static final String API_USER_HEADER = "DockTech Marine App/1.0";
     private static final String LOCATIONS_URL = "https://meri.digitraffic.fi/api/ais/v1/locations";
     private static final String VESSELS_URL = "https://meri.digitraffic.fi/api/ais/v1/vessels";
-    private static final String PORTS_URL = "https://meri.digitraffic.fi/api/port-call/v1/ports";
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
 

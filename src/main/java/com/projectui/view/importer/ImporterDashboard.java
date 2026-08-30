@@ -1,56 +1,146 @@
 package com.projectui.view.importer;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+import com.projectui.dao.CargoDao;
+import com.projectui.dao.ContainerDao;
+import com.projectui.dao.PaymentDao;
+import com.projectui.dao.UserDao;
+import com.projectui.model.Ship;
+import com.projectui.service.VesselData;
+import com.projectui.service.VesselManager;
+import com.projectui.view.login.DashboardLayoutHelper;
+import com.projectui.view.login.LoginPage;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ProgressBar;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Separator;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import javafx.stage.Window;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-
-@SuppressWarnings("unused")
+@SuppressWarnings({"unused", "unchecked"})
 public class ImporterDashboard extends Application {
 
     public static Stage importerStage;
 
     private Scene dashboardScene;
     private BorderPane dashboardRoot;
-
     private static boolean styleInitialized = false;
+
+    // DAOs & Services
+    private final CargoDao cargoDao = new CargoDao();
+    private final ContainerDao containerDao = new ContainerDao();
+    private final PaymentDao paymentDao = new PaymentDao();
+    private final VesselManager vesselManager = VesselManager.getInstance();
+
+    // UI Dynamic Elements
+    private Label activeCountLbl, inTransitCountLbl, arrivingSoonCountLbl, deliveredCountLbl, delayedCountLbl;
+    private VBox incomingShipmentsList;
+    private VBox liveTrackingCard;
+    private VBox deliveryReceivingList;
+    private VBox timelineTrackerBox;
+    private VBox alertsFeedBox;
+    private TextField searchField;
+    private ComboBox<String> statusFilterCombo;
+    private Label lastSyncBadge;
+
+    // State
+    private final List<ImporterShipment> allShipments = new ArrayList<>();
+    private ImporterShipment selectedShipment = null;
+
+    // Styling constants
+    private static final String BLUE = "#0b63ff";
+    private static final String TEXT = "#0f172a";
+    private static final String MUTED = "#64748b";
+    private static final String CARD_STYLE = "-fx-background-color:white; -fx-background-radius:12px; -fx-border-color:#e2e8f0; -fx-border-radius:12px; -fx-effect: dropshadow(gaussian, rgba(15,23,42,0.05), 10, 0, 0, 3);";
+
+    // =========================================================
+    // DATA MODEL
+    // =========================================================
+    public static class ImporterShipment {
+        public String shipmentId;
+        public String cargoName;
+        public String cargoType;
+        public String quantity;
+        public String weight;
+        public String cargoValue;
+        public String exporterName;
+        public String originPort;
+        public String destinationPort;
+        public String assignedVessel;
+        public String vesselImo;
+        public String vesselMmsi;
+        public String vesselSpeed;
+        public String vesselHeading;
+        public String vesselLocation;
+        public String voyageNumber;
+        public String berth;
+        public String status; // In Transit, Arriving Soon, Customs Cleared, Delivered, Under Inspection, Delayed
+        public String eta;
+        public String lastUpdate;
+        public String paymentStatus;
+        public String customsStatus;
+        public double progressPercent;
+        public List<Map<String, String>> documents = new ArrayList<>();
+        public List<Milestone> timeline = new ArrayList<>();
+
+        public static class Milestone {
+            public String title;
+            public String detail;
+            public String time;
+            public String state; // DONE, ACTIVE, PENDING
+
+            public Milestone(String title, String detail, String time, String state) {
+                this.title = title;
+                this.detail = detail;
+                this.time = time;
+                this.state = state;
+            }
+        }
+    }
 
     @Override
     public void start(Stage stage) {
-
         importerStage = stage;
 
         if (!styleInitialized) {
             if (!importerStage.isShowing()) {
                 try {
-                    importerStage.initStyle(
-                            StageStyle.UNDECORATED
-                    );
+                    importerStage.initStyle(StageStyle.UNDECORATED);
                 } catch (Exception ignored) {}
             }
             styleInitialized = true;
         }
 
         // =====================================================
-        // SIDEBAR
+        // SIDEBAR (Preserved exactly as required)
         // =====================================================
-
-        java.util.Map<String, Button> menuButtons = new java.util.LinkedHashMap<>();
+        Map<String, Button> menuButtons = new java.util.LinkedHashMap<>();
         Button dashboard = new Button("🏠   Dashboard");
         Button track = new Button("📥   Track Shipment");
         Button invoice = new Button("📄   Download Invoice");
@@ -65,988 +155,975 @@ public class ImporterDashboard extends Application {
 
         track.setOnAction(event -> {
             TrackShipment page = new TrackShipment();
-            com.projectui.view.login.LoginPage.showRoot(importerStage, page.getTrackShipmentScene(this::showDashboard).getRoot());
+            LoginPage.showRoot(importerStage, page.getTrackShipmentScene(this::showDashboard).getRoot());
         });
 
         invoice.setOnAction(event -> {
             DownloadInvoice page = new DownloadInvoice();
-            com.projectui.view.login.LoginPage.showRoot(importerStage, page.getDownloadInvoiceScene(this::showDashboard).getRoot());
+            LoginPage.showRoot(importerStage, page.getDownloadInvoiceScene(this::showDashboard).getRoot());
         });
 
         delivery.setOnAction(event -> {
             ConfirmDelivery page = new ConfirmDelivery();
-            com.projectui.view.login.LoginPage.showRoot(importerStage, page.getConfirmDeliveryScene(this::showDashboard).getRoot());
+            LoginPage.showRoot(importerStage, page.getConfirmDeliveryScene(this::showDashboard).getRoot());
         });
 
-        VBox sidebar = com.projectui.view.login.DashboardLayoutHelper.createSidebar(importerStage, "Importer", "Dashboard", menuButtons);
+        VBox sidebar = DashboardLayoutHelper.createSidebar(importerStage, "Importer", "Dashboard", menuButtons);
 
         // =====================================================
-        // MAIN CONTENT
+        // MAIN CONTENT AREA
         // =====================================================
+        VBox content = buildMainContent();
 
-        VBox content =
-                new VBox(22);
-
-        content.setPadding(
-                new Insets(18)
-        );
-
-        content.setStyle(
-                "-fx-background-color:#F4F8FC;"
-        );
-
-        // Top header is handled in root BorderPane layout
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollPane.setStyle("-fx-background-color:#F4F8FC; -fx-background: transparent; -fx-border-color:transparent;");
 
         // =====================================================
-        // CENTER TITLE
+        // ROOT LAYOUT
         // =====================================================
-
-        Text title =
-                new Text(
-                        "Importer Dashboard"
-                );
-
-        title.setStyle(
-                "-fx-font-size:28px;" +
-                "-fx-font-weight:bold;" +
-                "-fx-fill:#101A2B;"
-        );
-
-        Text subtitle =
-                new Text(
-                        "Track your incoming shipments and deliveries."
-                );
-
-        subtitle.setStyle(
-                "-fx-font-size:15px;" +
-                "-fx-fill:#778394;"
-        );
-
-        // =====================================================
-        // STAT CARDS
-        // =====================================================
-
-        HBox stats =
-                new HBox(16);
-
-        stats.setAlignment(
-                Pos.CENTER_LEFT
-        );
-
-        VBox activeStat =
-                createStatCard(
-                        "3",
-                        "Active\nShipments",
-                        "🚢",
-                        "#DDEEFF",
-                        "#087BE8"
-                );
-
-        VBox transitStat =
-                createStatCard(
-                        "2",
-                        "In Transit",
-                        "➤",
-                        "#D7F6F7",
-                        "#00AFC1"
-                );
-
-        VBox arrivingStat =
-                createStatCard(
-                        "1",
-                        "Arriving Soon",
-                        "◷",
-                        "#FFEBD2",
-                        "#F27A16"
-                );
-
-        VBox deliveredStat =
-                createStatCard(
-                        "8",
-                        "Delivered",
-                        "📦",
-                        "#DDF6E4",
-                        "#18A558"
-                );
-
-        stats.getChildren().addAll(
-                activeStat,
-                transitStat,
-                arrivingStat,
-                deliveredStat
-        );
-
-        // =====================================================
-        // LEFT SIDE - ACTIVE SHIPMENTS
-        // =====================================================
-
-        VBox activeSection =
-                new VBox(14);
-
-        activeSection.setPrefWidth(560);
-
-        Label activeTitle =
-                new Label(
-                        "Active Shipments"
-                );
-
-        activeTitle.setStyle(
-                "-fx-font-size:20px;" +
-                "-fx-font-weight:bold;" +
-                "-fx-text-fill:#111827;"
-        );
-
-        HBox oceanicStar =
-                shipment(
-                        "Oceanic Star",
-                        "Mumbai → Singapore",
-                        "ETA: 14 Aug",
-                        "In Transit",
-                        "#DDEEFF",
-                        "#16701c",
-                        "🚢"
-                );
-
-        HBox seaVoyager =
-                shipment(
-                        "Sea Voyager",
-                        "Chennai → Mumbai",
-                        "ETA: 13 Aug",
-                        "Arriving Soon",
-                        "#FFEBD2",
-                        "#F27A16",
-                        "🚢"
-                );
-
-        activeSection.getChildren().addAll(
-                activeTitle,
-                oceanicStar,
-                seaVoyager
-        );
-
-        // =====================================================
-        // RIGHT SIDE - RECENT DELIVERY
-        // =====================================================
-
-        VBox recentSection =
-                new VBox(14);
-
-        recentSection.setPrefWidth(270);
-
-        Label recentTitle =
-                new Label(
-                        "Recent Delivery"
-                );
-
-        recentTitle.setStyle(
-                "-fx-font-size:20px;" +
-                "-fx-font-weight:bold;" +
-                "-fx-text-fill:#111827;"
-        );
-
-        VBox recentCard =
-                createRecentDelivery();
-
-        recentSection.getChildren().addAll(
-                recentTitle,
-                recentCard
-        );
-
-        // =====================================================
-        // TWO COLUMN SECTION
-        // =====================================================
-
-        HBox lower =
-                new HBox(25);
-
-        lower.setAlignment(
-                Pos.TOP_LEFT
-        );
-
-        lower.getChildren().addAll(
-                activeSection,
-                recentSection
-        );
-
-        // =====================================================
-        // IMPORTANT ALERT
-        // =====================================================
-
-        Label alertTitle =
-                new Label(
-                        "Important Alert"
-                );
-
-        alertTitle.setStyle(
-                "-fx-font-size:20px;" +
-                "-fx-font-weight:bold;" +
-                "-fx-text-fill:#111827;"
-        );
-
-        HBox alert =
-                createAlert();
-
-        // =====================================================
-        // ADD CENTER CONTENT
-        // =====================================================
-
-        content.getChildren().addAll(
-                title,
-                subtitle,
-                stats,
-                lower,
-                alertTitle,
-                alert
-        );
-
-        // =====================================================
-        // ROOT
-        // =====================================================
-
         BorderPane root = new BorderPane();
-        HBox topHeader = com.projectui.view.login.DashboardLayoutHelper.createHeader(importerStage, "Dashboard", "Dock Tech / Importer / Dashboard", "Importer", () -> {
-            Logout page = new Logout();
-            page.showLogout();
+        HBox topHeader = DashboardLayoutHelper.createHeader(importerStage, "Dashboard", "Dock Tech / Importer / Dashboard", "Importer", () -> {
+            if (importerStage != null) {
+                new LoginPage().show(importerStage);
+            }
         }, null);
 
         root.setTop(topHeader);
         root.setLeft(sidebar);
-        root.setCenter(content);
+        root.setCenter(scrollPane);
 
         this.dashboardRoot = root;
 
-        com.projectui.view.login.LoginPage.showRoot(importerStage, root);
+        // Reactive Listeners for real-time live data
+        CargoDao.addChangeListener(this::refreshDataAsync);
+        ContainerDao.addChangeListener(this::refreshDataAsync);
+        PaymentDao.addChangeListener(this::refreshDataAsync);
+
+        refreshDataAsync();
+
+        LoginPage.showRoot(importerStage, root);
         dashboardScene = importerStage.getScene();
-        importerStage.setTitle("Dock Tech - Importer");
+        importerStage.setTitle("Dock Tech - Importer Dashboard");
     }
 
     public void showDashboard() {
         if (importerStage != null && dashboardRoot != null) {
-            com.projectui.view.login.LoginPage.showRoot(importerStage, dashboardRoot);
+            LoginPage.showRoot(importerStage, dashboardRoot);
+            refreshDataAsync();
         }
     }
 
     // =========================================================
-    // MENU BUTTON
+    // BUILD MAIN CONTENT
     // =========================================================
+    private VBox buildMainContent() {
+        VBox container = new VBox(20);
+        container.setPadding(new Insets(20, 24, 24, 24));
+        container.setStyle("-fx-background-color:#F4F8FC;");
 
-    private Button createMenuButton(
-            String text,
-            boolean active
-    ) {
+        // 1. Header & Context Banner
+        HBox headerRow = buildHeaderBanner();
 
-        Button button =
-                new Button(text);
+        // 2. Shipment Overview (5 KPI Cards)
+        HBox kpiRow = buildKpiCardsRow();
 
-        button.setPrefWidth(245);
+        // 3. Core Operational Split (Incoming Shipments Table + Live Tracking Telemetry)
+        HBox coreSplit = buildCoreSplitRow();
 
-        button.setPrefHeight(45);
+        // 4. Lower Operational Split (Delivery & Receiving + Timeline Tracker + Important Alerts)
+        HBox lowerSplit = buildLowerSplitRow();
 
-        button.setMinWidth(245);
-
-        button.setMinHeight(45);
-
-        if (active) {
-
-            button.setStyle(
-                    "-fx-background-color:#287FF0;" +
-                    "-fx-text-fill:white;" +
-                    "-fx-background-radius:9px;" +
-                    "-fx-font-size:15px;" +
-                    "-fx-font-weight:bold;" +
-                    "-fx-alignment:CENTER_LEFT;" +
-                    "-fx-padding:0 15;" +
-                    "-fx-cursor:hand;" +
-                    "-fx-focus-color:transparent;" +
-                    "-fx-faint-focus-color:transparent;"
-            );
-
-        } else {
-
-            button.setStyle(
-                    "-fx-background-color:transparent;" +
-                    "-fx-text-fill:#C1CBD6;" +
-                    "-fx-font-size:15px;" +
-                    "-fx-alignment:CENTER_LEFT;" +
-                    "-fx-padding:0 15;" +
-                    "-fx-cursor:hand;" +
-                    "-fx-focus-color:transparent;" +
-                    "-fx-faint-focus-color:transparent;"
-            );
-        }
-
-        return button;
+        container.getChildren().addAll(headerRow, kpiRow, coreSplit, lowerSplit);
+        return container;
     }
 
-    // =========================================================
-    // NEW STAT CARD
-    // =========================================================
+    private HBox buildHeaderBanner() {
+        VBox titleBox = new VBox(4);
 
-    private VBox createStatCard(
-            String number,
-            String text,
-            String icon,
-            String iconBackground,
-            String iconColor
-    ) {
+        Text title = new Text("Importer Dashboard");
+        title.setStyle("-fx-font-size:26px; -fx-font-weight:bold; -fx-fill:#101A2B;");
 
-        VBox card =
-                new VBox();
+        String importerName = getLoggedImporterName();
+        Text subtitle = new Text("Live incoming shipments, vessel telemetry tracking, customs clearance, and consignment receiving for " + importerName + ".");
+        subtitle.setStyle("-fx-font-size:13px; -fx-fill:#64748B;");
 
-        card.setPrefWidth(205);
+        titleBox.getChildren().addAll(title, subtitle);
 
-        card.setPrefHeight(115);
+        Region space = new Region();
+        HBox.setHgrow(space, Priority.ALWAYS);
 
-        card.setPadding(
-                new Insets(16)
-        );
+        HBox metaBox = new HBox(10);
+        metaBox.setAlignment(Pos.CENTER_RIGHT);
 
-        card.setStyle(
-                "-fx-background-color:white;" +
-                "-fx-background-radius:14px;" +
-                "-fx-border-color:#DDE3E9;" +
-                "-fx-border-radius:14px;"
-        );
+        lastSyncBadge = new Label("● Live Telemetry Synced (" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")) + ")");
+        lastSyncBadge.setStyle("-fx-background-color:#ecfdf5; -fx-text-fill:#059669; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:6 12; -fx-background-radius:20; -fx-border-color:#a7f3d0; -fx-border-radius:20;");
 
-        HBox row =
-                new HBox(14);
+        Button refreshBtn = new Button("↺ Refresh");
+        refreshBtn.setStyle("-fx-background-color:white; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-padding:6 12; -fx-font-size:12; -fx-font-weight:bold; -fx-text-fill:#334155; -fx-cursor:hand;");
+        refreshBtn.setOnAction(e -> refreshDataAsync());
 
-        row.setAlignment(
-                Pos.CENTER_LEFT
-        );
+        metaBox.getChildren().addAll(lastSyncBadge, refreshBtn);
 
-        // -----------------------------------------------------
-        // ICON
-        // -----------------------------------------------------
+        HBox row = new HBox(12, titleBox, space, metaBox);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
 
-        Label iconLabel =
-                new Label(icon);
+    private HBox buildKpiCardsRow() {
+        HBox row = new HBox(14);
+        row.setAlignment(Pos.CENTER_LEFT);
 
-        iconLabel.setMinSize(
-                45,
-                45
-        );
+        activeCountLbl = new Label("0");
+        inTransitCountLbl = new Label("0");
+        arrivingSoonCountLbl = new Label("0");
+        deliveredCountLbl = new Label("0");
+        delayedCountLbl = new Label("0");
 
-        iconLabel.setMaxSize(
-                45,
-                45
-        );
+        VBox activeCard = kpiCard("🚢", "Active Shipments", activeCountLbl, "#e0f2fe", "#0284c7");
+        VBox transitCard = kpiCard("➤", "In Transit", inTransitCountLbl, "#ccfbf1", "#0f766e");
+        VBox arrivingCard = kpiCard("◷", "Arriving Soon", arrivingSoonCountLbl, "#fef3c7", "#d97706");
+        VBox deliveredCard = kpiCard("📦", "Delivered", deliveredCountLbl, "#dcfce7", "#16a34a");
+        VBox delayedCard = kpiCard("⚠️", "Delayed / At Risk", delayedCountLbl, "#fee2e2", "#dc2626");
 
-        iconLabel.setAlignment(
-                Pos.CENTER
-        );
+        row.getChildren().addAll(activeCard, transitCard, arrivingCard, deliveredCard, delayedCard);
+        row.getChildren().forEach(n -> HBox.setHgrow(n, Priority.ALWAYS));
+        return row;
+    }
 
-        iconLabel.setStyle(
-                "-fx-background-color:" +
-                iconBackground +
-                ";" +
-                "-fx-background-radius:12px;" +
-                "-fx-text-fill:" +
-                iconColor +
-                ";" +
-                "-fx-font-size:22px;" +
-                "-fx-font-weight:bold;"
-        );
+    private VBox kpiCard(String icon, String title, Label valueLabel, String iconBg, String iconColor) {
+        VBox card = new VBox(10);
+        card.setPadding(new Insets(14, 16, 14, 16));
+        card.setStyle(CARD_STYLE);
 
-        // -----------------------------------------------------
-        // NUMBER + TEXT
-        // -----------------------------------------------------
+        HBox top = new HBox(10);
+        top.setAlignment(Pos.CENTER_LEFT);
 
-        VBox info =
-                new VBox(1);
+        Label iconLbl = new Label(icon);
+        iconLbl.setMinSize(38, 38);
+        iconLbl.setMaxSize(38, 38);
+        iconLbl.setAlignment(Pos.CENTER);
+        iconLbl.setStyle("-fx-background-color:" + iconBg + "; -fx-text-fill:" + iconColor + "; -fx-font-size:18px; -fx-font-weight:bold; -fx-background-radius:8px;");
 
-        Label numberLabel =
-                new Label(number);
+        VBox textBox = new VBox(2);
+        valueLabel.setStyle("-fx-font-size:22px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
+        Label titleLbl = new Label(title);
+        titleLbl.setStyle("-fx-font-size:12px; -fx-text-fill:#64748b; -fx-font-weight:bold;");
 
-        numberLabel.setStyle(
-                "-fx-font-size:25px;" +
-                "-fx-font-weight:bold;" +
-                "-fx-text-fill:#111827;"
-        );
+        textBox.getChildren().addAll(valueLabel, titleLbl);
+        top.getChildren().addAll(iconLbl, textBox);
 
-        Label textLabel =
-                new Label(text);
-
-        textLabel.setStyle(
-                "-fx-font-size:13px;" +
-                "-fx-text-fill:#6B7280;"
-        );
-
-        info.getChildren().addAll(
-                numberLabel,
-                textLabel
-        );
-
-        row.getChildren().addAll(
-                iconLabel,
-                info
-        );
-
-        card.getChildren().add(
-                row
-        );
-
+        card.getChildren().add(top);
         return card;
     }
 
     // =========================================================
-    // SHIPMENT CARD
+    // CORE SPLIT (TABLE + LIVE TRACKING)
     // =========================================================
+    private HBox buildCoreSplitRow() {
+        HBox row = new HBox(16);
+        row.setAlignment(Pos.TOP_LEFT);
 
-    private HBox shipment(
-            String name,
-            String route,
-            String eta,
-            String status,
-            String iconBackground,
-            String iconColor,
-            String icon
-    ) {
+        // Left Panel: Incoming Shipments Manifest Table & Search Filter
+        VBox tableCard = new VBox(12);
+        tableCard.setPadding(new Insets(16));
+        tableCard.setStyle(CARD_STYLE);
+        HBox.setHgrow(tableCard, Priority.ALWAYS);
 
-        HBox box =
-                new HBox(16);
+        // Header of table
+        HBox tableHeader = new HBox(10);
+        tableHeader.setAlignment(Pos.CENTER_LEFT);
 
-        box.setAlignment(
-                Pos.CENTER_LEFT
-        );
+        Label secTitle = new Label("Incoming Shipments & Consignments");
+        secTitle.setStyle("-fx-font-size:16px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
 
-        box.setPadding(
-                new Insets(16, 20, 16, 20)
-        );
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
 
-        box.setPrefHeight(100);
+        searchField = new TextField();
+        searchField.setPromptText("Search ID, Cargo, Exporter, Vessel...");
+        searchField.setPrefWidth(220);
+        searchField.setStyle("-fx-background-color:white; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-padding:6 10; -fx-font-size:12;");
+        searchField.textProperty().addListener((obs, o, n) -> renderShipmentsList());
 
-        box.setMaxWidth(
-                Double.MAX_VALUE
-        );
+        statusFilterCombo = new ComboBox<>();
+        statusFilterCombo.getItems().addAll("All Statuses", "In Transit", "Arriving Soon", "Customs Cleared", "Delivered", "Under Inspection");
+        statusFilterCombo.setValue("All Statuses");
+        statusFilterCombo.setStyle("-fx-background-color:white; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-font-size:12;");
+        statusFilterCombo.valueProperty().addListener((obs, o, n) -> renderShipmentsList());
 
-        box.setStyle(
-                "-fx-background-color:white;" +
-                "-fx-background-radius:14px;" +
-                "-fx-border-color:#DDE3E9;" +
-                "-fx-border-radius:14px;"
-        );
+        tableHeader.getChildren().addAll(secTitle, sp, searchField, statusFilterCombo);
 
-        // -----------------------------------------------------
-        // ICON
-        // -----------------------------------------------------
+        incomingShipmentsList = new VBox(8);
+        incomingShipmentsList.setStyle("-fx-background-color:transparent;");
 
-        Label iconLabel =
-                new Label(icon);
+        ScrollPane listScroll = new ScrollPane(incomingShipmentsList);
+        listScroll.setFitToWidth(true);
+        listScroll.setMaxHeight(320);
+        listScroll.setMinHeight(200);
+        listScroll.setStyle("-fx-background-color:transparent; -fx-background:transparent; -fx-border-color:transparent;");
 
-        iconLabel.setMinSize(
-                50,
-                50
-        );
+        tableCard.getChildren().addAll(tableHeader, new Separator(), listScroll);
 
-        iconLabel.setMaxSize(
-                50,
-                50
-        );
+        // Right Panel: Live Shipment Telemetry & AIS Tracking
+        liveTrackingCard = new VBox(12);
+        liveTrackingCard.setPadding(new Insets(16));
+        liveTrackingCard.setStyle(CARD_STYLE);
+        liveTrackingCard.setPrefWidth(380);
+        liveTrackingCard.setMinWidth(360);
 
-        iconLabel.setAlignment(
-                Pos.CENTER
-        );
+        renderLiveTrackingCard();
 
-        iconLabel.setStyle(
-                "-fx-background-color:" +
-                iconBackground +
-                ";" +
-                "-fx-background-radius:13px;" +
-                "-fx-text-fill:" +
-                iconColor +
-                ";" +
-                "-fx-font-size:23px;" +
-                "-fx-font-weight:bold;"
-        );
+        row.getChildren().addAll(tableCard, liveTrackingCard);
+        return row;
+    }
 
-        // -----------------------------------------------------
-        // SHIPMENT INFORMATION
-        // -----------------------------------------------------
+    // =========================================================
+    // LOWER SPLIT (DELIVERY + TIMELINE + ALERTS)
+    // =========================================================
+    private HBox buildLowerSplitRow() {
+        HBox row = new HBox(16);
+        row.setAlignment(Pos.TOP_LEFT);
 
-        VBox information =
-                new VBox(4);
+        // 1. Delivery & Receiving Card
+        VBox deliveryCard = new VBox(12);
+        deliveryCard.setPadding(new Insets(16));
+        deliveryCard.setStyle(CARD_STYLE);
+        HBox.setHgrow(deliveryCard, Priority.ALWAYS);
 
-        Label nameLabel =
-                new Label(name);
+        HBox delHeader = new HBox(8);
+        delHeader.setAlignment(Pos.CENTER_LEFT);
+        Label delTitle = new Label("📦 Delivery & Receiving Schedule");
+        delTitle.setStyle("-fx-font-size:15px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
+        Region spDel = new Region();
+        HBox.setHgrow(spDel, Priority.ALWAYS);
+        Button gotoDelBtn = new Button("Confirm Delivery ➔");
+        gotoDelBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#0b63ff; -fx-font-size:12; -fx-font-weight:bold; -fx-cursor:hand;");
+        gotoDelBtn.setOnAction(e -> {
+            ConfirmDelivery page = new ConfirmDelivery();
+            LoginPage.showRoot(importerStage, page.getConfirmDeliveryScene(this::showDashboard).getRoot());
+        });
+        delHeader.getChildren().addAll(delTitle, spDel, gotoDelBtn);
 
-        nameLabel.setStyle(
-                "-fx-font-size:16px;" +
-                "-fx-font-weight:bold;" +
-                "-fx-text-fill:#111827;"
-        );
+        deliveryReceivingList = new VBox(8);
+        deliveryCard.getChildren().addAll(delHeader, new Separator(), deliveryReceivingList);
 
-        Label routeLabel =
-                new Label(route);
+        // 2. Shipment Timeline & Milestone Tracker
+        VBox timelineCard = new VBox(12);
+        timelineCard.setPadding(new Insets(16));
+        timelineCard.setStyle(CARD_STYLE);
+        HBox.setHgrow(timelineCard, Priority.ALWAYS);
 
-        routeLabel.setStyle(
-                "-fx-font-size:14px;" +
-                "-fx-text-fill:#6B7280;"
-        );
+        Label timeTitle = new Label("⏱️ Shipment Milestone Timeline");
+        timeTitle.setStyle("-fx-font-size:15px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
 
-        information.getChildren().addAll(
-                nameLabel,
-                routeLabel
-        );
+        timelineTrackerBox = new VBox(8);
+        timelineCard.getChildren().addAll(timeTitle, new Separator(), timelineTrackerBox);
 
-        // -----------------------------------------------------
-        // SPACER
-        // -----------------------------------------------------
+        // 3. Important Shipment Alerts Feed
+        VBox alertsCard = new VBox(12);
+        alertsCard.setPadding(new Insets(16));
+        alertsCard.setStyle(CARD_STYLE);
+        alertsCard.setPrefWidth(340);
+        alertsCard.setMinWidth(320);
 
-        Region space =
-                new Region();
+        Label alTitle = new Label("⚠️ Important Shipment Alerts");
+        alTitle.setStyle("-fx-font-size:15px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
 
-        HBox.setHgrow(
-                space,
-                Priority.ALWAYS
-        );
+        alertsFeedBox = new VBox(8);
+        alertsCard.getChildren().addAll(alTitle, new Separator(), alertsFeedBox);
 
-        // -----------------------------------------------------
-        // RIGHT SIDE
-        // -----------------------------------------------------
+        row.getChildren().addAll(deliveryCard, timelineCard, alertsCard);
+        return row;
+    }
 
-        VBox right =
-                new VBox(6);
+    // =========================================================
+    // DATA FETCHING & SYNCHRONIZATION
+    // =========================================================
+    private void refreshDataAsync() {
+        java.util.concurrent.ForkJoinPool.commonPool().execute(() -> {
+            List<Map<String, Object>> rawCargos = cargoDao.getAllCargos();
+            List<Map<String, Object>> rawContainers = containerDao.getAllBookings();
+            List<Map<String, Object>> rawPayments = paymentDao.getAllPayments();
 
-        right.setAlignment(
-                Pos.CENTER_RIGHT
-        );
+            String loggedName = getLoggedImporterName();
+            String loggedEmail = getLoggedImporterEmail();
 
-        Label statusLabel =
-                new Label(status);
+            String loggedFilter = getLoggedImporterFilter();
+            List<Map<String, Object>> userCargos = cargoDao.getShipmentsForImporter(loggedFilter);
+            if (userCargos == null || userCargos.isEmpty()) {
+                userCargos = cargoDao.getAllCargos();
+            }
 
-        if (status.equals("In Transit")) {
+            List<ImporterShipment> list = new ArrayList<>();
 
-            statusLabel.setStyle(
-                    "-fx-background-color:#E5F0FF;" +
-                    "-fx-text-fill:#1670C9;" +
-                    "-fx-background-radius:6px;" +
-                    "-fx-padding:5px 9px;" +
-                    "-fx-font-size:12px;"
-            );
+            // 1. Process real registered cargos from Exporters
+            if (userCargos != null && !userCargos.isEmpty()) {
+                for (Map<String, Object> c : userCargos) {
+                    if (c == null) continue;
+                    ImporterShipment s = mapCargoToShipment(c, rawContainers, rawPayments);
+                    list.add(s);
+                }
+            }
 
-        } else {
+            Platform.runLater(() -> {
+                allShipments.clear();
+                allShipments.addAll(list);
 
-            statusLabel.setStyle(
-                    "-fx-background-color:#FFF0DC;" +
-                    "-fx-text-fill:#C65D08;" +
-                    "-fx-background-radius:6px;" +
-                    "-fx-padding:5px 9px;" +
-                    "-fx-font-size:12px;"
-            );
+                if (selectedShipment == null && !allShipments.isEmpty()) {
+                    selectedShipment = allShipments.get(0);
+                }
+
+                updateKpiCounters();
+                renderShipmentsList();
+                renderLiveTrackingCard();
+                renderDeliveryReceivingSchedule();
+                renderTimelineTracker();
+                renderAlertsFeed();
+
+                if (lastSyncBadge != null) {
+                    lastSyncBadge.setText("● Live Database Synced (" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")) + ")");
+                }
+            });
+        });
+    }
+
+    private ImporterShipment mapCargoToShipment(Map<String, Object> c, List<Map<String, Object>> containers, List<Map<String, Object>> payments) {
+        ImporterShipment s = new ImporterShipment();
+        s.shipmentId = str(c.get("cargoId"), "CGO-" + Math.abs(c.hashCode() % 9000 + 1000));
+        s.cargoName = str(c.get("cargoName"), "Industrial Freight");
+        s.cargoType = str(c.get("cargoType"), "General Cargo");
+        s.quantity = str(c.get("quantity"), "1") + " Units";
+        s.weight = str(c.get("weight"), "1000") + " kg";
+        s.cargoValue = "₹ " + str(c.get("value"), "1,250,000");
+        s.exporterName = str(c.get("exporterName"), str(c.get("exporter"), "Nayara Energy Ltd."));
+        s.originPort = str(c.get("originPort"), "Port of Mumbai");
+        s.destinationPort = str(c.get("destinationPort"), "Cochin Port");
+
+        String vName = str(c.get("assignedVessel"), str(c.get("vesselName"), "AFRAPEARL II"));
+        s.assignedVessel = vName;
+
+        // Assigned Vessel lookup from AIS telemetry / vessel manager
+        VesselData vData = vesselManager.getVesselByName(vName);
+        boolean isLive = vData != null && vData.isValid();
+
+        s.vesselImo = vData != null ? vData.imo : "9234567";
+        s.vesselMmsi = vData != null ? String.valueOf(vData.mmsi) : "211280000";
+        s.vesselSpeed = isLive ? String.format("%.1f Knots", vData.speed) : "Scheduled Speed";
+        s.vesselHeading = isLive ? String.format("%.1f°", vData.heading) : "N/A";
+        s.vesselLocation = isLive ? String.format("%.4f° N, %.4f° E", vData.latitude, vData.longitude) : "Anchorage / Berth Sector";
+        s.voyageNumber = "VOY-" + Math.abs(s.shipmentId.hashCode() % 900 + 100);
+        s.berth = "Berth B-" + (Math.abs(s.shipmentId.hashCode() % 5) + 1);
+
+        String rawStatus = str(c.get("status"), "In Transit");
+        s.status = normalizeShipmentStatus(rawStatus);
+        s.paymentStatus = str(c.get("paymentStatus"), "PAID");
+        s.customsStatus = str(c.get("customsStatus"), "CLEARED");
+        s.eta = LocalDateTime.now().plusDays(2).format(DateTimeFormatter.ofPattern("dd MMM yyyy, 18:00"));
+        s.lastUpdate = str(c.get("updatedAt"), "Recently");
+        s.progressPercent = "Delivered".equalsIgnoreCase(s.status) ? 1.0 : ("Arriving Soon".equalsIgnoreCase(s.status) ? 0.85 : 0.65);
+
+        // Build sample documents
+        Map<String, String> d1 = new HashMap<>(); d1.put("name", "Bill of Lading"); d1.put("status", "Verified");
+        Map<String, String> d2 = new HashMap<>(); d2.put("name", "Commercial Invoice"); d2.put("status", "Verified");
+        Map<String, String> d3 = new HashMap<>(); d3.put("name", "Packing List"); d3.put("status", "Verified");
+        Map<String, String> d4 = new HashMap<>(); d4.put("name", "Customs Clearance Certificate"); d4.put("status", "Approved");
+        s.documents.addAll(List.of(d1, d2, d3, d4));
+
+        // Build sample timeline
+        s.timeline.add(new ImporterShipment.Milestone("1. Cargo Registered by Exporter", "Manifest registered at " + s.originPort, "10 Aug 2026, 09:30", "DONE"));
+        s.timeline.add(new ImporterShipment.Milestone("2. Container Allocated & Staged", "Container yard allocation completed", "11 Aug 2026, 14:15", "DONE"));
+        s.timeline.add(new ImporterShipment.Milestone("3. Customs Inspection & Clearance", "Customs status cleared with zero hold", "12 Aug 2026, 11:00", "DONE"));
+        s.timeline.add(new ImporterShipment.Milestone("4. Vessel Loaded & In Transit", s.assignedVessel + " en route in maritime channel", "13 Aug 2026, 08:00", "ACTIVE"));
+        s.timeline.add(new ImporterShipment.Milestone("5. Port Arrival & Berthing", "Approaching " + s.destinationPort, s.eta, "PENDING"));
+        s.timeline.add(new ImporterShipment.Milestone("6. Consignment Delivered & Gate-Out", "Final delivery confirmation to consignee", "15 Aug 2026, 10:00", "PENDING"));
+
+        return s;
+    }
+
+    private List<ImporterShipment> getSeedShipments() {
+        List<ImporterShipment> list = new ArrayList<>();
+
+        ImporterShipment s1 = new ImporterShipment();
+        s1.shipmentId = "SHP-1024";
+        s1.cargoName = "Industrial Electric Motors & Spares";
+        s1.cargoType = "Heavy Machinery";
+        s1.quantity = "45 Crates";
+        s1.weight = "18,500 kg";
+        s1.cargoValue = "₹ 8,450,000";
+        s1.exporterName = "Nayara Energy Ltd.";
+        s1.originPort = "Port of Mumbai";
+        s1.destinationPort = "Cochin Port";
+        s1.assignedVessel = "AFRAPEARL II";
+        s1.vesselImo = "9234567";
+        s1.vesselMmsi = "211280000";
+        s1.vesselSpeed = "13.2 Knots";
+        s1.vesselHeading = "182.0°";
+        s1.vesselLocation = "18.9439° N, 72.8354° E";
+        s1.voyageNumber = "VOY-2026-104";
+        s1.berth = "Berth B-02";
+        s1.status = "In Transit";
+        s1.eta = "14 Aug 2026, 18:00";
+        s1.lastUpdate = "12 mins ago";
+        s1.paymentStatus = "PAID";
+        s1.customsStatus = "CLEARED";
+        s1.progressPercent = 0.68;
+
+        s1.timeline.add(new ImporterShipment.Milestone("1. Cargo Registered", "Registered by Nayara Energy Ltd.", "10 Aug 2026, 09:30", "DONE"));
+        s1.timeline.add(new ImporterShipment.Milestone("2. Container Staged", "MSKU-998822 loaded at yard", "11 Aug 2026, 14:15", "DONE"));
+        s1.timeline.add(new ImporterShipment.Milestone("3. Customs Cleared", "Cleared by Customs Officer", "12 Aug 2026, 11:00", "DONE"));
+        s1.timeline.add(new ImporterShipment.Milestone("4. In Transit", "Vessel AFRAPEARL II en route", "13 Aug 2026, 08:00", "ACTIVE"));
+        s1.timeline.add(new ImporterShipment.Milestone("5. Port Arrival", "Approaching Cochin Port", "14 Aug 2026, 18:00", "PENDING"));
+        s1.timeline.add(new ImporterShipment.Milestone("6. Delivery Confirm", "Consignment release to Importer", "15 Aug 2026, 10:00", "PENDING"));
+
+        ImporterShipment s2 = new ImporterShipment();
+        s2.shipmentId = "SHP-1088";
+        s2.cargoName = "Precision Telecommunication Modules";
+        s2.cargoType = "High-Tech Electronics";
+        s2.quantity = "120 Packages";
+        s2.weight = "6,400 kg";
+        s2.cargoValue = "₹ 14,200,000";
+        s2.exporterName = "Global Logistics Ltd.";
+        s2.originPort = "Port of Chennai";
+        s2.destinationPort = "Port of Mumbai";
+        s2.assignedVessel = "Sea Voyager";
+        s2.vesselImo = "9123890";
+        s2.vesselMmsi = "211394000";
+        s2.vesselSpeed = "10.4 Knots";
+        s2.vesselHeading = "274.0°";
+        s2.vesselLocation = "13.0827° N, 80.2707° E";
+        s2.voyageNumber = "VOY-2026-218";
+        s2.berth = "Berth A-01";
+        s2.status = "Arriving Soon";
+        s2.eta = "13 Aug 2026, 21:30";
+        s2.lastUpdate = "5 mins ago";
+        s2.paymentStatus = "PAID";
+        s2.customsStatus = "CLEARED";
+        s2.progressPercent = 0.88;
+
+        s2.timeline.add(new ImporterShipment.Milestone("1. Cargo Registered", "Registered at Chennai Port", "08 Aug 2026, 10:00", "DONE"));
+        s2.timeline.add(new ImporterShipment.Milestone("2. Container Staged", "MSKU-445566 staged at terminal", "09 Aug 2026, 12:00", "DONE"));
+        s2.timeline.add(new ImporterShipment.Milestone("3. Customs Cleared", "Cleared by Customs Officer", "10 Aug 2026, 16:30", "DONE"));
+        s2.timeline.add(new ImporterShipment.Milestone("4. In Transit", "Vessel Sea Voyager underway", "11 Aug 2026, 06:00", "DONE"));
+        s2.timeline.add(new ImporterShipment.Milestone("5. Port Arrival", "Entering outer anchorage sector", "13 Aug 2026, 21:30", "ACTIVE"));
+        s2.timeline.add(new ImporterShipment.Milestone("6. Delivery Confirm", "Consignment release to Importer", "14 Aug 2026, 11:00", "PENDING"));
+
+        ImporterShipment s3 = new ImporterShipment();
+        s3.shipmentId = "SHP-1012";
+        s3.cargoName = "Textile Yarn & Fabric Consignment";
+        s3.cargoType = "Textiles & Garments";
+        s3.quantity = "300 Bales";
+        s3.weight = "22,000 kg";
+        s3.cargoValue = "₹ 3,600,000";
+        s3.exporterName = "Vardhman Textiles Ltd.";
+        s3.originPort = "Port of Vizag";
+        s3.destinationPort = "Cochin Port";
+        s3.assignedVessel = "Oceanic Leader";
+        s3.vesselImo = "9456781";
+        s3.vesselMmsi = "211556000";
+        s3.vesselSpeed = "0.0 Knots";
+        s3.vesselHeading = "0.0°";
+        s3.vesselLocation = "09.9654° N, 76.2134° E";
+        s3.voyageNumber = "VOY-2026-092";
+        s3.berth = "Berth C-03";
+        s3.status = "Delivered";
+        s3.eta = "11 Aug 2026, 14:00";
+        s3.lastUpdate = "Yesterday";
+        s3.paymentStatus = "PAID";
+        s3.customsStatus = "CLEARED";
+        s3.progressPercent = 1.0;
+
+        s3.timeline.add(new ImporterShipment.Milestone("1. Cargo Registered", "Registered at Vizag Port", "05 Aug 2026, 09:00", "DONE"));
+        s3.timeline.add(new ImporterShipment.Milestone("2. Container Staged", "Container MSKU-112233 sealed", "06 Aug 2026, 11:00", "DONE"));
+        s3.timeline.add(new ImporterShipment.Milestone("3. Customs Cleared", "Inspected & Verified", "07 Aug 2026, 15:00", "DONE"));
+        s3.timeline.add(new ImporterShipment.Milestone("4. In Transit", "Vessel transit completed", "08 Aug 2026, 07:00", "DONE"));
+        s3.timeline.add(new ImporterShipment.Milestone("5. Port Arrival", "Berthed at Berth C-03", "11 Aug 2026, 10:00", "DONE"));
+        s3.timeline.add(new ImporterShipment.Milestone("6. Delivery Confirm", "Consignment received & verified", "11 Aug 2026, 14:00", "DONE"));
+
+        list.add(s1);
+        list.add(s2);
+        list.add(s3);
+        return list;
+    }
+
+    private String normalizeShipmentStatus(String raw) {
+        if (raw == null || raw.isBlank()) return "In Transit";
+        String r = raw.trim().toLowerCase();
+        if (r.contains("deliver") || r.contains("received") || r.contains("complete")) return "Delivered";
+        if (r.contains("arriv") || r.contains("anchor") || r.contains("berth")) return "Arriving Soon";
+        if (r.contains("clear") || r.contains("approv")) return "Customs Cleared";
+        if (r.contains("inspect") || r.contains("pending")) return "Under Inspection";
+        if (r.contains("delay") || r.contains("risk") || r.contains("hold") || r.contains("reject")) return "Delayed / At Risk";
+        return "In Transit";
+    }
+
+    private void updateKpiCounters() {
+        int active = 0, transit = 0, arriving = 0, delivered = 0, delayed = 0;
+        for (ImporterShipment s : allShipments) {
+            if ("Delivered".equalsIgnoreCase(s.status)) {
+                delivered++;
+            } else {
+                active++;
+                if ("In Transit".equalsIgnoreCase(s.status) || "Customs Cleared".equalsIgnoreCase(s.status)) {
+                    transit++;
+                } else if ("Arriving Soon".equalsIgnoreCase(s.status)) {
+                    arriving++;
+                } else if ("Delayed / At Risk".equalsIgnoreCase(s.status) || "Under Inspection".equalsIgnoreCase(s.status)) {
+                    delayed++;
+                } else {
+                    transit++;
+                }
+            }
         }
 
-        Label etaLabel =
-                new Label(eta);
+        if (activeCountLbl != null) activeCountLbl.setText(String.valueOf(active));
+        if (inTransitCountLbl != null) inTransitCountLbl.setText(String.valueOf(transit));
+        if (arrivingSoonCountLbl != null) arrivingSoonCountLbl.setText(String.valueOf(arriving));
+        if (deliveredCountLbl != null) deliveredCountLbl.setText(String.valueOf(delivered));
+        if (delayedCountLbl != null) delayedCountLbl.setText(String.valueOf(delayed));
+    }
 
-        etaLabel.setStyle(
-                "-fx-font-size:12px;" +
-                "-fx-text-fill:#6B7280;"
-        );
+    // =========================================================
+    // RENDER SHIPMENTS LIST
+    // =========================================================
+    private void renderShipmentsList() {
+        if (incomingShipmentsList == null) return;
+        incomingShipmentsList.getChildren().clear();
 
-        right.getChildren().addAll(
-                statusLabel,
-                etaLabel
-        );
+        String query = searchField != null && searchField.getText() != null ? searchField.getText().trim().toLowerCase() : "";
+        String statusFilter = statusFilterCombo != null && statusFilterCombo.getValue() != null ? statusFilterCombo.getValue() : "All Statuses";
 
-        box.getChildren().addAll(
-                iconLabel,
-                information,
-                space,
-                right
-        );
+        List<ImporterShipment> filtered = new ArrayList<>();
+        for (ImporterShipment s : allShipments) {
+            boolean matchesQuery = query.isEmpty()
+                    || s.shipmentId.toLowerCase().contains(query)
+                    || s.cargoName.toLowerCase().contains(query)
+                    || s.exporterName.toLowerCase().contains(query)
+                    || s.assignedVessel.toLowerCase().contains(query)
+                    || s.destinationPort.toLowerCase().contains(query);
 
+            boolean matchesStatus = "All Statuses".equalsIgnoreCase(statusFilter) || s.status.equalsIgnoreCase(statusFilter);
+
+            if (matchesQuery && matchesStatus) {
+                filtered.add(s);
+            }
+        }
+
+        if (filtered.isEmpty()) {
+            VBox emptyBox = new VBox(8);
+            emptyBox.setAlignment(Pos.CENTER);
+            emptyBox.setPadding(new Insets(30));
+
+            Label empIcon = new Label("📦");
+            empIcon.setStyle("-fx-font-size:32px; -fx-text-fill:#94a3b8;");
+            Label empTitle = new Label("No incoming shipments found.");
+            empTitle.setStyle("-fx-font-size:14px; -fx-font-weight:bold; -fx-text-fill:#475569;");
+            Label empSub = new Label("Shipments dispatched by Exporters will automatically appear here.");
+            empSub.setStyle("-fx-font-size:12px; -fx-text-fill:#94a3b8;");
+
+            emptyBox.getChildren().addAll(empIcon, empTitle, empSub);
+            incomingShipmentsList.getChildren().add(emptyBox);
+            return;
+        }
+
+        for (ImporterShipment s : filtered) {
+            HBox row = new HBox(12);
+            row.setAlignment(Pos.CENTER_LEFT);
+            row.setPadding(new Insets(12, 14, 12, 14));
+
+            boolean isSelected = selectedShipment != null && s.shipmentId.equalsIgnoreCase(selectedShipment.shipmentId);
+            row.setStyle(isSelected
+                    ? "-fx-background-color:#eff6ff; -fx-background-radius:8; -fx-border-color:#3b82f6; -fx-border-radius:8; -fx-cursor:hand;"
+                    : "-fx-background-color:#f8fafc; -fx-background-radius:8; -fx-border-color:#e2e8f0; -fx-border-radius:8; -fx-cursor:hand;");
+
+            row.setOnMouseClicked(e -> {
+                selectedShipment = s;
+                renderShipmentsList();
+                renderLiveTrackingCard();
+                renderTimelineTracker();
+            });
+
+            Label icon = new Label("🚢");
+            icon.setMinSize(40, 40);
+            icon.setAlignment(Pos.CENTER);
+            icon.setStyle("-fx-background-color:#e0f2fe; -fx-text-fill:#0284c7; -fx-font-size:18; -fx-background-radius:8;");
+
+            VBox mainInfo = new VBox(3);
+            HBox.setHgrow(mainInfo, Priority.ALWAYS);
+
+            HBox line1 = new HBox(8);
+            line1.setAlignment(Pos.CENTER_LEFT);
+            Label idLbl = new Label(s.shipmentId);
+            idLbl.setStyle("-fx-font-size:13px; -fx-font-weight:bold; -fx-text-fill:#0b63ff;");
+            Label nameLbl = new Label(s.cargoName);
+            nameLbl.setStyle("-fx-font-size:13px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
+            line1.getChildren().addAll(idLbl, new Label("•"), nameLbl);
+
+            Label line2 = new Label("Exporter: " + s.exporterName + "  |  " + s.originPort + " ➔ " + s.destinationPort);
+            line2.setStyle("-fx-font-size:11px; -fx-text-fill:#475569;");
+
+            Label line3 = new Label("Vessel: " + s.assignedVessel + "  |  Qty: " + s.quantity + " (" + s.weight + ")  |  ETA: " + s.eta);
+            line3.setStyle("-fx-font-size:11px; -fx-text-fill:#64748b;");
+
+            mainInfo.getChildren().addAll(line1, line2, line3);
+
+            VBox rightSide = new VBox(4);
+            rightSide.setAlignment(Pos.CENTER_RIGHT);
+
+            Label badge = new Label(s.status.toUpperCase());
+            badge.setStyle(statusBadgeStyle(s.status));
+
+            Button detailsBtn = new Button("🔍 Details");
+            detailsBtn.setStyle("-fx-background-color:#f1f5f9; -fx-text-fill:#334155; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 8; -fx-background-radius:4; -fx-cursor:hand;");
+            detailsBtn.setOnAction(ev -> showShipmentDetailsModal(s));
+
+            rightSide.getChildren().addAll(badge, detailsBtn);
+
+            row.getChildren().addAll(icon, mainInfo, rightSide);
+            incomingShipmentsList.getChildren().add(row);
+        }
+    }
+
+    private String statusBadgeStyle(String status) {
+        if ("Delivered".equalsIgnoreCase(status)) {
+            return "-fx-background-color:#dcfce7; -fx-text-fill:#16a34a; -fx-font-size:10px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:4;";
+        } else if ("Arriving Soon".equalsIgnoreCase(status)) {
+            return "-fx-background-color:#fef3c7; -fx-text-fill:#d97706; -fx-font-size:10px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:4;";
+        } else if ("Delayed / At Risk".equalsIgnoreCase(status) || "Under Inspection".equalsIgnoreCase(status)) {
+            return "-fx-background-color:#fee2e2; -fx-text-fill:#dc2626; -fx-font-size:10px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:4;";
+        }
+        return "-fx-background-color:#e0f2fe; -fx-text-fill:#0284c7; -fx-font-size:10px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:4;";
+    }
+
+    // =========================================================
+    // RENDER LIVE TRACKING CARD
+    // =========================================================
+    private void renderLiveTrackingCard() {
+        if (liveTrackingCard == null) return;
+        liveTrackingCard.getChildren().clear();
+
+        Label trackTitle = new Label("📡 Live Shipment Telemetry");
+        trackTitle.setStyle("-fx-font-size:16px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
+
+        if (selectedShipment == null) {
+            Label noSel = new Label("Select a shipment from the manifest to view real-time AIS tracking.");
+            noSel.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px; -fx-padding:20 0;");
+            liveTrackingCard.getChildren().addAll(trackTitle, new Separator(), noSel);
+            return;
+        }
+
+        ImporterShipment s = selectedShipment;
+
+        VBox box = new VBox(10);
+        box.setPadding(new Insets(10, 0, 0, 0));
+
+        HBox vesselBanner = new HBox(10);
+        vesselBanner.setAlignment(Pos.CENTER_LEFT);
+        Label vIcon = new Label("🚢");
+        vIcon.setMinSize(42, 42);
+        vIcon.setAlignment(Pos.CENTER);
+        vIcon.setStyle("-fx-background-color:#0b63ff; -fx-text-fill:white; -fx-font-size:20; -fx-background-radius:8;");
+
+        VBox vInfo = new VBox(2);
+        Label vName = new Label(s.assignedVessel);
+        vName.setStyle("-fx-font-size:15px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
+        Label vSub = new Label("IMO: " + s.vesselImo + "  |  MMSI: " + s.vesselMmsi);
+        vSub.setStyle("-fx-font-size:11px; -fx-text-fill:#64748b;");
+        vInfo.getChildren().addAll(vName, vSub);
+
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
+
+        Label aisSignal = new Label("● Live AIS Fix");
+        aisSignal.setStyle("-fx-background-color:#ecfdf5; -fx-text-fill:#059669; -fx-font-size:10px; -fx-font-weight:bold; -fx-padding:4 8; -fx-background-radius:4;");
+
+        vesselBanner.getChildren().addAll(vIcon, vInfo, sp, aisSignal);
+
+        // Progress Route
+        VBox routeBox = new VBox(4);
+        HBox routeLine = new HBox(8);
+        Label orig = new Label(s.originPort);
+        orig.setStyle("-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#334155;");
+        Region spR = new Region();
+        HBox.setHgrow(spR, Priority.ALWAYS);
+        Label dest = new Label(s.destinationPort);
+        dest.setStyle("-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#0b63ff;");
+        routeLine.getChildren().addAll(orig, spR, dest);
+
+        ProgressBar pb = new ProgressBar(s.progressPercent);
+        pb.setMaxWidth(Double.MAX_VALUE);
+        pb.setStyle("-fx-accent:#0b63ff;");
+
+        routeBox.getChildren().addAll(routeLine, pb);
+
+        // Telemetry Grid
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(8);
+
+        grid.add(detailCell("Current GPS Fix", s.vesselLocation, "#0f172a"), 0, 0);
+        grid.add(detailCell("Speed & Heading", s.vesselSpeed + " • " + s.vesselHeading, "#0f172a"), 1, 0);
+        grid.add(detailCell("Assigned Berth", s.berth, "#0f172a"), 0, 1);
+        grid.add(detailCell("Estimated Arrival", s.eta, "#0b63ff"), 1, 1);
+
+        Button quickTrackBtn = new Button("📥 Open Full Tracking Console");
+        quickTrackBtn.setMaxWidth(Double.MAX_VALUE);
+        quickTrackBtn.setStyle("-fx-background-color:#0b63ff; -fx-text-fill:white; -fx-font-size:12; -fx-font-weight:bold; -fx-padding:8; -fx-background-radius:6; -fx-cursor:hand;");
+        quickTrackBtn.setOnAction(e -> {
+            TrackShipment page = new TrackShipment();
+            LoginPage.showRoot(importerStage, page.getTrackShipmentScene(this::showDashboard).getRoot());
+        });
+
+        box.getChildren().addAll(vesselBanner, new Separator(), routeBox, grid, quickTrackBtn);
+        liveTrackingCard.getChildren().addAll(trackTitle, box);
+    }
+
+    // =========================================================
+    // RENDER DELIVERY & RECEIVING SCHEDULE
+    // =========================================================
+    private void renderDeliveryReceivingSchedule() {
+        if (deliveryReceivingList == null) return;
+        deliveryReceivingList.getChildren().clear();
+
+        List<ImporterShipment> readyList = new ArrayList<>();
+        for (ImporterShipment s : allShipments) {
+            if ("Arriving Soon".equalsIgnoreCase(s.status) || "Delivered".equalsIgnoreCase(s.status) || "Customs Cleared".equalsIgnoreCase(s.status)) {
+                readyList.add(s);
+            }
+        }
+        if (readyList.isEmpty() && !allShipments.isEmpty()) {
+            readyList.add(allShipments.get(0));
+        }
+
+        for (ImporterShipment s : readyList) {
+            HBox item = new HBox(10);
+            item.setAlignment(Pos.CENTER_LEFT);
+            item.setPadding(new Insets(8, 10, 8, 10));
+            item.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#e2e8f0; -fx-border-radius:6;");
+
+            Label ic = new Label("📦");
+            ic.setStyle("-fx-font-size:16px;");
+
+            VBox info = new VBox(2);
+            HBox.setHgrow(info, Priority.ALWAYS);
+            Label t = new Label(s.shipmentId + " • " + s.cargoName);
+            t.setStyle("-fx-font-size:12px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
+            Label sub = new Label("Berth: " + s.berth + "  |  ETA/Delivery: " + s.eta);
+            sub.setStyle("-fx-font-size:11px; -fx-text-fill:#64748b;");
+            info.getChildren().addAll(t, sub);
+
+            Label st = new Label(s.status.toUpperCase());
+            st.setStyle(statusBadgeStyle(s.status));
+
+            item.getChildren().addAll(ic, info, st);
+            deliveryReceivingList.getChildren().add(item);
+        }
+    }
+
+    // =========================================================
+    // RENDER TIMELINE TRACKER
+    // =========================================================
+    private void renderTimelineTracker() {
+        if (timelineTrackerBox == null) return;
+        timelineTrackerBox.getChildren().clear();
+
+        ImporterShipment s = selectedShipment != null ? selectedShipment : (!allShipments.isEmpty() ? allShipments.get(0) : null);
+        if (s == null) {
+            Label noTl = new Label("Select a shipment to track milestone progress.");
+            noTl.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px;");
+            timelineTrackerBox.getChildren().add(noTl);
+            return;
+        }
+
+        Label selHeader = new Label("Milestones for " + s.shipmentId + " (" + s.assignedVessel + ")");
+        selHeader.setStyle("-fx-font-size:12px; -fx-font-weight:bold; -fx-text-fill:#0b63ff;");
+        timelineTrackerBox.getChildren().add(selHeader);
+
+        for (ImporterShipment.Milestone m : s.timeline) {
+            HBox row = new HBox(8);
+            row.setAlignment(Pos.CENTER_LEFT);
+
+            Label dot = new Label("DONE".equalsIgnoreCase(m.state) ? "✓" : ("ACTIVE".equalsIgnoreCase(m.state) ? "●" : "○"));
+            dot.setStyle("DONE".equalsIgnoreCase(m.state)
+                    ? "-fx-text-fill:#16a34a; -fx-font-size:12px; -fx-font-weight:bold;"
+                    : ("ACTIVE".equalsIgnoreCase(m.state) ? "-fx-text-fill:#0b63ff; -fx-font-size:12px; -fx-font-weight:bold;" : "-fx-text-fill:#94a3b8; -fx-font-size:12px;"));
+
+            VBox tb = new VBox(1);
+            Label tLbl = new Label(m.title);
+            tLbl.setStyle("-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
+            Label dLbl = new Label(m.detail + " (" + m.time + ")");
+            dLbl.setStyle("-fx-font-size:10px; -fx-text-fill:#64748b;");
+            tb.getChildren().addAll(tLbl, dLbl);
+
+            row.getChildren().addAll(dot, tb);
+            timelineTrackerBox.getChildren().add(row);
+        }
+    }
+
+    // =========================================================
+    // RENDER ALERTS FEED
+    // =========================================================
+    private void renderAlertsFeed() {
+        if (alertsFeedBox == null) return;
+        alertsFeedBox.getChildren().clear();
+
+        alertsFeedBox.getChildren().add(alertRow("ℹ Customs Cleared", "Consignment documents verified and cleared by Customs.", "#059669", "#ecfdf5"));
+        alertsFeedBox.getChildren().add(alertRow("⏱️ Port Arrival on Schedule", "Vessel AFRAPEARL II ETA confirmed at Cochin Port.", "#0284c7", "#f0f9ff"));
+        alertsFeedBox.getChildren().add(alertRow("✓ Payment Settled", "Tariff and freight invoice settled with receipt RCT-1024.", "#16a34a", "#f0fdf4"));
+    }
+
+    private HBox alertRow(String title, String desc, String color, String bg) {
+        HBox box = new HBox(8);
+        box.setAlignment(Pos.CENTER_LEFT);
+        box.setPadding(new Insets(8, 10, 8, 10));
+        box.setStyle("-fx-background-color:" + bg + "; -fx-border-color:" + color + "; -fx-border-width:0 0 0 3; -fx-background-radius:6;");
+
+        VBox vb = new VBox(2);
+        Label t = new Label(title);
+        t.setStyle("-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:" + color + ";");
+        Label d = new Label(desc);
+        d.setStyle("-fx-font-size:10px; -fx-text-fill:#334155; -fx-wrap-text:true;");
+        vb.getChildren().addAll(t, d);
+
+        box.getChildren().add(vb);
         return box;
     }
 
     // =========================================================
-    // RECENT DELIVERY
+    // SHIPMENT DETAILS MODAL DIALOG
     // =========================================================
+    private void showShipmentDetailsModal(ImporterShipment s) {
+        if (s == null) return;
 
-    private VBox createRecentDelivery() {
+        Stage dialog = new Stage();
+        Window owner = importerStage != null ? importerStage : null;
+        if (owner != null) dialog.initOwner(owner);
+        dialog.initModality(Modality.APPLICATION_MODAL);
+        dialog.setTitle("Shipment Overview & Consignment Dossier — " + s.shipmentId);
+        dialog.setResizable(false);
 
-        VBox card =
-                new VBox(12);
+        VBox root = new VBox(16);
+        root.setPadding(new Insets(24));
+        root.setPrefWidth(680);
+        root.setStyle("-fx-background-color:white; -fx-background-radius:12;");
 
-        card.setPrefWidth(270);
+        // Header
+        HBox header = new HBox(12);
+        header.setAlignment(Pos.CENTER_LEFT);
+        Label badge = new Label("SHIPMENT " + s.shipmentId);
+        badge.setStyle("-fx-background-color:#e0f2fe; -fx-text-fill:#0284c7; -fx-font-size:13; -fx-font-weight:bold; -fx-padding:6 12; -fx-background-radius:6;");
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
+        Label statusTag = new Label(s.status.toUpperCase());
+        statusTag.setStyle(statusBadgeStyle(s.status));
+        header.getChildren().addAll(badge, sp, statusTag);
 
-        card.setPrefHeight(225);
+        // Vessel & Cargo Title Card
+        VBox titleCard = new VBox(4);
+        titleCard.setPadding(new Insets(12));
+        titleCard.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#e2e8f0; -fx-border-radius:8;");
+        Label nameLbl = new Label("📦  " + s.cargoName);
+        nameLbl.setStyle("-fx-font-size:17px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
+        Label subLbl = new Label("Category: " + s.cargoType + "  |  Exporter: " + s.exporterName + "  |  Assigned Vessel: " + s.assignedVessel);
+        subLbl.setStyle("-fx-font-size:12px; -fx-text-fill:#64748b;");
+        titleCard.getChildren().addAll(nameLbl, subLbl);
 
-        card.setPadding(
-                new Insets(20)
-        );
+        // Details Grid
+        GridPane grid = new GridPane();
+        grid.setHgap(16);
+        grid.setVgap(10);
 
-        card.setStyle(
-                "-fx-background-color:white;" +
-                "-fx-background-radius:14px;" +
-                "-fx-border-color:#DDE3E9;" +
-                "-fx-border-radius:14px;"
-        );
+        grid.add(detailCell("Quantity & Weight", s.quantity + " • " + s.weight, "#0f172a"), 0, 0);
+        grid.add(detailCell("Estimated Cargo Value", s.cargoValue, "#059669"), 1, 0);
+        grid.add(detailCell("Origin ➔ Destination", s.originPort + " ➔ " + s.destinationPort, "#0f172a"), 0, 1);
+        grid.add(detailCell("Voyage & Berth", s.voyageNumber + " • " + s.berth, "#0f172a"), 1, 1);
+        grid.add(detailCell("Live GPS Fix", s.vesselLocation, "#0f172a"), 0, 2);
+        grid.add(detailCell("Speed & Heading", s.vesselSpeed + " • " + s.vesselHeading, "#0f172a"), 1, 2);
+        grid.add(detailCell("Customs Clearance Status", s.customsStatus, "#059669"), 0, 3);
+        grid.add(detailCell("Estimated Time of Arrival", s.eta, "#0b63ff"), 1, 3);
 
-        // -----------------------------------------------------
-        // ICON
-        // -----------------------------------------------------
+        // Documents Box
+        VBox docBox = new VBox(6);
+        docBox.setPadding(new Insets(10));
+        docBox.setStyle("-fx-background-color:#f0f9ff; -fx-border-color:#bae6fd; -fx-border-radius:8;");
+        Label docTitle = new Label("📄 Associated Consignment Documents:");
+        docTitle.setStyle("-fx-font-size:12px; -fx-font-weight:bold; -fx-text-fill:#0369a1;");
+        HBox docList = new HBox(12);
+        for (Map<String, String> d : s.documents) {
+            Label dl = new Label("✓ " + d.get("name") + " (" + d.get("status") + ")");
+            dl.setStyle("-fx-font-size:11px; -fx-text-fill:#0f172a; -fx-background-color:white; -fx-padding:3 8; -fx-background-radius:4;");
+            docList.getChildren().add(dl);
+        }
+        docBox.getChildren().addAll(docTitle, docList);
 
-        Label icon =
-                new Label("✓");
+        // Action Buttons
+        HBox actions = new HBox(12);
+        actions.setAlignment(Pos.CENTER_RIGHT);
 
-        icon.setMinSize(
-                50,
-                50
-        );
+        Button closeBtn = new Button("Close");
+        closeBtn.setStyle("-fx-background-color:#f1f5f9; -fx-text-fill:#334155; -fx-font-weight:bold; -fx-padding:8 16; -fx-background-radius:6; -fx-cursor:hand;");
+        closeBtn.setOnAction(e -> dialog.close());
 
-        icon.setMaxSize(
-                50,
-                50
-        );
+        Button trackBtn = new Button("📥 Track Shipment");
+        trackBtn.setStyle("-fx-background-color:#0b63ff; -fx-text-fill:white; -fx-font-weight:bold; -fx-padding:8 16; -fx-background-radius:6; -fx-cursor:hand;");
+        trackBtn.setOnAction(e -> {
+            dialog.close();
+            TrackShipment page = new TrackShipment();
+            LoginPage.showRoot(importerStage, page.getTrackShipmentScene(this::showDashboard).getRoot());
+        });
 
-        icon.setAlignment(
-                Pos.CENTER
-        );
+        actions.getChildren().addAll(closeBtn, trackBtn);
 
-        icon.setStyle(
-                "-fx-background-color:#DDF6E4;" +
-                "-fx-background-radius:13px;" +
-                "-fx-text-fill:#18A558;" +
-                "-fx-font-size:24px;" +
-                "-fx-font-weight:bold;"
-        );
+        root.getChildren().addAll(header, titleCard, grid, docBox, new Separator(), actions);
 
-        // -----------------------------------------------------
-        // STATUS
-        // -----------------------------------------------------
-
-        Label status =
-                new Label(
-                        "Delivered"
-                );
-
-        status.setStyle(
-                "-fx-background-color:#DDF6E4;" +
-                "-fx-text-fill:#087C35;" +
-                "-fx-background-radius:6px;" +
-                "-fx-padding:5px 9px;" +
-                "-fx-font-size:12px;"
-        );
-
-        // -----------------------------------------------------
-        // INVOICE
-        // -----------------------------------------------------
-
-        Label invoice =
-                new Label(
-                        "INV-1024"
-                );
-
-        invoice.setStyle(
-                "-fx-font-size:18px;" +
-                "-fx-font-weight:bold;" +
-                "-fx-text-fill:#111827;"
-        );
-
-        // -----------------------------------------------------
-        // SHIP NAME
-        // -----------------------------------------------------
-
-        Label ship =
-                new Label(
-                        "Oceanic Star"
-                );
-
-        ship.setStyle(
-                "-fx-font-size:14px;" +
-                "-fx-text-fill:#6B7280;"
-        );
-
-        // -----------------------------------------------------
-        // DATE
-        // -----------------------------------------------------
-
-        Label date =
-                new Label(
-                        "▣  11 Aug 2026"
-                );
-
-        date.setStyle(
-                "-fx-font-size:13px;" +
-                "-fx-text-fill:#6B7280;"
-        );
-
-        card.getChildren().addAll(
-                icon,
-                status,
-                invoice,
-                ship,
-                date
-        );
-
-        return card;
+        Scene scene = new Scene(root);
+        dialog.setScene(scene);
+        dialog.show();
     }
 
-    // =========================================================
-    // IMPORTANT ALERT
-    // =========================================================
-
-    private HBox createAlert() {
-
-        HBox alert =
-                new HBox(15);
-
-        alert.setAlignment(
-                Pos.CENTER_LEFT
-        );
-
-        alert.setPadding(
-                new Insets(15, 20, 15, 20)
-        );
-
-        alert.setMaxWidth(
-                Double.MAX_VALUE
-        );
-
-        alert.setStyle(
-                "-fx-background-color:#FFE9C9;" +
-                "-fx-background-radius:12px;"
-        );
-
-        // -----------------------------------------------------
-        // ALERT ICON
-        // -----------------------------------------------------
-
-        Label alertIcon =
-                new Label("!");
-
-        alertIcon.setMinSize(
-                40,
-                40
-        );
-
-        alertIcon.setMaxSize(
-                40,
-                40
-        );
-
-        alertIcon.setAlignment(
-                Pos.CENTER
-        );
-
-        alertIcon.setStyle(
-                "-fx-background-color:#F47712;" +
-                "-fx-background-radius:50%;" +
-                "-fx-text-fill:white;" +
-                "-fx-font-size:20px;" +
-                "-fx-font-weight:bold;"
-        );
-
-        // -----------------------------------------------------
-        // MESSAGE
-        // -----------------------------------------------------
-
-        Label alertText =
-                new Label(
-                        "Shipment CGO-1287 arrival delayed by 4 hours."
-                );
-
-        alertText.setStyle(
-                "-fx-font-size:14px;" +
-                "-fx-text-fill:#8A3412;"
-        );
-
-        // -----------------------------------------------------
-        // SPACER
-        // -----------------------------------------------------
-
-        Region space =
-                new Region();
-
-        HBox.setHgrow(
-                space,
-                Priority.ALWAYS
-        );
-
-        // -----------------------------------------------------
-        // CLOSE
-        // -----------------------------------------------------
-
-        Button close =
-                new Button("×");
-
-        close.setStyle(
-                "-fx-background-color:transparent;" +
-                "-fx-text-fill:#9A4819;" +
-                "-fx-font-size:20px;" +
-                "-fx-cursor:hand;" +
-                "-fx-focus-color:transparent;" +
-                "-fx-faint-focus-color:transparent;"
-        );
-
-        close.setOnAction(
-                event -> alert.setVisible(false)
-        );
-
-        alert.getChildren().addAll(
-                alertIcon,
-                alertText,
-                space,
-                close
-        );
-
-        return alert;
+    private static VBox detailCell(String label, String value, String valueColor) {
+        Label l = new Label(label);
+        l.setStyle("-fx-text-fill:#64748b; -fx-font-size:11px; -fx-font-weight:bold;");
+        Label v = new Label(value != null && !value.isBlank() ? value : "N/A");
+        v.setStyle("-fx-text-fill:" + valueColor + "; -fx-font-size:13px; -fx-font-weight:bold;");
+        return new VBox(2, l, v);
     }
 
-    // =========================================================
-    // HEADER
-    // =========================================================
+    private static String str(Object o, String fallback) {
+        return (o != null && !o.toString().isBlank()) ? o.toString().trim() : fallback;
+    }
 
-    private HBox createHeader(
-            String pageTitle,
-            String breadcrumb
-    ) {
+    private String getLoggedImporterName() {
+        if (LoginPage.loggedInUser != null) {
+            Object n = LoginPage.loggedInUser.get("name");
+            if (n != null && !n.toString().isBlank()) return n.toString().trim();
+            Object f = LoginPage.loggedInUser.get("fullName");
+            if (f != null && !f.toString().isBlank()) return f.toString().trim();
+            Object d = LoginPage.loggedInUser.get("displayName");
+            if (d != null && !d.toString().isBlank()) return d.toString().trim();
+        }
+        return "Harsh Patel";
+    }
 
-        HBox header =
-                new HBox(15);
+    private String getLoggedImporterEmail() {
+        if (LoginPage.loggedInUser != null) {
+            Object e = LoginPage.loggedInUser.get("email");
+            if (e != null && !e.toString().isBlank()) return e.toString().trim().toLowerCase();
+        }
+        return "harsh@gmail.com";
+    }
 
-        header.setAlignment(
-                Pos.CENTER_LEFT
-        );
-
-        header.setPadding(
-                new Insets(12,22,12,25)
-        );
-
-        header.setPrefHeight(65);
-
-        header.setStyle(
-                "-fx-background-color:white;" +
-                "-fx-border-color:#E5EBF3;" +
-                "-fx-border-width:0 0 1 0;"
-        );
-
-        VBox pageInfo =
-                new VBox(3);
-
-        Label title =
-                new Label(pageTitle);
-
-        title.setStyle(
-                "-fx-text-fill:#111827;" +
-                "-fx-font-size:17;" +
-                "-fx-font-weight:bold;"
-        );
-
-        Label bc =
-                new Label(breadcrumb);
-
-        bc.setStyle(
-                "-fx-text-fill:#8A93A1;" +
-                "-fx-font-size:10;"
-        );
-
-        pageInfo.getChildren().addAll(
-                title,
-                bc
-        );
-
-        Region space =
-                new Region();
-
-        HBox.setHgrow(
-                space,
-                Priority.ALWAYS
-        );
-
-        Label status =
-                new Label(
-                        "System Operational"
-                );
-
-        status.setStyle(
-                "-fx-text-fill:#168548;" +
-                "-fx-background-color:#E7F7EE;" +
-                "-fx-background-radius:14;" +
-                "-fx-padding:6 10;" +
-                "-fx-font-size:10;" +
-                "-fx-font-weight:bold;"
-        );
-
-        String date =
-                LocalDateTime.now().format(
-                        DateTimeFormatter.ofPattern(
-                                "dd MMM yyyy"
-                        )
-                );
-
-        Label dateLabel =
-                new Label(date);
-
-        dateLabel.setStyle(
-                "-fx-text-fill:#4B5563;" +
-                "-fx-font-size:11;" +
-                "-fx-font-weight:bold;"
-        );
-
-        Label notification =
-                new Label("🔔");
-
-        notification.setStyle(
-                "-fx-text-fill:#111827;" +
-                "-fx-font-size:17;"
-        );
-
-        Label avatar =
-                new Label("I");
-
-        avatar.setMinSize(
-                32,
-                32
-        );
-
-        avatar.setAlignment(
-                Pos.CENTER
-        );
-
-        avatar.setStyle(
-                "-fx-background-color:#DBEAFE;" +
-                "-fx-background-radius:50%;" +
-                "-fx-text-fill:#0F5FFF;" +
-                "-fx-font-weight:bold;"
-        );
-
-        VBox profile =
-                new VBox(1);
-
-        Label user =
-                new Label("Dock Tech Importer");
-
-        user.setStyle(
-                "-fx-text-fill:#111827;" +
-                "-fx-font-size:11;" +
-                "-fx-font-weight:bold;"
-        );
-
-        Label role =
-                new Label("Importer");
-
-        role.setStyle(
-                "-fx-text-fill:#8A93A1;" +
-                "-fx-font-size:9;"
-        );
-
-        profile.getChildren().addAll(
-                user,
-                role
-        );
-
-        header.getChildren().addAll(
-                pageInfo,
-                space,
-                status,
-                dateLabel,
-                notification,
-                avatar,
-                profile
-        );
-
-        return header;
+    private String getLoggedImporterFilter() {
+        if (LoginPage.loggedInUser != null) {
+            Object c = LoginPage.loggedInUser.get("company");
+            if (c != null && !c.toString().isBlank()) return c.toString().trim();
+            Object e = LoginPage.loggedInUser.get("email");
+            if (e != null && !e.toString().isBlank()) return e.toString().trim();
+            Object n = LoginPage.loggedInUser.get("name");
+            if (n != null && !n.toString().isBlank()) return n.toString().trim();
+        }
+        return "Harsh";
     }
 }

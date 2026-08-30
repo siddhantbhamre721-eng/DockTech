@@ -121,6 +121,12 @@ public class DashboardPage {
         buildDashboardLayout();
         connectLiveAISService();
         loadPersonnelData();
+
+        com.projectui.service.SosEmergencyService.addChangeListener(() -> {
+            Platform.runLater(() -> {
+                updateAlerts(filteredVesselList != null ? filteredVesselList : portVesselsMasterList);
+            });
+        });
     }
 
     // =====================================================
@@ -132,8 +138,14 @@ public class DashboardPage {
             Map<String, Object> user = com.projectui.view.login.LoginPage.loggedInUser;
             if (user.get("assignedPort") != null && !user.get("assignedPort").toString().isBlank()) {
                 port = user.get("assignedPort").toString().trim();
+            } else if (user.get("organization") != null && !user.get("organization").toString().isBlank()) {
+                port = user.get("organization").toString().trim();
             } else if (user.get("company") != null && !user.get("company").toString().isBlank()) {
                 port = user.get("company").toString().trim();
+            } else if (user.get("name") != null && !user.get("name").toString().isBlank()) {
+                port = user.get("name").toString().trim();
+            } else if (user.get("email") != null && !user.get("email").toString().isBlank()) {
+                port = user.get("email").toString().trim();
             }
         }
 
@@ -146,14 +158,7 @@ public class DashboardPage {
     }
 
     private String normalizePortName(String raw) {
-        if (raw == null) return "Cochin Port";
-        String lower = raw.toLowerCase().trim();
-        if (lower.contains("cochin") || lower.contains("kochi")) return "Cochin Port";
-        if (lower.contains("mumbai") || lower.contains("bombay")) return "Port of Mumbai";
-        if (lower.contains("chennai") || lower.contains("madras")) return "Port of Chennai";
-        if (lower.contains("vizag") || lower.contains("visakhapatnam")) return "Port of Vizag";
-        if (lower.contains("kolkata") || lower.contains("calcutta")) return "Port of Kolkata";
-        return raw;
+        return UserDao.normalizePort(raw);
     }
 
     // =====================================================
@@ -349,8 +354,9 @@ public class DashboardPage {
 
         // Table
         vesselTable = new TableView<>();
-        vesselTable.setPrefHeight(330);
-        vesselTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        vesselTable.setPrefHeight(500);
+        VBox.setVgrow(vesselTable, Priority.ALWAYS);
+        vesselTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         vesselTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");
 
         TableColumn<VesselData, String> colVessel = new TableColumn<>("Vessel");
@@ -1842,6 +1848,47 @@ public class DashboardPage {
             }
         }
 
+        // Also incorporate any persistent ships registered under this port from Firestore
+        try {
+            List<com.projectui.model.Ship> registeredShips = new com.projectui.dao.ShipDAO().getShips();
+            if (registeredShips != null) {
+                for (com.projectui.model.Ship s : registeredShips) {
+                    if (s == null || s.getShipName() == null || s.getShipName().isBlank()) continue;
+                    boolean belongs = isRegisteredShipForPort(s, activeViewingPort);
+                    if (belongs) {
+                        long mmsi = Math.abs((s.getShipId() != null ? s.getShipId() : s.getShipName()).hashCode());
+                        boolean alreadyPresent = false;
+                        for (VesselData v : matchedPortVessels) {
+                            if (v.mmsi == mmsi || (s.getImoNumber() != null && s.getImoNumber().equalsIgnoreCase(v.imo))
+                                    || (v.name != null && v.name.equalsIgnoreCase(s.getShipName()))) {
+                                alreadyPresent = true;
+                                break;
+                            }
+                        }
+                        if (!alreadyPresent) {
+                            double[] coords = getPortCoordinates(activeViewingPort);
+                            VesselData regVessel = new VesselData(
+                                    mmsi,
+                                    s.getImoNumber() != null ? s.getImoNumber() : "—",
+                                    s.getShipName(),
+                                    "V-" + (mmsi % 9000 + 1000),
+                                    coords[0],
+                                    coords[1],
+                                    "Arriving".equalsIgnoreCase(s.getStatus()) ? 6.5 : ("Departing".equalsIgnoreCase(s.getStatus()) ? 11.2 : 0.0),
+                                    90.0,
+                                    90.0,
+                                    activeViewingPort,
+                                    s.getStatus() != null ? s.getStatus() : "Berthed",
+                                    s.getShipType() != null ? s.getShipType() : "Container / Cargo Ship",
+                                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))
+                            );
+                            matchedPortVessels.add(regVessel);
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
         for (VesselData v : matchedPortVessels) {
             Double oldSpd = lastKnownSpeeds.put(v.mmsi, v.speed);
             String oldStat = lastKnownStatuses.put(v.mmsi, v.navigationStatus);
@@ -1882,6 +1929,35 @@ public class DashboardPage {
         updateAlerts(matchedPortVessels);
     }
 
+    private boolean isRegisteredShipForPort(com.projectui.model.Ship s, String portName) {
+        if (s == null || portName == null) return false;
+        String pName = portName.toLowerCase();
+        String berth = s.getBerth() != null ? s.getBerth().toLowerCase() : "";
+        String comp = s.getCompany() != null ? s.getCompany().toLowerCase() : "";
+        String arr = s.getArrival() != null ? s.getArrival().toLowerCase() : "";
+        String dep = s.getDeparture() != null ? s.getDeparture().toLowerCase() : "";
+        String shipId = s.getShipId() != null ? s.getShipId().toLowerCase() : "";
+
+        if (berth.contains(pName) || comp.contains(pName) || arr.contains(pName) || dep.contains(pName) || shipId.contains(pName)) {
+            return true;
+        }
+
+        if (pName.contains("cochin") || pName.contains("kochi")) {
+            return berth.contains("cochin") || berth.contains("kochi") || berth.contains("cok") || comp.contains("cochin") || comp.contains("kochi") || arr.contains("cochin") || dep.contains("cochin");
+        } else if (pName.contains("mumbai")) {
+            return berth.contains("mumbai") || berth.contains("jnpt") || berth.contains("mum") || comp.contains("mumbai") || comp.contains("jnpt") || arr.contains("mumbai") || dep.contains("mumbai");
+        } else if (pName.contains("chennai")) {
+            return berth.contains("chennai") || berth.contains("madras") || berth.contains("maa") || comp.contains("chennai") || comp.contains("madras") || arr.contains("chennai") || dep.contains("chennai");
+        } else if (pName.contains("vizag") || pName.contains("visakhapatnam")) {
+            return berth.contains("vizag") || berth.contains("visakhapatnam") || berth.contains("vtz") || comp.contains("vizag") || comp.contains("visakhapatnam") || arr.contains("vizag") || dep.contains("vizag");
+        } else if (pName.contains("kolkata")) {
+            return berth.contains("kolkata") || berth.contains("calcutta") || berth.contains("ccu") || comp.contains("kolkata") || comp.contains("calcutta") || arr.contains("kolkata") || dep.contains("kolkata");
+        } else if (pName.contains("hazira")) {
+            return berth.contains("hazira") || comp.contains("hazira") || arr.contains("hazira") || dep.contains("hazira");
+        }
+        return berth.contains(pName) || comp.contains(pName) || arr.contains(pName) || dep.contains(pName);
+    }
+
     private void loadPersonnelData() {
         try {
             UserDao.syncFirestoreUsers();
@@ -1899,7 +1975,13 @@ public class DashboardPage {
         for (Map<String, Object> c : caps) {
             Object duty = c.get("duty");
             Object ship = c.get("assignedShip");
-            boolean hasDuty = duty != null && !duty.toString().isBlank() && !duty.toString().equalsIgnoreCase("Not Assigned");
+            Object assignStatus = c.get("assignmentStatus");
+            boolean hasDuty = duty != null && !duty.toString().isBlank() 
+                    && !duty.toString().equalsIgnoreCase("Not Assigned")
+                    && !duty.toString().equalsIgnoreCase("Standby")
+                    && !duty.toString().equalsIgnoreCase("Standby / Available")
+                    && !duty.toString().equalsIgnoreCase("Completed")
+                    && (assignStatus == null || (!assignStatus.toString().equalsIgnoreCase("Available") && !assignStatus.toString().equalsIgnoreCase("Completed")));
             boolean hasShip = ship != null && !ship.toString().isBlank() && !ship.toString().equalsIgnoreCase("Not Assigned");
             if (hasDuty || hasShip) assignedC++;
         }
@@ -1913,7 +1995,14 @@ public class DashboardPage {
         int assignedO = 0;
         for (Map<String, Object> o : offs) {
             Object duty = o.get("duty");
-            if (duty != null && !duty.toString().isBlank() && !duty.toString().equalsIgnoreCase("Not Assigned")) assignedO++;
+            Object assignStatus = o.get("assignmentStatus");
+            boolean hasDuty = duty != null && !duty.toString().isBlank() 
+                    && !duty.toString().equalsIgnoreCase("Not Assigned")
+                    && !duty.toString().equalsIgnoreCase("Standby")
+                    && !duty.toString().equalsIgnoreCase("Standby / Available")
+                    && !duty.toString().equalsIgnoreCase("Completed")
+                    && (assignStatus == null || (!assignStatus.toString().equalsIgnoreCase("Available") && !assignStatus.toString().equalsIgnoreCase("Completed")));
+            if (hasDuty) assignedO++;
         }
         if (totalOfficersVal != null) totalOfficersVal.setText(String.valueOf(totalO));
         if (activeOfficersVal != null) activeOfficersVal.setText(String.valueOf(totalO));
@@ -1922,37 +2011,59 @@ public class DashboardPage {
     }
 
     private boolean isVesselAssociatedWithPort(VesselData v, String portName) {
-        if (v == null || portName == null) return false;
-        String pName = portName.toLowerCase();
+        if (v == null || portName == null || portName.isBlank()) return false;
+        String pName = portName.toLowerCase().trim();
 
-        String dest = v.destination != null ? v.destination.toLowerCase() : "";
-        if (pName.contains("cochin") || pName.contains("kochi")) {
+        // 1. Check destination
+        String dest = v.destination != null ? v.destination.toLowerCase().trim() : "";
+        if (pName.contains("cochin") || pName.contains("kochi") || pName.contains("cok")) {
             if (dest.contains("cochin") || dest.contains("kochi") || dest.contains("cok")) return true;
-        } else if (pName.contains("mumbai")) {
-            if (dest.contains("mumbai") || dest.contains("jnpt") || dest.contains("nhava") || dest.contains("mum")) return true;
-        } else if (pName.contains("chennai")) {
+        } else if (pName.contains("mumbai") || pName.contains("jnpt")) {
+            if (dest.contains("mumbai") || dest.contains("jnpt") || dest.contains("nhava") || dest.contains("mum") || dest.contains("bombay")) return true;
+        } else if (pName.contains("chennai") || pName.contains("madras")) {
             if (dest.contains("chennai") || dest.contains("madras") || dest.contains("maa")) return true;
         } else if (pName.contains("vizag") || pName.contains("visakhapatnam")) {
             if (dest.contains("vizag") || dest.contains("visakhapatnam") || dest.contains("vtz")) return true;
-        } else if (pName.contains("kolkata")) {
+        } else if (pName.contains("kolkata") || pName.contains("calcutta") || pName.contains("haldia")) {
             if (dest.contains("kolkata") || dest.contains("calcutta") || dest.contains("ccu") || dest.contains("haldia")) return true;
+        } else if (pName.contains("hazira")) {
+            if (dest.contains("hazira") || dest.contains("haz") || dest.contains("surat")) return true;
+        } else if (pName.contains("kandla") || pName.contains("mundra")) {
+            if (dest.contains("kandla") || dest.contains("mundra") || dest.contains("kutch")) return true;
+        } else if (pName.contains("paradip")) {
+            if (dest.contains("paradip")) return true;
+        } else if (pName.contains("tuticorin")) {
+            if (dest.contains("tuticorin")) return true;
+        } else if (pName.contains("mormugao") || pName.contains("goa")) {
+            if (dest.contains("mormugao") || dest.contains("goa")) return true;
+        } else if (pName.contains("mangalore")) {
+            if (dest.contains("mangalore")) return true;
         }
 
+        // 2. Check geographical proximity to this port
         double[] coords = getPortCoordinates(portName);
         double dLat = Math.abs(v.latitude - coords[0]);
         double dLng = Math.abs(v.longitude - coords[1]);
 
-        return (dLat <= 2.2 && dLng <= 2.2);
+        return (dLat <= 2.8 && dLng <= 2.8);
     }
 
     private double[] getPortCoordinates(String portName) {
-        String p = portName.toLowerCase();
-        if (p.contains("cochin") || p.contains("kochi")) return new double[]{9.9600, 76.2600};
-        if (p.contains("mumbai")) return new double[]{18.9439, 72.8354};
-        if (p.contains("chennai")) return new double[]{13.0827, 80.2707};
+        try {
+            com.projectui.view.admin.AdminDataStore.Port adminPort = com.projectui.view.admin.AdminDataStore.getInstance().getPortByName(portName);
+            if (adminPort != null && (adminPort.lat != 0.0 || adminPort.lng != 0.0)) {
+                return new double[]{adminPort.lat, adminPort.lng};
+            }
+        } catch (Exception ignored) {}
+
+        String p = portName != null ? portName.toLowerCase().trim() : "";
+        if (p.contains("cochin") || p.contains("kochi") || p.contains("cok")) return new double[]{9.9600, 76.2600};
+        if (p.contains("mumbai") || p.contains("jnpt")) return new double[]{18.9439, 72.8354};
+        if (p.contains("chennai") || p.contains("madras")) return new double[]{13.0827, 80.2707};
         if (p.contains("vizag") || p.contains("visakhapatnam")) return new double[]{17.6868, 83.2185};
-        if (p.contains("kolkata")) return new double[]{22.5726, 88.3639};
-        return new double[]{9.9600, 76.2600};
+        if (p.contains("kolkata") || p.contains("haldia") || p.contains("calcutta")) return new double[]{22.5726, 88.3639};
+        if (p.contains("hazira") || p.contains("surat")) return new double[]{21.1122, 72.6411};
+        return new double[]{18.9439, 72.8354};
     }
 
     private String deriveVesselCategory(VesselData v) {
@@ -2137,7 +2248,47 @@ public class DashboardPage {
         if (alertsFeedBox == null) return;
         alertsFeedBox.getChildren().clear();
 
-        if (vessels.isEmpty()) {
+        // 1. Live Emergency SOS Alerts from Ship Captains
+        List<com.projectui.service.SosEmergencyService.SosAlert> sosAlerts = com.projectui.service.SosEmergencyService.getAllAlerts();
+        for (com.projectui.service.SosEmergencyService.SosAlert a : sosAlerts) {
+            boolean isAck = "ACKNOWLEDGED".equalsIgnoreCase(a.getStatus());
+            HBox card = new HBox(8);
+            card.setAlignment(Pos.CENTER_LEFT);
+            card.setPadding(new Insets(8, 10, 8, 10));
+            card.setStyle(isAck
+                    ? "-fx-background-color:#f0fdf4; -fx-background-radius:6; -fx-border-color:#16a34a; -fx-border-width:0 0 0 3;"
+                    : "-fx-background-color:#fef2f2; -fx-background-radius:6; -fx-border-color:#dc2626; -fx-border-width:0 0 0 3;");
+
+            VBox box = new VBox(2);
+            HBox.setHgrow(box, Priority.ALWAYS);
+
+            Label t = new Label(isAck ? "✓ SOS ACKNOWLEDGED: " + a.getVesselName().toUpperCase() : "🔴 EMERGENCY SOS: " + a.getVesselName().toUpperCase() + " [" + a.getSeverity() + "]");
+            t.setStyle("-fx-text-fill:" + (isAck ? "#16a34a" : "#dc2626") + "; -fx-font-size:12px; -fx-font-weight:bold;");
+
+            Label m = new Label("Incident: " + a.getIncidentId() + " • " + a.getCategory() + " | Captain: " + a.getCaptainName() + "\n"
+                    + "Location: " + a.getLocation() + " (Speed: " + a.getSpeed() + ", Heading: " + a.getHeading() + ") | " + a.getTimestamp());
+            m.setStyle("-fx-text-fill:#334155; -fx-font-size:11px; -fx-wrap-text:true;");
+
+            box.getChildren().addAll(t, m);
+
+            Button viewSosBtn = new Button(isAck ? "✓ View" : "⚡ Acknowledge");
+            viewSosBtn.setStyle(isAck
+                    ? "-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:4; -fx-cursor:hand;"
+                    : "-fx-background-color:#dc2626; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:4; -fx-cursor:hand;");
+            viewSosBtn.setOnAction(ev -> {
+                com.projectui.service.SosEmergencyService.showSosDetailsDialog(
+                        root.getScene() != null ? root.getScene().getWindow() : null,
+                        a,
+                        userAssignedPort + " Authority",
+                        () -> updateAlerts(filteredVesselList != null ? filteredVesselList : portVesselsMasterList)
+                );
+            });
+
+            card.getChildren().addAll(box, viewSosBtn);
+            alertsFeedBox.getChildren().add(card);
+        }
+
+        if (vessels.isEmpty() && sosAlerts.isEmpty()) {
             alertsFeedBox.getChildren().add(alertCard("✓ Normal Operations", "No active vessel traffic warnings for " + activeViewingPort + ".", "#10b981", "#ecfdf5"));
             return;
         }
@@ -2154,7 +2305,7 @@ public class DashboardPage {
             }
         }
 
-        if (alerts == 0) {
+        if (alerts == 0 && sosAlerts.isEmpty()) {
             alertsFeedBox.getChildren().add(alertCard(
                     "✓ Navigational Fairway Clear",
                     "Navigational channel and harbor approaches operating smoothly.",

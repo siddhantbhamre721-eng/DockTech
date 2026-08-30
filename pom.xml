@@ -39,6 +39,13 @@
             <version>21</version>
         </dependency>
 
+        <!-- JavaFX Web - REQUIRED FOR EMBEDDED RAZORPAY CHECKOUT -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-web</artifactId>
+            <version>21</version>
+        </dependency>
+
         <!-- Google Cloud Firestore -->
         <dependency>
             <groupId>com.google.cloud</groupId>
@@ -60,6 +67,14 @@
             <version>2.0.30</version>
         </dependency>
 
+
+        <!-- JUnit Jupiter Test -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.0</version>
+            <scope>test</scope>
+        </dependency>
 
     </dependencies>
 

@@ -125,14 +125,7 @@ public class ShipManagementPage {
     }
 
     private String normalizePortName(String raw) {
-        if (raw == null) return "Cochin Port";
-        String lower = raw.toLowerCase().trim();
-        if (lower.contains("cochin") || lower.contains("kochi")) return "Cochin Port";
-        if (lower.contains("mumbai") || lower.contains("bombay")) return "Port of Mumbai";
-        if (lower.contains("chennai") || lower.contains("madras")) return "Port of Chennai";
-        if (lower.contains("vizag") || lower.contains("visakhapatnam")) return "Port of Vizag";
-        if (lower.contains("kolkata") || lower.contains("calcutta")) return "Port of Kolkata";
-        return raw;
+        return com.projectui.dao.UserDao.normalizePort(raw);
     }
 
     // =====================================================
@@ -301,7 +294,7 @@ public class ShipManagementPage {
         // Table
         shipTable = new TableView<>();
         shipTable.setPrefHeight(450);
-        shipTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        shipTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         shipTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");
         shipTable.setPlaceholder(new Label("No ships currently registered or operating for " + activeViewingPort));
 

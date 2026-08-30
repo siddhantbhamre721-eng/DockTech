@@ -102,7 +102,6 @@ public class PortAuthorityLayout {
         Button ship = createNavButton("Ship Management");
         Button cargo = createNavButton("Cargo Management");
         Button container = createNavButton("Container Management");
-        Button allocation = createNavButton("Container Allocation");
         Button payments = createNavButton("Payments");
         Button reports = createNavButton("Reports & Analytics");
         Button settings = createNavButton("Settings");
@@ -112,7 +111,6 @@ public class PortAuthorityLayout {
         navButtons.put("Ship Management", ship);
         navButtons.put("Cargo Management", cargo);
         navButtons.put("Container Management", container);
-        navButtons.put("Container Allocation", allocation);
         navButtons.put("Payments", payments);
         navButtons.put("Reports & Analytics", reports);
         navButtons.put("Settings", settings);
@@ -142,12 +140,6 @@ public class PortAuthorityLayout {
                 "Dock Tech / Port Authority / Container Management"
         ));
 
-        allocation.setOnAction(e -> setContent(
-                new ContainerAllocationPage().getContent(),
-                "Container Allocation",
-                "Dock Tech / Port Authority / Container Allocation"
-        ));
-
         payments.setOnAction(e -> setContent(
                 new PaymentPage().getContent(),
                 "Payments",
@@ -175,7 +167,6 @@ public class PortAuthorityLayout {
                 ship,
                 cargo,
                 container,
-                allocation,
                 payments,
                 reports,
                 settings,

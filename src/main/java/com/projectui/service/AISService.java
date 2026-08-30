@@ -22,7 +22,6 @@ public class AISService {
     private static final String API_USER_HEADER = "DockTech Marine App/1.0";
     private static final String LOCATIONS_URL = "https://meri.digitraffic.fi/api/ais/v1/locations";
     private static final String VESSELS_URL = "https://meri.digitraffic.fi/api/ais/v1/vessels";
-    private static final String MQTT_WSS_URL = "wss://meri.digitraffic.fi:443/mqtt";
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -205,9 +204,37 @@ public class AISService {
                         double rawLng = Double.parseDouble(parts[0].trim());
                         double rawLat = Double.parseDouble(parts[1].trim());
 
-                        boolean inBayOfBengal = (featureIdx % 2 == 0);
-                        double mappedLat = inBayOfBengal ? (8.5 + (Math.abs(rawLat * 10.0) % 11.0)) : (7.0 + (Math.abs(rawLat * 10.0) % 12.0));
-                        double mappedLng = inBayOfBengal ? (83.5 + (Math.abs(rawLng * 10.0) % 10.0)) : (62.5 + (Math.abs(rawLng * 10.0) % 9.0));
+                        // Distribute across regional maritime approaches and open transit sea lanes in the Indian Ocean:
+                        int zone = featureIdx % 8;
+                        double mappedLat;
+                        double mappedLng;
+                        String defaultDest;
+
+                        java.util.List<com.projectui.view.admin.AdminDataStore.Port> activePorts = new java.util.ArrayList<>();
+                        try {
+                            for (com.projectui.view.admin.AdminDataStore.Port p : com.projectui.view.admin.AdminDataStore.getInstance().ports) {
+                                if (p != null && p.name != null && !com.projectui.view.admin.AdminDataStore.isPortDeleted(p.name, p.code)) {
+                                    if ("APPROVED".equalsIgnoreCase(p.approvalStatus) || p.approvalStatus == null) {
+                                        activePorts.add(p);
+                                    }
+                                }
+                            }
+                        } catch (Exception ignored) {}
+
+                        if (!activePorts.isEmpty()) {
+                            int portIndex = zone % activePorts.size();
+                            com.projectui.view.admin.AdminDataStore.Port targetPort = activePorts.get(portIndex);
+                            double baseLat = targetPort.lat != 0.0 ? targetPort.lat : 18.9439;
+                            double baseLng = targetPort.lng != 0.0 ? targetPort.lng : 72.8354;
+
+                            mappedLat = (baseLat - 0.45) + (Math.abs(rawLat * 10.0) % 0.9);
+                            mappedLng = (baseLng - 0.45) + (Math.abs(rawLng * 10.0) % 0.9);
+                            defaultDest = targetPort.name;
+                        } else {
+                            mappedLat = 18.40 + (Math.abs(rawLat * 10.0) % 1.2);
+                            mappedLng = 72.20 + (Math.abs(rawLng * 10.0) % 0.75);
+                            defaultDest = "Port of Mumbai";
+                        }
 
                         int searchStart = Math.max(0, pos - 200);
                         long mmsi = extractLongField(json, searchStart, "mmsi");
@@ -224,7 +251,7 @@ public class AISService {
                         String name = meta != null && meta.get("name") != null && !meta.get("name").isBlank()
                                 ? meta.get("name")
                                 : "Vessel #" + mmsi;
-                        String dest = meta != null && meta.get("destination") != null ? meta.get("destination") : "En Route";
+                        String dest = meta != null && meta.get("destination") != null ? meta.get("destination") : defaultDest;
                         String imo = meta != null && meta.get("imo") != null ? meta.get("imo") : "9" + (Math.abs(mmsi) % 899999 + 100000);
                         String callSign = meta != null && meta.get("callSign") != null ? meta.get("callSign") : "V" + (Math.abs(mmsi) % 8999 + 1000);
                         String shipType = meta != null && meta.get("shipType") != null ? meta.get("shipType") : (sog > 10.0 ? "Container / Cargo Ship" : "Tanker Ship");

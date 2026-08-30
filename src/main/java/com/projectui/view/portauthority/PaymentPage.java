@@ -1,5 +1,6 @@
 package com.projectui.view.portauthority;
 
+import java.io.File;
 import java.text.NumberFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -13,6 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.projectui.dao.CargoDao;
 import com.projectui.dao.ContainerDao;
+import com.projectui.dao.PaymentDao;
+import com.projectui.service.ReceiptPdfService;
 import com.projectui.service.VesselData;
 import com.projectui.service.VesselFinderService;
 import com.projectui.service.VesselManager;
@@ -53,6 +56,7 @@ public class PaymentPage {
     // Backend DAOs & Services (Single source of truth)
     private final CargoDao cargoDao = new CargoDao();
     private final ContainerDao containerDao = new ContainerDao();
+    private final PaymentDao paymentDao = new PaymentDao();
     private final VesselManager vesselManager = VesselManager.getInstance();
     private final VesselFinderService vesselFinderService = VesselFinderService.getInstance();
 
@@ -124,14 +128,7 @@ public class PaymentPage {
     }
 
     private String normalizePortName(String raw) {
-        if (raw == null) return "Cochin Port";
-        String lower = raw.toLowerCase().trim();
-        if (lower.contains("cochin") || lower.contains("kochi")) return "Cochin Port";
-        if (lower.contains("mumbai") || lower.contains("bombay")) return "Port of Mumbai";
-        if (lower.contains("chennai") || lower.contains("madras")) return "Port of Chennai";
-        if (lower.contains("vizag") || lower.contains("visakhapatnam")) return "Port of Vizag";
-        if (lower.contains("kolkata") || lower.contains("calcutta")) return "Port of Kolkata";
-        return raw;
+        return com.projectui.dao.UserDao.normalizePort(raw);
     }
 
     // =====================================================
@@ -299,7 +296,7 @@ public class PaymentPage {
         // Table
         paymentTable = new TableView<>();
         paymentTable.setPrefHeight(420);
-        paymentTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        paymentTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         paymentTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");
         paymentTable.setPlaceholder(new Label("No payment transactions available for " + activeViewingPort));
 
@@ -457,6 +454,7 @@ public class PaymentPage {
     // 6. LIVE BACKEND DATA INTEGRATION & SYNCHRONIZATION
     // =====================================================
     private void connectLiveServices() {
+        PaymentDao.addChangeListener(this::refreshPaymentData);
         refreshPaymentData();
 
         vesselFinderService.start(updatedVessels -> {
@@ -485,83 +483,53 @@ public class PaymentPage {
     }
 
     private void loadPortPaymentData() {
-        List<Map<String, Object>> cargos = cargoDao.getAllCargos();
-        List<Map<String, Object>> bookings = containerDao.getAllBookings();
-
         List<Map<String, Object>> compiledPayments = new ArrayList<>();
 
-        // Generate and link authoritative payment records based on live cargos and container bookings
-        for (Map<String, Object> cargo : cargos) {
-            if (isAssociatedWithPort(cargo, activeViewingPort)) {
-                String cId = getString(cargo, "cargoId", "CGO-1024");
-                String payId = "PAY-" + (Math.abs(cId.hashCode()) % 8999 + 1000);
+        // 1. Fetch authentic payment records from PaymentDao (Single Source of Truth)
+        List<Map<String, Object>> daoPayments = paymentDao.getAllPayments();
+        if (daoPayments != null) {
+            for (Map<String, Object> p : daoPayments) {
+                if (p == null) continue;
+                String payId = getString(p, "paymentId", getString(p, "razorpayPaymentId", ""));
+                if (payId.isEmpty()) continue;
 
-                Map<String, Object> pay = paymentStore.computeIfAbsent(payId, k -> {
-                    Map<String, Object> p = new HashMap<>();
-                    p.put("paymentId", payId);
-                    p.put("invoiceId", "INV-" + (Math.abs(cId.hashCode()) % 89999 + 10000));
-                    p.put("cargoId", cId);
-                    p.put("cargoName", getString(cargo, "cargoName", "Commercial Cargo"));
-                    p.put("cargoType", getString(cargo, "cargoType", "General Cargo"));
-                    p.put("quantity", getString(cargo, "quantity", "1 unit"));
-                    p.put("customerName", "Bharat Logistics & Freight Ltd.");
-                    p.put("customerType", "Exporter");
-                    p.put("containerNo", "CONT-" + (Math.abs(cId.hashCode()) % 899 + 2000));
-                    p.put("containerType", "20 ft Standard Dry");
-                    p.put("amount", 125000.0);
-                    p.put("paymentMethod", "Bank Transfer (NEFT/RTGS)");
-                    p.put("paymentStatus", "Registered".equalsIgnoreCase(getString(cargo, "status", "")) ? "Pending" : "Paid");
-                    p.put("transactionId", "TXN-" + (Math.abs(cId.hashCode()) % 899999 + 100000));
-                    p.put("paymentDate", getString(cargo, "createdAt", LocalDateTime.now().toString()));
-                    p.put("dueDate", LocalDateTime.now().plusDays(7).toString());
-                    p.put("updatedAt", LocalDateTime.now().toString());
-                    p.put("port", activeViewingPort);
-                    return p;
-                });
+                Map<String, Object> record = new HashMap<>(p);
+                record.put("paymentId", payId);
 
-                // Keep real-time synchronization with cargo status changes
-                if ("Registered".equalsIgnoreCase(getString(cargo, "status", ""))) {
-                    if (!"Paid".equalsIgnoreCase(getString(pay, "paymentStatus", ""))) {
-                        pay.put("paymentStatus", "Pending");
-                    }
-                } else if ("In Transit".equalsIgnoreCase(getString(cargo, "status", "")) || "Approved".equalsIgnoreCase(getString(cargo, "status", ""))) {
-                    pay.put("paymentStatus", "Paid");
+                if (!record.containsKey("customerType") || record.get("customerType") == null) {
+                    record.put("customerType", "Exporter");
                 }
-                pay.put("port", activeViewingPort);
-                compiledPayments.add(pay);
+                if (!record.containsKey("customerName") || record.get("customerName") == null) {
+                    record.put("customerName", getString(p, "exporterName", getString(p, "importerName", "Bharat Logistics & Freight Ltd.")));
+                }
+                if (!record.containsKey("invoiceId") || record.get("invoiceId") == null) {
+                    record.put("invoiceId", "INV-" + getString(p, "receiptNumber", String.valueOf(Math.abs(payId.hashCode()) % 89999 + 10000)));
+                }
+                if (!record.containsKey("transactionId") || record.get("transactionId") == null) {
+                    record.put("transactionId", getString(p, "razorpayPaymentId", payId));
+                }
+                if (!record.containsKey("containerNo") || record.get("containerNo") == null) {
+                    record.put("containerNo", "—");
+                }
+                if (!record.containsKey("containerType") || record.get("containerType") == null) {
+                    record.put("containerType", "Standard Dry Container");
+                }
+                if (!record.containsKey("port") || record.get("port") == null) {
+                    record.put("port", getString(p, "originPort", activeViewingPort));
+                }
+
+                compiledPayments.add(record);
             }
         }
 
-        for (Map<String, Object> b : bookings) {
-            if (isAssociatedWithPort(b, activeViewingPort)) {
-                String bId = getString(b, "bookingId", "CONT-2045");
-                String payId = "PAY-" + (Math.abs(bId.hashCode()) % 8999 + 2000);
-
-                Map<String, Object> pay = paymentStore.computeIfAbsent(payId, k -> {
-                    Map<String, Object> p = new HashMap<>();
-                    p.put("paymentId", payId);
-                    p.put("invoiceId", "INV-" + (Math.abs(bId.hashCode()) % 89999 + 20000));
-                    p.put("cargoId", getString(b, "cargoId", "CGO-1025"));
-                    p.put("cargoName", getString(b, "cargoName", "Containerized Goods"));
-                    p.put("cargoType", "Dry Container Cargo");
-                    p.put("quantity", getString(b, "quantity", "1"));
-                    p.put("customerName", "Oceanic Star Trading Corp.");
-                    p.put("customerType", "Importer");
-                    p.put("containerNo", bId);
-                    p.put("containerType", getString(b, "containerType", "40 ft High Cube"));
-                    p.put("amount", 145000.0);
-                    p.put("paymentMethod", "UPI (Verified Razorpay Gateway)");
-                    p.put("paymentStatus", "Allocated".equalsIgnoreCase(getString(b, "status", "")) ? "Paid" : "Pending");
-                    p.put("transactionId", "TXN-" + (Math.abs(bId.hashCode()) % 899999 + 200000));
-                    p.put("paymentDate", getString(b, "createdAt", LocalDateTime.now().toString()));
-                    p.put("dueDate", LocalDateTime.now().plusDays(5).toString());
-                    p.put("updatedAt", LocalDateTime.now().toString());
-                    p.put("port", activeViewingPort);
-                    return p;
-                });
-                pay.put("port", activeViewingPort);
-                if (!compiledPayments.contains(pay)) {
-                    compiledPayments.add(pay);
+        // 2. Also check any in-memory recorded payments in paymentStore that might not be in DAO list yet
+        for (Map<String, Object> p : paymentStore.values()) {
+            if (p == null) continue;
+            String payId = getString(p, "paymentId", "");
+            if (!payId.isEmpty()) {
+                boolean exists = compiledPayments.stream().anyMatch(cp -> payId.equalsIgnoreCase(getString(cp, "paymentId", "")));
+                if (!exists) {
+                    compiledPayments.add(p);
                 }
             }
         }
@@ -587,13 +555,13 @@ public class PaymentPage {
             double amt = getDouble(p, "amount", 0.0);
             totalAmt += amt;
 
-            if ("Paid".equalsIgnoreCase(st) || "Settled".equalsIgnoreCase(st) || "Cleared".equalsIgnoreCase(st)) {
+            if ("Paid".equalsIgnoreCase(st) || "Settled".equalsIgnoreCase(st) || "Cleared".equalsIgnoreCase(st) || st.toUpperCase().contains("PAID")) {
                 paidCount++;
                 paidAmt += amt;
-            } else if ("Pending".equalsIgnoreCase(st) || "Awaiting".equalsIgnoreCase(st)) {
+            } else if ("Pending".equalsIgnoreCase(st) || "Awaiting".equalsIgnoreCase(st) || st.toUpperCase().contains("PENDING")) {
                 pendingCount++;
                 pendingAmt += amt;
-            } else if ("Failed".equalsIgnoreCase(st) || "Overdue".equalsIgnoreCase(st) || "Rejected".equalsIgnoreCase(st)) {
+            } else if ("Failed".equalsIgnoreCase(st) || "Overdue".equalsIgnoreCase(st) || "Rejected".equalsIgnoreCase(st) || st.toUpperCase().contains("FAIL")) {
                 failedCount++;
                 pendingAmt += amt;
             }
@@ -928,6 +896,44 @@ public class PaymentPage {
             } catch (Exception ignored) {}
         }
         return raw;
+    }
+
+    public static void recordPayment(String paymentId, String invoiceId, String cargoId, String cargoName,
+                                    String customerName, String customerType, String containerNo, String containerType,
+                                    double amount, String paymentMethod, String paymentStatus, String transactionId, String port) {
+        Map<String, Object> p = new HashMap<>();
+        p.put("paymentId", paymentId);
+        p.put("razorpayPaymentId", paymentId);
+        p.put("invoiceId", invoiceId);
+        p.put("cargoId", cargoId != null ? cargoId : "CGO-1024");
+        p.put("cargoName", cargoName != null ? cargoName : "Commercial Cargo");
+        p.put("cargoType", "Export Freight");
+        p.put("quantity", "1 unit");
+        p.put("customerName", customerName != null ? customerName : "Bharat Logistics & Freight Ltd.");
+        p.put("customerType", customerType != null ? customerType : "Exporter");
+        p.put("containerNo", containerNo != null ? containerNo : "—");
+        p.put("containerType", containerType != null ? containerType : "20 ft Standard Dry");
+        p.put("amount", amount);
+        p.put("paymentMethod", paymentMethod != null ? paymentMethod : "Razorpay Gateway (UPI/Cards/NetBanking)");
+        p.put("paymentStatus", paymentStatus != null ? paymentStatus : "Paid");
+        p.put("transactionId", transactionId != null ? transactionId : paymentId);
+        p.put("paymentDate", LocalDateTime.now().toString());
+        p.put("dueDate", LocalDateTime.now().plusDays(7).toString());
+        p.put("updatedAt", LocalDateTime.now().toString());
+        p.put("port", port != null ? port : "Port of Mumbai");
+
+        paymentStore.put(paymentId, p);
+        new PaymentDao().savePayment(p);
+    }
+
+    public static Map<String, Object> getPaymentByCargoId(String cargoId) {
+        if (cargoId == null) return null;
+        for (Map<String, Object> p : paymentStore.values()) {
+            if (cargoId.equalsIgnoreCase((String) p.get("cargoId"))) {
+                return p;
+            }
+        }
+        return new PaymentDao().getPaymentByCargoId(cargoId);
     }
 
     // =====================================================

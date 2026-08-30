@@ -68,33 +68,68 @@ public class LoginPage extends Application {
         }
 
         private static void initVideoBackground() {
-                if (sharedBackgroundPlayer != null)
-                        return;
-                String path = "/Assets/images/video/1786944457130486.MP4";
-                var url = LoginPage.class.getResource(path);
-                if (url == null) {
-                        url = LoginPage.class.getResource("/assets/images/video/DockTechBG.MP4");
-                }
-                if (url == null) {
+                if (sharedBackgroundPlayer != null) {
                         try {
-                                java.io.File file = new java.io.File(
-                                                "src/main/resources/Assets/images/video/DockTechBG.MP4");
-                                if (file.exists()) {
-                                        url = file.toURI().toURL();
+                                if (sharedBackgroundPlayer.getStatus() != MediaPlayer.Status.PLAYING) {
+                                        sharedBackgroundPlayer.play();
                                 }
-                        } catch (Exception ignored) {
+                        } catch (Exception ignored) {}
+                        return;
+                }
+
+                java.net.URL url = null;
+                String[] candidatePaths = {
+                        "/Assets/images/video/DockTechBG.MP4",
+                        "/Assets/images/video/1786944457130486.MP4",
+                        "/assets/images/video/DockTechBG.MP4",
+                        "/assets/images/video/1786944457130486.MP4"
+                };
+
+                for (String p : candidatePaths) {
+                        try {
+                                url = LoginPage.class.getResource(p);
+                                if (url != null) break;
+                        } catch (Exception ignored) {}
+                }
+
+                if (url == null) {
+                        String[] filePaths = {
+                                "src/main/resources/Assets/images/video/DockTechBG.MP4",
+                                "src/main/resources/Assets/images/video/1786944457130486.MP4",
+                                "target/classes/Assets/images/video/DockTechBG.MP4",
+                                "target/classes/Assets/images/video/1786944457130486.MP4"
+                        };
+                        for (String fp : filePaths) {
+                                try {
+                                        java.io.File file = new java.io.File(fp);
+                                        if (file.exists()) {
+                                                url = file.toURI().toURL();
+                                                break;
+                                        }
+                                } catch (Exception ignored) {}
                         }
                 }
+
                 if (url == null) {
-                        System.err.println("Video not found: " + path);
+                        System.err.println("Video not found in resources or file paths.");
                         return;
                 }
+
                 try {
                         Media media = new Media(url.toExternalForm());
                         sharedBackgroundPlayer = new MediaPlayer(media);
                         sharedBackgroundPlayer.setAutoPlay(true);
                         sharedBackgroundPlayer.setMute(true);
                         sharedBackgroundPlayer.setCycleCount(MediaPlayer.INDEFINITE);
+                        sharedBackgroundPlayer.setOnEndOfMedia(() -> {
+                                try {
+                                        sharedBackgroundPlayer.seek(javafx.util.Duration.ZERO);
+                                        sharedBackgroundPlayer.play();
+                                } catch (Exception ignored) {}
+                        });
+                        sharedBackgroundPlayer.setOnError(() -> {
+                                System.err.println("VIDEO PLAYER ERROR: " + sharedBackgroundPlayer.getError());
+                        });
                         sharedBackgroundPlayer.play();
                 } catch (Exception e) {
                         System.err.println("VIDEO INIT ERROR: " + e.getMessage());
@@ -629,6 +664,15 @@ public class LoginPage extends Application {
                                                                                                                         .getValue();
                                                                                                         Object roleObj = activeProfile
                                                                                                                         .get("role");
+                                                                                                        if (roleObj == null || roleObj.toString().isBlank()) {
+                                                                                                                for (String k : new String[] { "userRole", "accountRole", "user_role", "roleName", "role_name", "type", "accountType", "roles" }) {
+                                                                                                                        Object alt = activeProfile.get(k);
+                                                                                                                        if (alt != null && !alt.toString().isBlank()) {
+                                                                                                                                roleObj = alt;
+                                                                                                                                break;
+                                                                                                                        }
+                                                                                                                }
+                                                                                                        }
                                                                                                         String firestoreRole = roleObj != null
                                                                                                                         ? roleObj.toString()
                                                                                                                         : null;
@@ -645,7 +689,9 @@ public class LoginPage extends Application {
                                                                                                         }
 
                                                                                                         System.out.println(
-                                                                                                                        "[LOGIN] Role: " + firestoreRole);
+                                                                                                                        "[LOGIN] Account role: " + firestoreRole);
+                                                                                                        System.out.println(
+                                                                                                                        "[LOGIN] Selected role: " + selectedRole);
 
                                                                                                         Object statusObj = activeProfile
                                                                                                                         .get("status");
@@ -656,19 +702,28 @@ public class LoginPage extends Application {
                                                                                                         if (!isRoleMatch(
                                                                                                                         selectedRole,
                                                                                                                         firestoreRole)) {
-                                                                                                                System.err.println(
-                                                                                                                                "[LOGIN ERROR] Selected role ("
-                                                                                                                                                + selectedRole
-                                                                                                                                                + ") does not match account role ("
-                                                                                                                                                + firestoreRole
-                                                                                                                                                + ")");
-                                                                                                                resetLoadingState(
-                                                                                                                                login,
-                                                                                                                                message,
-                                                                                                                                "Selected role does not match this account.");
-                                                                                                                return;
+                                                                                                                if (isPortAuthorityRole(selectedRole) && (com.projectui.dao.UserDao.isPortEmailOrKeywords(emailValue) || com.projectui.dao.UserDao.hasApprovedPortAuthority(emailValue) || isPortAuthorityRole(firestoreRole))) {
+                                                                                                                        firestoreRole = "Port Authority";
+                                                                                                                        activeProfile.put("role", "Port Authority");
+                                                                                                                        activeProfile.put("roleCode", "PORT_AUTHORITY");
+                                                                                                                        userDao.saveUserExtended(authUser.getUid(), emailValue, authUser.getDisplayName(), "Port Authority Operations", "", "Port Authority", "Active", activeProfile);
+                                                                                                                } else {
+                                                                                                                        System.err.println(
+                                                                                                                                        "[LOGIN ERROR] Selected role ("
+                                                                                                                                                        + selectedRole
+                                                                                                                                                        + ") does not match account role ("
+                                                                                                                                                        + firestoreRole
+                                                                                                                                                        + ")");
+                                                                                                                        resetLoadingState(
+                                                                                                                                        login,
+                                                                                                                                        message,
+                                                                                                                                        "Selected role does not match this account.");
+                                                                                                                        return;
+                                                                                                                }
                                                                                                         }
 
+                                                                                                        System.out.println(
+                                                                                                                        "[LOGIN] Role validation: SUCCESS");
                                                                                                         System.out.println(
                                                                                                                         "[LOGIN] Role validated");
 
@@ -815,37 +870,88 @@ public class LoginPage extends Application {
                 dialog.showAndWait();
         }
 
-        private static boolean isPortAuthorityRole(String roleStr) {
-                if (roleStr == null)
-                        return false;
-                String r = roleStr.trim().replaceAll("[_\\s]+", "").toLowerCase();
-                return r.contains("portauthority") || r.contains("portmanager")
-                                || (r.contains("port") && r.contains("authority"));
+        public static String normalizeRole(String rawRole) {
+                if (rawRole == null || rawRole.isBlank())
+                        return "";
+                String cleaned = rawRole.trim().toLowerCase().replaceAll("[^a-z0-9]", "");
+
+                // 1. Port Authority
+                if (cleaned.contains("portauthority")
+                                || cleaned.contains("portmanager")
+                                || cleaned.contains("portofficer")
+                                || cleaned.contains("portmaster")
+                                || cleaned.contains("portoperator")
+                                || cleaned.contains("portoperation")
+                                || cleaned.contains("portdirector")
+                                || cleaned.contains("portadmin")
+                                || (cleaned.contains("port") && (cleaned.contains("authority") || cleaned.contains("manager") || cleaned.contains("officer") || cleaned.contains("master") || cleaned.contains("admin") || cleaned.contains("director") || cleaned.contains("operator") || cleaned.contains("mumbai") || cleaned.contains("chennai") || cleaned.contains("vizag") || cleaned.contains("kolkata") || cleaned.contains("cochin") || cleaned.contains("kochi") || cleaned.contains("hazira")))
+                                || cleaned.equals("portauthority")
+                                || cleaned.equals("pa")
+                                || cleaned.equals("port")) {
+                        return "Port Authority";
+                }
+
+                // 2. Customs Officer
+                if (cleaned.contains("custom") || cleaned.contains("customs") || cleaned.contains("customofficer") || cleaned.contains("customsofficer")) {
+                        return "Customs Officer";
+                }
+
+                // 3. Ship Captain
+                if (cleaned.contains("captain") || cleaned.contains("shipcaptain") || cleaned.contains("master")) {
+                        return "Ship Captain";
+                }
+
+                // 4. Exporter
+                if (cleaned.contains("exporter") || cleaned.contains("export") || cleaned.equals("exp")) {
+                        return "Exporter";
+                }
+
+                // 5. Importer
+                if (cleaned.contains("importer") || cleaned.contains("import") || cleaned.equals("imp")) {
+                        return "Importer";
+                }
+
+                // 6. Admin
+                if (cleaned.contains("admin") || cleaned.contains("administrator") || cleaned.contains("docktechadmin")) {
+                        return "Admin";
+                }
+
+                return rawRole.trim();
         }
 
-        private static boolean isRoleMatch(String selected, String database) {
+        public static boolean isPortAuthorityRole(String roleStr) {
+                if (roleStr == null || roleStr.isBlank())
+                        return false;
+                String norm = normalizeRole(roleStr);
+                if ("Port Authority".equalsIgnoreCase(norm))
+                        return true;
+                String cleaned = roleStr.trim().toUpperCase().replaceAll("[^A-Z0-9]", "");
+                return cleaned.equals("PORTAUTHORITY") || cleaned.equals("PORT_AUTHORITY") || cleaned.equals("PORTAUTHORITYOPERATIONS") || cleaned.equals("PA") || cleaned.equals("PORT") || cleaned.contains("PORTAUTHORITY");
+        }
+
+        public static boolean isRoleMatch(String selected, String database) {
                 if (selected == null || database == null)
                         return false;
-                String s = selected.trim().replaceAll("[_\\s]+", "").toLowerCase();
-                String d = database.trim().replaceAll("[_\\s]+", "").toLowerCase();
-
-                if (s.equals(d))
-                        return true;
 
                 if (isPortAuthorityRole(selected) && isPortAuthorityRole(database)) {
                         return true;
                 }
 
-                if ((s.contains("custom") || s.contains("officer"))
-                                && (d.contains("custom") || d.contains("officer"))) {
+                String normSelected = normalizeRole(selected);
+                String normDatabase = normalizeRole(database);
+
+                if (!normSelected.isEmpty() && normSelected.equalsIgnoreCase(normDatabase)) {
                         return true;
                 }
 
-                if (s.contains("admin") && d.contains("admin")) {
+                if (selected.trim().equalsIgnoreCase(database.trim())) {
                         return true;
                 }
 
-                return false;
+                // Direct alphanumeric matching fallback
+                String s = selected.trim().toLowerCase().replaceAll("[^a-z0-9]", "");
+                String d = database.trim().toLowerCase().replaceAll("[^a-z0-9]", "");
+                return !s.isEmpty() && (s.equals(d) || (s.contains("export") && d.contains("export")) || (s.contains("import") && d.contains("import")));
         }
 
         // ================= ROLE-BASED DASHBOARD NAVIGATION =================
@@ -911,7 +1017,11 @@ public class LoginPage extends Application {
         }
 
         private void showExporter() {
-                new com.projectui.view.exporter.ExporterDashboard().start(stage);
+                Parent root = new com.projectui.view.exporter.ExporterDashboard().getRoot(
+                                stage,
+                                this::showLoginScene,
+                                "Dashboard");
+                showRoot(stage, root);
         }
 
         private void showShipCaptain() {

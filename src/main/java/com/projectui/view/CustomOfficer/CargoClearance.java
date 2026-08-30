@@ -216,7 +216,7 @@ public class CargoClearance {
                 String cargoId = String.valueOf(c.get("cargoId"));
                 String name = c.get("cargoName") != null ? String.valueOf(c.get("cargoName")) : "General Cargo";
                 String type = c.get("cargoType") != null ? String.valueOf(c.get("cargoType")) : "General";
-                String vessel = c.get("assignedShip") != null ? String.valueOf(c.get("assignedShip")) : "MV " + activeAssignedPort.replace("Port of ", "").replace(" Port", "") + " Trader";
+                String vessel = c.get("assignedShip") != null ? String.valueOf(c.get("assignedShip")) : (c.get("vessel") != null ? String.valueOf(c.get("vessel")) : ("MV " + activeAssignedPort.replace("Port of ", "").replace(" Port", "") + " Trader"));
                 String company = c.get("exporter") != null ? String.valueOf(c.get("exporter")) : (c.get("company") != null ? String.valueOf(c.get("company")) : "Maritime Logistics");
                 String docStatus = c.get("verificationStatus") != null ? String.valueOf(c.get("verificationStatus")) : "Pending";
                 String inspectStatus = c.get("inspectionStatus") != null ? String.valueOf(c.get("inspectionStatus")) : "Pending";

@@ -78,6 +78,10 @@ public class PortRequestDao extends Dao {
         }
     }
 
+    public static Map<String, Map<String, Object>> getLocalRequestStore() {
+        return localRequestStore;
+    }
+
     public static void applyStatusToStores(String requestId, String statusVal, String rejectionReason) {
         if (requestId == null || requestId.isBlank()) return;
 
@@ -130,11 +134,8 @@ public class PortRequestDao extends Dao {
 
                             java.util.List<PortRequest> fetchedRequests = new java.util.ArrayList<>();
                             for (com.google.cloud.firestore.QueryDocumentSnapshot doc : snap.getDocuments()) {
-                                Map<String, Object> data = doc.getData();
+                                Map<String, Object> data = new HashMap<>(doc.getData());
                                 String reqId = doc.getId();
-                                if (data == null) {
-                                    data = new HashMap<>();
-                                }
                                 data.put("requestId", reqId);
 
                                 String st = doc.getString("status");

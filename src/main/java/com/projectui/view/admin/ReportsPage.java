@@ -225,23 +225,7 @@ public class ReportsPage extends AdminTheme {
     }
 
     private String categorizeVesselStatus(VesselData v) {
-        if (v == null) return "In Transit";
-        String nav = v.navigationStatus != null ? v.navigationStatus.toLowerCase() : "";
-        double spd = v.speed;
-
-        if (nav.contains("moored") || nav.contains("docked") || nav.contains("port") || nav.contains("5")) {
-            return "Currently In Port";
-        }
-        if (nav.contains("anchor") || nav.contains("1") || spd <= 0.3) {
-            return "Anchored";
-        }
-        if (nav.contains("arriving") || (v.destination != null && !v.destination.isBlank() && spd > 2.0 && spd < 10.0)) {
-            return "Arriving";
-        }
-        if (nav.contains("departing") || (spd >= 10.0 && v.course > 180)) {
-            return "Departing";
-        }
-        return "In Transit";
+        return VesselManager.categorizeStatus(v);
     }
 
     private String matchNearestPort(double lat, double lng) {
@@ -545,7 +529,7 @@ public class ReportsPage extends AdminTheme {
     private void buildInspectionComplianceSection() {
         inspectionComplianceCard.getChildren().clear();
 
-        int pendingInsp = store.pendingUsers() + store.pendingPortRequestsCount();
+        int pendingInsp = store.pendingInspectionsCount();
         int completedInsp = store.ports.size() + store.users.size();
         int highPri = Math.max(1, (int) store.ports.stream().filter(p -> "Busy".equalsIgnoreCase(p.status)).count());
         int pendingCustoms = store.pendingUsers();
