@@ -740,9 +740,29 @@ public class DocumentVerification {
 
     private VBox createActivityRows() {
         VBox v = new VBox(6);
-        v.getChildren().add(createAuditRow("✓", "Certified Bill of Lading DOC-CGO-1002-01", "Officer " + officerName, "10 mins ago"));
-        v.getChildren().add(createAuditRow("🔍", "Examined Commercial Invoice for Container MSKU-7821940", "Customs Desk", "25 mins ago"));
-        v.getChildren().add(createAuditRow("📥", "New Customs Declaration received from Global Logistics Ltd", "Shipper Portal", "1 hr ago"));
+        int added = 0;
+        for (Map<String, Object> d : activeDocList) {
+            if (d == null) continue;
+            String dId = d.get("docId") != null ? d.get("docId").toString() : (d.get("cargoId") != null ? d.get("cargoId").toString() : "DOC");
+            String docName = d.get("docName") != null ? d.get("docName").toString() : "Document";
+            String st = d.get("status") != null ? d.get("status").toString() : "Pending";
+            if ("Verified".equalsIgnoreCase(st) || "Approved".equalsIgnoreCase(st) || "Cleared".equalsIgnoreCase(st)) {
+                v.getChildren().add(createAuditRow("✓", "Certified " + docName + " (" + dId + ")", "Officer " + officerName, "Recently"));
+                added++;
+            } else if ("Under Review".equalsIgnoreCase(st)) {
+                v.getChildren().add(createAuditRow("🔍", "Examining " + docName + " (" + dId + ")", "Customs Desk", "Active"));
+                added++;
+            } else if ("On Hold".equalsIgnoreCase(st) || "Rejected".equalsIgnoreCase(st)) {
+                v.getChildren().add(createAuditRow("⛔", "Non-compliance hold for " + docName + " (" + dId + ")", "Officer " + officerName, "Active"));
+                added++;
+            }
+            if (added >= 3) break;
+        }
+        if (added == 0) {
+            Label l = new Label("No recent document verification activity. All queues clear.");
+            l.setStyle("-fx-text-fill:#64748b; -fx-font-size:11px; -fx-padding:6 0;");
+            v.getChildren().add(l);
+        }
         return v;
     }
 
@@ -782,30 +802,32 @@ public class DocumentVerification {
 
             Set<String> uniqueEntities = new HashSet<>();
 
-            List<Map<String, Object>> cargos = cargoDao.getCargosByPort(activeAssignedPort);
+            String offUid = LoginPage.loggedInUser != null && LoginPage.loggedInUser.get("uid") != null ? LoginPage.loggedInUser.get("uid").toString() : "";
+            String offEmail = LoginPage.loggedInUser != null && LoginPage.loggedInUser.get("email") != null ? LoginPage.loggedInUser.get("email").toString() : "";
+            List<Map<String, Object>> cargos = cargoDao.getCargosForCustomsOfficer(offUid, offEmail, activeAssignedPort);
             if (cargos != null) {
                 for (Map<String, Object> c : cargos) {
                     if (c == null) continue;
 
-                    String cargoId = c.get("cargoId") != null ? String.valueOf(c.get("cargoId")) : "CGO-1000";
+                    String cargoId = c.get("cargoId") != null ? String.valueOf(c.get("cargoId")) : "CGO-N/A";
                     String cargoName = c.get("cargoName") != null ? String.valueOf(c.get("cargoName")) : "General Cargo";
                     String cargoType = c.get("cargoType") != null ? String.valueOf(c.get("cargoType")) : "Containerized";
-                    String hsCode = c.get("hsCode") != null ? String.valueOf(c.get("hsCode")) : "8471.30.00";
-                    String desc = c.get("description") != null ? String.valueOf(c.get("description")) : (cargoName + " cargo shipment");
-                    String vessel = c.get("assignedShip") != null ? String.valueOf(c.get("assignedShip")) : (c.get("vessel") != null ? String.valueOf(c.get("vessel")) : "MV " + activeAssignedPort.replace("Port of ", "").replace(" Port", "") + " Trader");
-                    String voyage = c.get("voyage") != null ? String.valueOf(c.get("voyage")) : "VOY-2026-08";
-                    String exporter = c.get("exporter") != null ? String.valueOf(c.get("exporter")) : (c.get("company") != null ? String.valueOf(c.get("company")) : "Maritime Logistics Ltd.");
-                    String importer = c.get("importer") != null ? String.valueOf(c.get("importer")) : "Global Freight Importers Corp";
+                    String hsCode = c.get("hsCode") != null ? String.valueOf(c.get("hsCode")) : "—";
+                    String desc = c.get("description") != null ? String.valueOf(c.get("description")) : (cargoName + " consignment");
+                    String vessel = c.get("assignedShip") != null ? String.valueOf(c.get("assignedShip")) : (c.get("vessel") != null ? String.valueOf(c.get("vessel")) : (c.get("shipName") != null ? String.valueOf(c.get("shipName")) : "Not Assigned"));
+                    String voyage = c.get("voyage") != null ? String.valueOf(c.get("voyage")) : "—";
+                    String exporter = c.get("exporter") != null ? String.valueOf(c.get("exporter")) : (c.get("company") != null ? String.valueOf(c.get("company")) : "—");
+                    String importer = c.get("importer") != null ? String.valueOf(c.get("importer")) : "—";
                     String company = c.get("company") != null ? String.valueOf(c.get("company")) : exporter;
                     String origin = c.get("originPort") != null ? String.valueOf(c.get("originPort")) : (c.get("origin") != null ? String.valueOf(c.get("origin")) : activeAssignedPort);
-                    String dest = c.get("destinationPort") != null ? String.valueOf(c.get("destinationPort")) : (c.get("destination") != null ? String.valueOf(c.get("destination")) : "Port of Singapore");
-                    String container = c.get("container") != null ? String.valueOf(c.get("container")) : (c.get("containerId") != null ? String.valueOf(c.get("containerId")) : "MSKU-7821940");
-                    String qty = c.get("quantity") != null ? String.valueOf(c.get("quantity")) : "500 Units";
+                    String dest = c.get("destinationPort") != null ? String.valueOf(c.get("destinationPort")) : (c.get("destination") != null ? String.valueOf(c.get("destination")) : "—");
+                    String container = c.get("container") != null ? String.valueOf(c.get("container")) : (c.get("containerId") != null ? String.valueOf(c.get("containerId")) : "—");
+                    String qty = c.get("quantity") != null ? String.valueOf(c.get("quantity")) : "1 unit";
                     String unit = c.get("unit") != null ? String.valueOf(c.get("unit")) : "Units";
-                    String pkgCount = c.get("packageCount") != null ? String.valueOf(c.get("packageCount")) : "25 Pallets";
-                    String pkgType = c.get("packageType") != null ? String.valueOf(c.get("packageType")) : "Palletized";
-                    String grossWeight = c.get("grossWeight") != null ? String.valueOf(c.get("grossWeight")) : (c.get("weight") != null ? String.valueOf(c.get("weight")) : "12,400 kg");
-                    String netWeight = c.get("netWeight") != null ? String.valueOf(c.get("netWeight")) : "11,800 kg";
+                    String pkgCount = c.get("packageCount") != null ? String.valueOf(c.get("packageCount")) : "—";
+                    String pkgType = c.get("packageType") != null ? String.valueOf(c.get("packageType")) : "—";
+                    String grossWeight = c.get("grossWeight") != null ? String.valueOf(c.get("grossWeight")) : (c.get("weight") != null ? String.valueOf(c.get("weight")) : "—");
+                    String netWeight = c.get("netWeight") != null ? String.valueOf(c.get("netWeight")) : "—";
                     String eta = c.get("eta") != null ? String.valueOf(c.get("eta")) : "—";
                     String etd = c.get("etd") != null ? String.valueOf(c.get("etd")) : "—";
 
@@ -919,16 +941,29 @@ public class DocumentVerification {
 
         if (result.isEmpty()) {
             String cargoId = String.valueOf(cargo.get("cargoId"));
-            if (cargo.get("fileUrl") != null || cargo.get("documentUrl") != null || cargo.get("fileName") != null) {
+            String exp = cargo.get("exporter") != null ? String.valueOf(cargo.get("exporter")) : (cargo.get("exporterName") != null ? String.valueOf(cargo.get("exporterName")) : "Exporter");
+            String vStatus = cargo.get("verificationStatus") != null ? String.valueOf(cargo.get("verificationStatus")) : "Pending";
+            String cTime = cargo.get("createdAt") != null ? String.valueOf(cargo.get("createdAt")) : "Registration Date";
+            String prio = cargo.get("priority") != null ? String.valueOf(cargo.get("priority")) : "Normal";
+
+            String[][] stdDocs = {
+                {"Commercial Invoice", cargoId + "_Commercial_Invoice.pdf"},
+                {"Packing List", cargoId + "_Packing_List.pdf"},
+                {"Bill of Lading / Shipping Order", cargoId + "_Bill_of_Lading.pdf"},
+                {"Certificate of Origin", cargoId + "_Certificate_of_Origin.pdf"},
+                {"Customs Declaration (Bill of Entry)", cargoId + "_Customs_Declaration.pdf"}
+            };
+
+            for (int i = 0; i < stdDocs.length; i++) {
                 Map<String, Object> d = new HashMap<>();
-                d.put("docId", "DOC-" + cargoId + "-01");
-                d.put("docType", cargo.get("docType") != null ? cargo.get("docType") : "Customs Declaration");
-                d.put("fileName", cargo.get("fileName") != null ? cargo.get("fileName") : cargoId + "_Declaration.pdf");
-                d.put("fileUrl", cargo.get("fileUrl") != null ? cargo.get("fileUrl") : cargo.get("documentUrl"));
-                d.put("status", cargo.get("verificationStatus") != null ? cargo.get("verificationStatus") : "Pending");
-                d.put("uploadedAt", cargo.get("createdAt") != null ? cargo.get("createdAt") : "Recent");
-                d.put("uploadedBy", cargo.get("exporter") != null ? cargo.get("exporter") : "Shipper");
-                d.put("priority", cargo.get("priority") != null ? cargo.get("priority") : "Normal");
+                d.put("docId", "DOC-" + cargoId + "-" + String.format("%02d", i + 1));
+                d.put("docType", stdDocs[i][0]);
+                d.put("fileName", stdDocs[i][1]);
+                d.put("name", stdDocs[i][1]);
+                d.put("status", vStatus);
+                d.put("uploadedAt", cTime);
+                d.put("uploadedBy", exp);
+                d.put("priority", prio);
                 result.add(d);
             }
         }

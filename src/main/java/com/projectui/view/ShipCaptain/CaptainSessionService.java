@@ -144,28 +144,37 @@ public class CaptainSessionService {
      */
     public static List<Map<String, Object>> getAssignedCargos() {
         Ship ship = getAssignedShip();
-        if (ship == null) return new ArrayList<>();
-
-        String shipName = ship.getShipName() != null ? ship.getShipName().trim().toLowerCase() : "";
-        String shipId = ship.getShipId() != null ? ship.getShipId().trim().toLowerCase() : "";
-        String shipImo = ship.getImoNumber() != null ? ship.getImoNumber().trim().toLowerCase() : "";
+        Map<String, Object> u = LoginPage.loggedInUser;
+        String capUid = (u != null && u.get("uid") != null) ? u.get("uid").toString().trim().toLowerCase() : "";
+        String capEmail = (u != null && u.get("email") != null) ? u.get("email").toString().trim().toLowerCase() : "";
 
         List<Map<String, Object>> allCargos = cargoDao.getAllCargos();
         List<Map<String, Object>> matched = new ArrayList<>();
 
+        String shipName = (ship != null && ship.getShipName() != null) ? ship.getShipName().trim().toLowerCase() : "";
+        String shipId = (ship != null && ship.getShipId() != null) ? ship.getShipId().trim().toLowerCase() : "";
+        String shipImo = (ship != null && ship.getImoNumber() != null) ? ship.getImoNumber().trim().toLowerCase() : "";
+
         for (Map<String, Object> c : allCargos) {
             if (c == null) continue;
+            String cAssignedShipId = c.get("assignedShipId") != null ? c.get("assignedShipId").toString().trim().toLowerCase() : "";
             String cShip = c.get("assignedShip") != null ? c.get("assignedShip").toString().trim().toLowerCase() : "";
             if (cShip.isBlank() && c.get("shipName") != null) cShip = c.get("shipName").toString().trim().toLowerCase();
             if (cShip.isBlank() && c.get("vessel") != null) cShip = c.get("vessel").toString().trim().toLowerCase();
             if (cShip.isBlank() && c.get("shipId") != null) cShip = c.get("shipId").toString().trim().toLowerCase();
 
-            boolean isMatch = (!shipName.isBlank() && cShip.equals(shipName))
-                    || (!shipId.isBlank() && cShip.equals(shipId))
-                    || (!shipImo.isBlank() && cShip.equals(shipImo));
+            String cCapUid = c.get("assignedCaptainUid") != null ? c.get("assignedCaptainUid").toString().trim().toLowerCase() : "";
+            String cCapEmail = c.get("assignedCaptainEmail") != null ? c.get("assignedCaptainEmail").toString().trim().toLowerCase() : "";
+
+            boolean isMatch = (!shipId.isBlank() && !cAssignedShipId.isBlank() && cAssignedShipId.equals(shipId))
+                    || (!shipName.isBlank() && !cShip.isBlank() && (cShip.equals(shipName) || cShip.contains(shipName) || shipName.contains(cShip)))
+                    || (!shipId.isBlank() && !cShip.isBlank() && cShip.equals(shipId))
+                    || (!shipImo.isBlank() && !cShip.isBlank() && cShip.equals(shipImo))
+                    || (!capUid.isBlank() && !cCapUid.isBlank() && cCapUid.equals(capUid))
+                    || (!capEmail.isBlank() && !cCapEmail.isBlank() && cCapEmail.equals(capEmail));
 
             // If cargo has not been strictly assigned to another ship, check port route match
-            if (!isMatch && cShip.isBlank()) {
+            if (!isMatch && cShip.isBlank() && ship != null) {
                 String cOrigin = c.get("originPort") != null ? c.get("originPort").toString().toLowerCase() : "";
                 String cDest = c.get("destinationPort") != null ? c.get("destinationPort").toString().toLowerCase() : "";
                 String sArrival = ship.getArrival() != null ? ship.getArrival().toLowerCase() : "";
@@ -189,8 +198,6 @@ public class CaptainSessionService {
      */
     public static List<Map<String, Object>> getAssignedContainers() {
         Ship ship = getAssignedShip();
-        if (ship == null) return new ArrayList<>();
-
         List<Map<String, Object>> assignedCargos = getAssignedCargos();
         List<String> matchedCargoIds = new ArrayList<>();
         for (Map<String, Object> c : assignedCargos) {
@@ -200,14 +207,14 @@ public class CaptainSessionService {
         List<Map<String, Object>> allBookings = containerDao.getAllBookings();
         List<Map<String, Object>> matched = new ArrayList<>();
 
-        String shipName = ship.getShipName() != null ? ship.getShipName().trim().toLowerCase() : "";
+        String shipName = (ship != null && ship.getShipName() != null) ? ship.getShipName().trim().toLowerCase() : "";
 
         for (Map<String, Object> b : allBookings) {
             if (b == null) continue;
             String bCargoId = b.get("cargoId") != null ? b.get("cargoId").toString().trim().toLowerCase() : "";
             String bShip = b.get("assignedShip") != null ? b.get("assignedShip").toString().trim().toLowerCase() : "";
 
-            if ((!bCargoId.isBlank() && matchedCargoIds.contains(bCargoId)) || (!bShip.isBlank() && bShip.equals(shipName))) {
+            if ((!bCargoId.isBlank() && matchedCargoIds.contains(bCargoId)) || (!shipName.isBlank() && !bShip.isBlank() && bShip.equals(shipName))) {
                 matched.add(b);
             }
         }
@@ -267,24 +274,13 @@ public class CaptainSessionService {
         if (cargoId != null && !cargoId.isBlank()) {
             Map<String, Object> cargo = cargoDao.getCargo(cargoId);
             if (cargo != null) {
-                cargo.put("status", loadingStatus);
                 cargo.put("loadingStatus", loadingStatus);
-                cargo.put("assignedShip", ship.getShipName());
                 cargo.put("lastVerifiedBy", getCaptainName());
                 cargo.put("lastVerifiedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")));
                 if (remarks != null && !remarks.isBlank()) {
                     cargo.put("loadingRemarks", remarks);
                 }
-                cargoDao.saveCargo(
-                        cargoId,
-                        cargo.get("cargoName") != null ? cargo.get("cargoName").toString() : "",
-                        cargo.get("cargoType") != null ? cargo.get("cargoType").toString() : "",
-                        cargo.get("quantity") != null ? cargo.get("quantity").toString() : "",
-                        cargo.get("weight") != null ? cargo.get("weight").toString() : "",
-                        cargo.get("originPort") != null ? cargo.get("originPort").toString() : "",
-                        cargo.get("destinationPort") != null ? cargo.get("destinationPort").toString() : "",
-                        loadingStatus
-                );
+                cargoDao.updateCargoStatus(cargoId, loadingStatus);
             }
         }
 
@@ -381,9 +377,20 @@ public class CaptainSessionService {
 
     public static Map<String, Object> getLatestSosRecord() {
         if (latestSosRecord == null) {
+            String myShip = "";
+            String myUid = getCaptainUid();
+            Ship s = getAssignedShip();
+            if (s != null && s.getShipName() != null) myShip = s.getShipName().trim().toLowerCase();
+
             List<com.projectui.service.SosEmergencyService.SosAlert> list = com.projectui.service.SosEmergencyService.getAllAlerts();
-            if (!list.isEmpty()) {
-                latestSosRecord = list.get(0).toMap();
+            for (com.projectui.service.SosEmergencyService.SosAlert a : list) {
+                if (a == null) continue;
+                String capUid = a.getCaptainUid() != null ? a.getCaptainUid().trim().toLowerCase() : "";
+                String vName = a.getVesselName() != null ? a.getVesselName().trim().toLowerCase() : "";
+                if ((!myUid.isEmpty() && capUid.equalsIgnoreCase(myUid)) || (!myShip.isEmpty() && vName.contains(myShip))) {
+                    latestSosRecord = a.toMap();
+                    break;
+                }
             }
         }
         return latestSosRecord;
@@ -394,53 +401,7 @@ public class CaptainSessionService {
      */
     public static List<Map<String, String>> getDocuments() {
         String key = getCaptainEmail().toLowerCase();
-        return captainDocuments.computeIfAbsent(key, k -> {
-            List<Map<String, String>> list = new ArrayList<>();
-            Ship s = getAssignedShip();
-            String vName = s != null ? s.getShipName() : "AFRAPEARL II";
-            String voyId = "VOY-" + (s != null && s.getShipId() != null ? s.getShipId() : "2026") + "-E";
-
-            Map<String, String> d1 = new HashMap<>();
-            d1.put("docId", "DOC-MNF-1092");
-            d1.put("name", "Cargo_Manifest_Voyage_1092.pdf");
-            d1.put("type", "Cargo Manifest");
-            d1.put("size", "2.4 MB");
-            d1.put("date", LocalDateTime.now().minusHours(4).format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")));
-            d1.put("status", "Verified");
-            d1.put("vessel", vName);
-            d1.put("voyage", voyId);
-            d1.put("uploadedBy", getCaptainName());
-            d1.put("url", "https://res.cloudinary.com/snmxmesm/raw/upload/docktech_port_documents/sample_document.pdf");
-            list.add(d1);
-
-            Map<String, String> d2 = new HashMap<>();
-            d2.put("docId", "DOC-CLR-8841");
-            d2.put("name", "Port_Clearance_Certificate.pdf");
-            d2.put("type", "Port Clearance");
-            d2.put("size", "1.1 MB");
-            d2.put("date", LocalDateTime.now().minusDays(1).format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")));
-            d2.put("status", "Approved");
-            d2.put("vessel", vName);
-            d2.put("voyage", voyId);
-            d2.put("uploadedBy", "Harbor Master Desk");
-            d2.put("url", "https://res.cloudinary.com/snmxmesm/raw/upload/docktech_port_documents/sample_document.pdf");
-            list.add(d2);
-
-            Map<String, String> d3 = new HashMap<>();
-            d3.put("docId", "DOC-BOL-5532");
-            d3.put("name", "Bill_Of_Lading_Official.pdf");
-            d3.put("type", "Bill of Lading");
-            d3.put("size", "1.8 MB");
-            d3.put("date", LocalDateTime.now().minusDays(2).format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")));
-            d3.put("status", "Pending Review");
-            d3.put("vessel", vName);
-            d3.put("voyage", voyId);
-            d3.put("uploadedBy", getCaptainName());
-            d3.put("url", "https://res.cloudinary.com/snmxmesm/raw/upload/docktech_port_documents/sample_document.pdf");
-            list.add(d3);
-
-            return list;
-        });
+        return captainDocuments.computeIfAbsent(key, k -> new ArrayList<>());
     }
 
     public static void addDocument(String docId, String name, String type, String size, String status, String url, String filePath) {

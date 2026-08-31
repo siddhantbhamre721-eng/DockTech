@@ -533,18 +533,15 @@ public class ReportsPage {
 
         double totalRev = 0.0;
         int paidCount = 0;
-        for (Map<String, Object> c : portCargos) {
-            String st = getString(c, "status", "");
-            if ("In Transit".equalsIgnoreCase(st) || "Approved".equalsIgnoreCase(st)) {
-                totalRev += 125000.0;
-                paidCount++;
-            }
-        }
-        for (Map<String, Object> b : portContainers) {
-            String st = getString(b, "status", "");
-            if ("Allocated".equalsIgnoreCase(st)) {
-                totalRev += 145000.0;
-                paidCount++;
+        List<Map<String, Object>> allPayments = new com.projectui.dao.PaymentDao().getAllPayments();
+        for (Map<String, Object> p : allPayments) {
+            if (isAssociatedWithPort(p, activeViewingPort)) {
+                String st = getString(p, "paymentStatus", "Pending");
+                double amt = getDouble(p, "amount", 0.0);
+                if ("Paid".equalsIgnoreCase(st) || "Settled".equalsIgnoreCase(st) || "PAID".equalsIgnoreCase(st) || st.toUpperCase().contains("PAID")) {
+                    totalRev += amt;
+                    paidCount++;
+                }
             }
         }
 
@@ -677,19 +674,23 @@ public class ReportsPage {
 
         int paid = 0;
         int pending = 0;
+        int failed = 0;
 
-        for (Map<String, Object> c : portCargos) {
-            String st = getString(c, "status", "");
-            if ("In Transit".equalsIgnoreCase(st) || "Approved".equalsIgnoreCase(st)) paid++;
-            else pending++;
-        }
-        for (Map<String, Object> b : portContainers) {
-            String st = getString(b, "status", "");
-            if ("Allocated".equalsIgnoreCase(st)) paid++;
-            else pending++;
+        List<Map<String, Object>> allPayments = new com.projectui.dao.PaymentDao().getAllPayments();
+        for (Map<String, Object> p : allPayments) {
+            if (isAssociatedWithPort(p, activeViewingPort)) {
+                String st = getString(p, "paymentStatus", "Pending");
+                if ("Paid".equalsIgnoreCase(st) || "Settled".equalsIgnoreCase(st) || "PAID".equalsIgnoreCase(st) || st.toUpperCase().contains("PAID")) {
+                    paid++;
+                } else if ("Failed".equalsIgnoreCase(st) || "Overdue".equalsIgnoreCase(st) || st.toUpperCase().contains("FAIL")) {
+                    failed++;
+                } else {
+                    pending++;
+                }
+            }
         }
 
-        if (portCargos.isEmpty() && portContainers.isEmpty()) {
+        if (paid == 0 && pending == 0 && failed == 0) {
             paymentChartContainer.getChildren().add(createEmptyChartPlaceholder("No payment transactions recorded for " + activeViewingPort));
             return;
         }
@@ -919,27 +920,7 @@ public class ReportsPage {
     }
 
     private boolean isAssociatedWithPort(Map<String, Object> record, String portName) {
-        if (record == null || portName == null) return false;
-        String p = portName.toLowerCase();
-        String dest = getString(record, "destinationPort", "").toLowerCase();
-        String orig = getString(record, "originPort", "").toLowerCase();
-        String pref = getString(record, "preferredPort", "").toLowerCase();
-        String curr = getString(record, "currentPort", "").toLowerCase();
-
-        if (dest.contains(p) || orig.contains(p) || pref.contains(p) || curr.contains(p)) return true;
-
-        if (p.contains("cochin") || p.contains("kochi")) {
-            return dest.contains("cochin") || orig.contains("cochin") || pref.contains("cochin") || curr.contains("cochin");
-        } else if (p.contains("mumbai")) {
-            return dest.contains("mumbai") || orig.contains("mumbai") || pref.contains("mumbai") || dest.contains("jnpt");
-        } else if (p.contains("chennai")) {
-            return dest.contains("chennai") || orig.contains("chennai") || pref.contains("chennai");
-        } else if (p.contains("vizag")) {
-            return dest.contains("vizag") || orig.contains("vizag");
-        } else if (p.contains("kolkata")) {
-            return dest.contains("kolkata") || orig.contains("kolkata");
-        }
-        return true;
+        return com.projectui.view.portauthority.PaymentPage.isAssociatedWithPort(record, portName);
     }
 
     private String formatShortCurrency(double amt) {
@@ -957,6 +938,15 @@ public class ReportsPage {
         if (map == null || !map.containsKey(key) || map.get(key) == null) return fallback;
         String val = map.get(key).toString().trim();
         return val.isEmpty() ? fallback : val;
+    }
+
+    private double getDouble(Map<String, Object> map, String key, double fallback) {
+        if (map == null || !map.containsKey(key) || map.get(key) == null) return fallback;
+        try {
+            return Double.parseDouble(map.get(key).toString().trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 
     private String formatIsoDate(String raw) {

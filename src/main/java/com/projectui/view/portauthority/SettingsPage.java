@@ -863,4 +863,8 @@ public class SettingsPage {
     public VBox getContent() {
         return root;
     }
+
+    public VBox getRoot() {
+        return root;
+    }
 }

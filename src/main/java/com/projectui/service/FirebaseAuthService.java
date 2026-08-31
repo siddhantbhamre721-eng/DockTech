@@ -9,6 +9,7 @@ import java.util.concurrent.ForkJoinPool;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.UserRecord;
+import com.projectui.config.FirebaseConfig;
 
 /**
  * Firebase Auth integration service supporting both Firebase Identity Toolkit API
@@ -16,9 +17,7 @@ import com.google.firebase.auth.UserRecord;
  */
 public class FirebaseAuthService {
 
-    private static final String API_KEY = System.getenv("FIREBASE_API_KEY") != null && !System.getenv("FIREBASE_API_KEY").isBlank()
-            ? System.getenv("FIREBASE_API_KEY")
-            : "AIzaSyDO3l4YIlfgO9qvU2XB54k2pBvayr_ID1U";
+    private static final String API_KEY = FirebaseConfig.API_KEY;
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
@@ -30,88 +29,40 @@ public class FirebaseAuthService {
         CompletableFuture<AuthUser> future = new CompletableFuture<>();
         ForkJoinPool.commonPool().execute(() -> {
             try {
-                // Try Firebase Identity Toolkit REST API
+                if (email == null || email.isBlank() || password == null || password.isBlank()) {
+                    future.completeExceptionally(new IllegalArgumentException("Invalid email or password."));
+                    return;
+                }
+
+                String cleanEmail = email.trim();
+
+                // Strictly authenticate using Firebase Identity Toolkit REST API
                 String jsonBody = String.format("{\"email\":\"%s\",\"password\":\"%s\",\"returnSecureToken\":true}",
-                        escapeJson(email), escapeJson(password));
+                        escapeJson(cleanEmail), escapeJson(password));
 
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + API_KEY))
-                        .header("Content-Type", "application/json")
-                        .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                        .header("Content-Type", "application/json; charset=UTF-8")
+                        .POST(HttpRequest.BodyPublishers.ofString(jsonBody, java.nio.charset.StandardCharsets.UTF_8))
                         .build();
 
-                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(java.nio.charset.StandardCharsets.UTF_8));
 
                 if (response.statusCode() == 200) {
                     String respBody = response.body();
                     String uid = extractJsonField(respBody, "localId");
                     String idToken = extractJsonField(respBody, "idToken");
-                    System.out.println("[Firebase Auth] Identity Toolkit sign-in successful for: " + email);
-                    future.complete(new AuthUser(uid, email, email, idToken));
-                    return;
+                    System.out.println("[Firebase Auth] Identity Toolkit sign-in successful for: " + cleanEmail);
+                    future.complete(new AuthUser(uid, cleanEmail, cleanEmail, idToken));
                 } else {
                     String respBody = response.body();
-                    System.err.println("[Firebase Auth Sign-In Warning] HTTP " + response.statusCode() + ": " + respBody);
-
-                    // 1. Try Firebase Admin SDK lookup by email
-                    try {
-                        UserRecord userRecord = FirebaseAuth.getInstance().getUserByEmail(email);
-                        if (userRecord != null) {
-                            System.out.println("[Firebase Auth Fallback] Authenticated user via Admin SDK for: " + email);
-                            future.complete(new AuthUser(userRecord.getUid(), email, userRecord.getDisplayName() != null ? userRecord.getDisplayName() : email, "token_" + userRecord.getUid()));
-                            return;
-                        }
-                    } catch (Throwable ignored) {}
-
-                    // 2. Try UserDao profile lookup for valid provisioned/approved accounts
-                    try {
-                        com.projectui.dao.UserDao userDao = new com.projectui.dao.UserDao();
-                        java.util.Map<String, Object> profile = userDao.getUserProfile("usr_" + Math.abs(email.toLowerCase().hashCode()), email).get();
-                        if (profile != null && profile.get("email") != null && password != null && !password.isBlank()) {
-                            Object storedPass = profile.get("tempPassword") != null ? profile.get("tempPassword") : profile.get("password");
-                            if (storedPass == null || storedPass.toString().isBlank() || storedPass.toString().equals(password) || storedPass.toString().equalsIgnoreCase(password)) {
-                                String uid = profile.get("uid") != null ? profile.get("uid").toString() : "usr_" + Math.abs(email.toLowerCase().hashCode());
-                                String name = profile.get("name") != null ? profile.get("name").toString() : email;
-                                System.out.println("[Firebase Auth Fallback] Authenticated user via stored profile for: " + email + " (UID: " + uid + ")");
-                                future.complete(new AuthUser(uid, email, name, "token_" + uid));
-                                return;
-                            }
-                        }
-                    } catch (Throwable ignored) {}
-
+                    System.err.println("[Firebase Auth Sign-In Rejected] HTTP " + response.statusCode() + ": " + respBody);
                     String errorMsg = parseFirebaseErrorMessage(respBody);
                     future.completeExceptionally(new IllegalArgumentException(errorMsg));
-                    return;
                 }
             } catch (Exception ex) {
-                System.err.println("[Firebase Auth Sign-In Exception] Class: " + ex.getClass().getName() + " | Message: " + ex.getMessage());
-
-                // Admin SDK & UserDao fallback
-                try {
-                    UserRecord userRecord = FirebaseAuth.getInstance().getUserByEmail(email);
-                    if (userRecord != null) {
-                        System.out.println("[Firebase Auth Fallback] Authenticated user via Admin SDK after exception for: " + email);
-                        future.complete(new AuthUser(userRecord.getUid(), email, userRecord.getDisplayName() != null ? userRecord.getDisplayName() : email, "token_" + userRecord.getUid()));
-                        return;
-                    }
-                } catch (Throwable ignored) {}
-
-                try {
-                    com.projectui.dao.UserDao userDao = new com.projectui.dao.UserDao();
-                    java.util.Map<String, Object> profile = userDao.getUserProfile("usr_" + Math.abs(email.toLowerCase().hashCode()), email).get();
-                    if (profile != null && profile.get("email") != null && password != null && !password.isBlank()) {
-                        Object storedPass = profile.get("tempPassword") != null ? profile.get("tempPassword") : profile.get("password");
-                        if (storedPass == null || storedPass.toString().isBlank() || storedPass.toString().equals(password) || storedPass.toString().equalsIgnoreCase(password)) {
-                            String uid = profile.get("uid") != null ? profile.get("uid").toString() : "usr_" + Math.abs(email.toLowerCase().hashCode());
-                            String name = profile.get("name") != null ? profile.get("name").toString() : email;
-                            System.out.println("[Firebase Auth Fallback] Authenticated user via stored profile after exception for: " + email);
-                            future.complete(new AuthUser(uid, email, name, "token_" + uid));
-                            return;
-                        }
-                    }
-                } catch (Throwable ignored) {}
-
-                future.completeExceptionally(ex);
+                System.err.println("[Firebase Auth Sign-In Exception] " + ex.getMessage());
+                future.completeExceptionally(new IllegalArgumentException("Invalid email or password."));
             }
         });
         return future;
@@ -125,33 +76,20 @@ public class FirebaseAuthService {
         CompletableFuture<AuthUser> future = new CompletableFuture<>();
         ForkJoinPool.commonPool().execute(() -> {
             try {
-                // 1. First check if an account with this email already exists in Firebase Auth
-                try {
-                    UserRecord existing = FirebaseAuth.getInstance().getUserByEmail(email);
-                    if (existing != null) {
-                        System.out.println("[Firebase Auth] Reusing existing user record for: " + email + " (UID: " + existing.getUid() + ")");
-                        future.complete(new AuthUser(existing.getUid(), email, displayName != null && !displayName.isBlank() ? displayName : (existing.getDisplayName() != null ? existing.getDisplayName() : email), "token_" + existing.getUid()));
-                        return;
-                    }
-                } catch (Throwable ignored) {}
-
-                // 2. Try Admin SDK createUser if initialized
-                try {
-                    UserRecord.CreateRequest createReq = new UserRecord.CreateRequest()
-                            .setEmail(email)
-                            .setPassword(password)
-                            .setDisplayName(displayName);
-                    UserRecord record = FirebaseAuth.getInstance().createUser(createReq);
-                    System.out.println("[Firebase Auth] Created Auth user with UID: " + record.getUid());
-                    future.complete(new AuthUser(record.getUid(), email, displayName, "token_" + record.getUid()));
+                if (email == null || email.isBlank()) {
+                    future.completeExceptionally(new IllegalArgumentException("Email address cannot be empty."));
                     return;
-                } catch (Throwable ex) {
-                    System.err.println("[Firebase Auth Admin SDK createUser notice] " + ex.getMessage());
+                }
+                if (password == null || password.isBlank() || password.length() < 6) {
+                    future.completeExceptionally(new IllegalArgumentException("Password must be at least 6 characters."));
+                    return;
                 }
 
-                // 3. Use Firebase Identity Toolkit REST API
+                String cleanEmail = email.trim().toLowerCase();
+
+                // Create user in Firebase Authentication via Identity Toolkit REST API
                 String jsonBody = String.format("{\"email\":\"%s\",\"password\":\"%s\",\"returnSecureToken\":true}",
-                        escapeJson(email), escapeJson(password));
+                        escapeJson(cleanEmail), escapeJson(password));
 
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create("https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=" + API_KEY))
@@ -165,41 +103,21 @@ public class FirebaseAuthService {
                     String respBody = response.body();
                     String uid = extractJsonField(respBody, "localId");
                     String idToken = extractJsonField(respBody, "idToken");
-                    System.out.println("[Firebase Auth] Identity Toolkit sign-up created UID: " + uid);
-                    future.complete(new AuthUser(uid, email, displayName, idToken));
+                    System.out.println("[Firebase Auth] Identity Toolkit account created successfully. UID: " + uid);
+                    future.complete(new AuthUser(uid, cleanEmail, displayName, idToken));
                 } else {
                     String respBody = response.body();
-                    System.err.println("[Firebase Auth CreateAccount Failure] HTTP " + response.statusCode() + ": " + respBody);
+                    System.err.println("[Firebase Auth CreateAccount Rejected] HTTP " + response.statusCode() + ": " + respBody);
                     if (respBody != null && respBody.contains("EMAIL_EXISTS")) {
-                        try {
-                            UserRecord exUser = FirebaseAuth.getInstance().getUserByEmail(email);
-                            if (exUser != null) {
-                                System.out.println("[Firebase Auth] Found existing user record with UID: " + exUser.getUid());
-                                future.complete(new AuthUser(exUser.getUid(), email, displayName != null && !displayName.isBlank() ? displayName : (exUser.getDisplayName() != null ? exUser.getDisplayName() : email), "token_" + exUser.getUid()));
-                                return;
-                            }
-                        } catch (Throwable ignored) {}
-
-                        String existingUid = com.projectui.dao.UserDao.getUidForEmail(email);
-                        if (existingUid != null && !existingUid.isBlank()) {
-                            future.complete(new AuthUser(existingUid, email, displayName, "token_" + existingUid));
-                            return;
-                        }
+                        future.completeExceptionally(new IllegalArgumentException("An account with this email already exists."));
+                    } else {
+                        String errorMsg = parseFirebaseErrorMessage(respBody);
+                        future.completeExceptionally(new IllegalArgumentException(errorMsg));
                     }
-                    String errorMsg = parseFirebaseErrorMessage(respBody);
-                    future.completeExceptionally(new IllegalArgumentException(errorMsg));
                 }
             } catch (Exception ex) {
-                System.err.println("[Firebase Auth CreateAccount Exception] Class: " + ex.getClass().getName() + " | Message: " + ex.getMessage());
-                try {
-                    UserRecord exUser = FirebaseAuth.getInstance().getUserByEmail(email);
-                    if (exUser != null) {
-                        future.complete(new AuthUser(exUser.getUid(), email, displayName, "token_" + exUser.getUid()));
-                        return;
-                    }
-                } catch (Throwable ignored) {}
-                String uid = "usr_" + Math.abs(email.toLowerCase().hashCode());
-                future.complete(new AuthUser(uid, email, displayName, "token_" + uid));
+                System.err.println("[Firebase Auth CreateAccount Exception] " + ex.getMessage());
+                future.completeExceptionally(ex);
             }
         });
         return future;
@@ -230,7 +148,7 @@ public class FirebaseAuthService {
                 if (response.statusCode() == 200) {
                     System.out.println("[EMAIL] Password setup link generation: SUCCESS (Firebase Identity Toolkit OOB)");
                     String oobCode = extractJsonField(response.body(), "oobCode");
-                    String link = oobCode != null ? "https://docktech-auth.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=" + oobCode : "https://docktech-auth.firebaseapp.com/__/auth/action?mode=resetPassword";
+                    String link = oobCode != null ? "https://" + FirebaseConfig.AUTH_DOMAIN + "/__/auth/action?mode=resetPassword&oobCode=" + oobCode : "https://" + FirebaseConfig.AUTH_DOMAIN + "/__/auth/action?mode=resetPassword";
                     future.complete(link);
                 } else {
                     System.err.println("[EMAIL] Password setup link generation: FAILED (HTTP " + response.statusCode() + ": " + response.body() + ")");
@@ -293,7 +211,7 @@ public class FirebaseAuthService {
             return "Invalid email or password.";
         }
         if (json.contains("EMAIL_EXISTS")) {
-            return "The email address is already registered.";
+            return "An account with this email already exists.";
         }
         if (json.contains("USER_DISABLED")) {
             return "This user account has been disabled.";
@@ -327,7 +245,28 @@ public class FirebaseAuthService {
 
     private static String escapeJson(String raw) {
         if (raw == null) return "";
-        return raw.replace("\\", "\\\\").replace("\"", "\\\"");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            switch (c) {
+                case '"' -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                case '\b' -> sb.append("\\b");
+                case '\f' -> sb.append("\\f");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                default -> {
+                    if (c < ' ') {
+                        String t = "000" + Integer.toHexString(c);
+                        sb.append("\\u").append(t.substring(t.length() - 4));
+                    } else {
+                        sb.append(c);
+                    }
+                }
+            }
+        }
+        return sb.toString();
     }
 
     public static class AuthUser {

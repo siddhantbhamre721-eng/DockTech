@@ -168,10 +168,12 @@ public class TrackShipment {
 
     private void refreshData() {
         Platform.runLater(() -> {
-            String loggedUser = getLoggedImporterFilter();
-            List<Map<String, Object>> cargos = cargoDao.getShipmentsForImporter(loggedUser);
-            if (cargos == null || cargos.isEmpty()) {
-                cargos = cargoDao.getAllCargos();
+            List<Map<String, Object>> cargos;
+            if (LoginPage.loggedInUser != null && !LoginPage.loggedInUser.isEmpty()) {
+                cargos = cargoDao.getShipmentsForImporter(LoginPage.loggedInUser);
+            } else {
+                String loggedUser = getLoggedImporterFilter();
+                cargos = cargoDao.getShipmentsForImporter(loggedUser);
             }
 
             userShipments.clear();
@@ -179,8 +181,8 @@ public class TrackShipment {
                 userShipments.addAll(cargos);
             }
 
-            if ((selectedShipment == null || !userShipments.contains(selectedShipment)) && !userShipments.isEmpty()) {
-                selectedShipment = userShipments.get(0);
+            if (selectedShipment == null || !userShipments.contains(selectedShipment)) {
+                selectedShipment = !userShipments.isEmpty() ? userShipments.get(0) : null;
             }
 
             renderShipmentList();
@@ -221,7 +223,9 @@ public class TrackShipment {
             emp.setPadding(new Insets(30));
             Label empIcon = new Label("📦");
             empIcon.setStyle("-fx-font-size:28px; -fx-text-fill:#94a3b8;");
-            Label empMsg = new Label("No shipments assigned to your account.");
+            Label empMsg = new Label(userShipments.isEmpty()
+                    ? "No incoming shipments assigned to your account yet."
+                    : "No matching shipments found.");
             empMsg.setStyle("-fx-font-size:13px; -fx-font-weight:bold; -fx-text-fill:#64748b;");
             emp.getChildren().addAll(empIcon, empMsg);
             shipmentSelectionList.getChildren().add(emp);
@@ -229,9 +233,9 @@ public class TrackShipment {
         }
 
         for (Map<String, Object> c : filtered) {
-            String cId = str(c.get("cargoId"), "CGO-1024");
-            String cName = str(c.get("cargoName"), "Industrial Freight");
-            String vName = str(c.get("assignedVessel"), str(c.get("vesselName"), "AFRAPEARL II"));
+            String cId = str(c.get("cargoId"), "CGO-N/A");
+            String cName = str(c.get("cargoName"), "Consignment");
+            String vName = str(c.get("assignedVessel"), str(c.get("vesselName"), str(c.get("assignedShip"), "Not Assigned")));
             String status = str(c.get("status"), "In Transit");
 
             HBox item = new HBox(10);
@@ -283,16 +287,17 @@ public class TrackShipment {
         }
 
         Map<String, Object> c = selectedShipment;
-        String cId = str(c.get("cargoId"), "CGO-1024");
-        String cName = str(c.get("cargoName"), "Industrial Freight");
+        String cId = str(c.get("cargoId"), "CGO-N/A");
+        String cName = str(c.get("cargoName"), "Consignment");
         String cType = str(c.get("cargoType"), "General Cargo");
         String qty = str(c.get("quantity"), "1") + " Units";
-        String wt = str(c.get("weight"), "1000") + " kg";
-        String exp = str(c.get("exporterName"), str(c.get("exporter"), "Nayara Energy Ltd."));
+        String rawWt = str(c.get("weight"), "—");
+        String wt = rawWt.equals("—") || rawWt.contains("kg") ? rawWt : (rawWt + " kg");
+        String exp = str(c.get("exporterName"), str(c.get("exporter"), "—"));
         String imp = getLoggedImporterName();
-        String orig = str(c.get("originPort"), "Port of Mumbai");
-        String dest = str(c.get("destinationPort"), "Cochin Port");
-        String vName = str(c.get("assignedVessel"), str(c.get("vesselName"), "AFRAPEARL II"));
+        String orig = str(c.get("originPort"), "—");
+        String dest = str(c.get("destinationPort"), "—");
+        String vName = str(c.get("assignedVessel"), str(c.get("vesselName"), str(c.get("assignedShip"), "Not Assigned")));
         String voyage = "VOY-" + Math.abs(cId.hashCode() % 900 + 100);
         String berth = "Berth B-" + (Math.abs(cId.hashCode() % 5) + 1);
 
@@ -493,8 +498,10 @@ public class TrackShipment {
             if (f != null && !f.toString().isBlank()) return f.toString().trim();
             Object d = LoginPage.loggedInUser.get("displayName");
             if (d != null && !d.toString().isBlank()) return d.toString().trim();
+            Object c = LoginPage.loggedInUser.get("company");
+            if (c != null && !c.toString().isBlank()) return c.toString().trim();
         }
-        return "Harsh Patel";
+        return "Importer";
     }
 
     private String getLoggedImporterFilter() {
@@ -505,8 +512,10 @@ public class TrackShipment {
             if (e != null && !e.toString().isBlank()) return e.toString().trim();
             Object n = LoginPage.loggedInUser.get("name");
             if (n != null && !n.toString().isBlank()) return n.toString().trim();
+            Object u = LoginPage.loggedInUser.get("uid");
+            if (u != null && !u.toString().isBlank()) return u.toString().trim();
         }
-        return "Harsh";
+        return "";
     }
 
     private VBox createSidebar(Runnable back) {

@@ -4,6 +4,13 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import com.projectui.view.login.DashboardLayoutHelper;
+import com.projectui.view.portauthority.DashboardPage;
+import com.projectui.view.portauthority.ShipManagementPage;
+import com.projectui.view.portauthority.CargoManagementPage;
+import com.projectui.view.portauthority.ContainerManagementPage;
+import com.projectui.view.portauthority.PaymentPage;
+import com.projectui.view.portauthority.ReportsPage;
+import com.projectui.view.portauthority.SettingsPage;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;

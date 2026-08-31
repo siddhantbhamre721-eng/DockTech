@@ -717,9 +717,28 @@ public class CargoInspection {
 
     private VBox createActivityRows() {
         VBox v = new VBox(6);
-        v.getChildren().add(createAuditRow("✓", "Inspection Passed for Container MSKU-7821940", "Officer " + officerName, "15 mins ago"));
-        v.getChildren().add(createAuditRow("🔍", "Physical Seal Audit initiated for Cargo CGO-1004", "Customs Inspection Bay", "30 mins ago"));
-        v.getChildren().add(createAuditRow("📥", "Cargo CGO-1002 queued following Document Certification", "Document Desk", "1 hr ago"));
+        int added = 0;
+        for (Map<String, Object> c : activeCargoList) {
+            if (c == null) continue;
+            String cId = c.get("cargoId") != null ? c.get("cargoId").toString() : "CGO";
+            String st = c.get("status") != null ? c.get("status").toString() : "Pending";
+            if ("Passed".equalsIgnoreCase(st) || "Approved".equalsIgnoreCase(st) || "Cleared".equalsIgnoreCase(st)) {
+                v.getChildren().add(createAuditRow("✓", "Inspection Passed for " + cId, "Officer " + officerName, "Recently"));
+                added++;
+            } else if ("Under Inspection".equalsIgnoreCase(st)) {
+                v.getChildren().add(createAuditRow("🔍", "Physical Seal Audit in progress for " + cId, "Customs Inspection Bay", "Active"));
+                added++;
+            } else if ("Held".equalsIgnoreCase(st) || "Rejected".equalsIgnoreCase(st)) {
+                v.getChildren().add(createAuditRow("⛔", "Regulatory Hold applied to " + cId, "Officer " + officerName, "Active"));
+                added++;
+            }
+            if (added >= 3) break;
+        }
+        if (added == 0) {
+            Label l = new Label("No recent inspection activity. Queues are up to date.");
+            l.setStyle("-fx-text-fill:#64748b; -fx-font-size:11px; -fx-padding:6 0;");
+            v.getChildren().add(l);
+        }
         return v;
     }
 
@@ -759,30 +778,32 @@ public class CargoInspection {
 
             Set<String> uniqueEntities = new HashSet<>();
 
-            List<Map<String, Object>> cargos = cargoDao.getCargosByPort(activeAssignedPort);
+            String offUid = LoginPage.loggedInUser != null && LoginPage.loggedInUser.get("uid") != null ? LoginPage.loggedInUser.get("uid").toString() : "";
+            String offEmail = LoginPage.loggedInUser != null && LoginPage.loggedInUser.get("email") != null ? LoginPage.loggedInUser.get("email").toString() : "";
+            List<Map<String, Object>> cargos = cargoDao.getCargosForCustomsOfficer(offUid, offEmail, activeAssignedPort);
             if (cargos != null) {
                 for (Map<String, Object> c : cargos) {
                     if (c == null) continue;
 
-                    String cargoId = c.get("cargoId") != null ? String.valueOf(c.get("cargoId")) : "CGO-1000";
+                    String cargoId = c.get("cargoId") != null ? String.valueOf(c.get("cargoId")) : "CGO-N/A";
                     String cargoName = c.get("cargoName") != null ? String.valueOf(c.get("cargoName")) : "General Cargo";
                     String cargoType = c.get("cargoType") != null ? String.valueOf(c.get("cargoType")) : "Containerized";
-                    String hsCode = c.get("hsCode") != null ? String.valueOf(c.get("hsCode")) : "8471.30.00";
-                    String desc = c.get("description") != null ? String.valueOf(c.get("description")) : (cargoName + " cargo shipment");
-                    String vessel = c.get("assignedShip") != null ? String.valueOf(c.get("assignedShip")) : (c.get("vessel") != null ? String.valueOf(c.get("vessel")) : "MV " + activeAssignedPort.replace("Port of ", "").replace(" Port", "") + " Trader");
-                    String voyage = c.get("voyage") != null ? String.valueOf(c.get("voyage")) : "VOY-2026-08";
-                    String exporter = c.get("exporter") != null ? String.valueOf(c.get("exporter")) : (c.get("company") != null ? String.valueOf(c.get("company")) : "Maritime Logistics Ltd.");
-                    String importer = c.get("importer") != null ? String.valueOf(c.get("importer")) : "Global Freight Importers Corp";
+                    String hsCode = c.get("hsCode") != null ? String.valueOf(c.get("hsCode")) : "—";
+                    String desc = c.get("description") != null ? String.valueOf(c.get("description")) : (cargoName + " consignment");
+                    String vessel = c.get("assignedShip") != null ? String.valueOf(c.get("assignedShip")) : (c.get("vessel") != null ? String.valueOf(c.get("vessel")) : (c.get("shipName") != null ? String.valueOf(c.get("shipName")) : "Not Assigned"));
+                    String voyage = c.get("voyage") != null ? String.valueOf(c.get("voyage")) : "—";
+                    String exporter = c.get("exporter") != null ? String.valueOf(c.get("exporter")) : (c.get("company") != null ? String.valueOf(c.get("company")) : "—");
+                    String importer = c.get("importer") != null ? String.valueOf(c.get("importer")) : "—";
                     String company = c.get("company") != null ? String.valueOf(c.get("company")) : exporter;
                     String origin = c.get("originPort") != null ? String.valueOf(c.get("originPort")) : (c.get("origin") != null ? String.valueOf(c.get("origin")) : activeAssignedPort);
-                    String dest = c.get("destinationPort") != null ? String.valueOf(c.get("destinationPort")) : (c.get("destination") != null ? String.valueOf(c.get("destination")) : "Port of Singapore");
-                    String container = c.get("container") != null ? String.valueOf(c.get("container")) : (c.get("containerId") != null ? String.valueOf(c.get("containerId")) : "MSKU-7821940");
-                    String qty = c.get("quantity") != null ? String.valueOf(c.get("quantity")) : "500 Units";
+                    String dest = c.get("destinationPort") != null ? String.valueOf(c.get("destinationPort")) : (c.get("destination") != null ? String.valueOf(c.get("destination")) : "—");
+                    String container = c.get("container") != null ? String.valueOf(c.get("container")) : (c.get("containerId") != null ? String.valueOf(c.get("containerId")) : "—");
+                    String qty = c.get("quantity") != null ? String.valueOf(c.get("quantity")) : "1 unit";
                     String unit = c.get("unit") != null ? String.valueOf(c.get("unit")) : "Units";
-                    String pkgCount = c.get("packageCount") != null ? String.valueOf(c.get("packageCount")) : "25 Pallets";
-                    String pkgType = c.get("packageType") != null ? String.valueOf(c.get("packageType")) : "Palletized";
-                    String grossWeight = c.get("grossWeight") != null ? String.valueOf(c.get("grossWeight")) : (c.get("weight") != null ? String.valueOf(c.get("weight")) : "12,400 kg");
-                    String netWeight = c.get("netWeight") != null ? String.valueOf(c.get("netWeight")) : "11,800 kg";
+                    String pkgCount = c.get("packageCount") != null ? String.valueOf(c.get("packageCount")) : "—";
+                    String pkgType = c.get("packageType") != null ? String.valueOf(c.get("packageType")) : "—";
+                    String grossWeight = c.get("grossWeight") != null ? String.valueOf(c.get("grossWeight")) : (c.get("weight") != null ? String.valueOf(c.get("weight")) : "—");
+                    String netWeight = c.get("netWeight") != null ? String.valueOf(c.get("netWeight")) : "—";
                     String eta = c.get("eta") != null ? String.valueOf(c.get("eta")) : "—";
                     String etd = c.get("etd") != null ? String.valueOf(c.get("etd")) : "—";
                     String inspectStatus = c.get("inspectionStatus") != null ? String.valueOf(c.get("inspectionStatus")) : "Pending";
@@ -924,15 +945,15 @@ public class CargoInspection {
         }
 
         // Table Column Constraints (Exact Admin table proportions)
-        ColumnConstraints c0 = new ColumnConstraints(); c0.setPercentWidth(24); // Cargo ID & Name
-        ColumnConstraints c1 = new ColumnConstraints(); c1.setPercentWidth(20); // Shipment & Vessel
-        ColumnConstraints c2 = new ColumnConstraints(); c2.setPercentWidth(20); // Importer / Exporter
-        ColumnConstraints c3 = new ColumnConstraints(); c3.setPercentWidth(12); // Priority
-        ColumnConstraints c4 = new ColumnConstraints(); c4.setPercentWidth(12); // Status
-        ColumnConstraints c5 = new ColumnConstraints(); c5.setPercentWidth(12); // Action
+        ColumnConstraints c0 = new ColumnConstraints(); c0.setPercentWidth(22); // Cargo ID & Name
+        ColumnConstraints c1 = new ColumnConstraints(); c1.setPercentWidth(25); // Assigned Ship & Captain
+        ColumnConstraints c2 = new ColumnConstraints(); c2.setPercentWidth(23); // Exporter & Route
+        ColumnConstraints c3 = new ColumnConstraints(); c3.setPercentWidth(10); // Priority
+        ColumnConstraints c4 = new ColumnConstraints(); c4.setPercentWidth(10); // Status
+        ColumnConstraints c5 = new ColumnConstraints(); c5.setPercentWidth(10); // Action
         table.getColumnConstraints().addAll(c0, c1, c2, c3, c4, c5);
 
-        String[] headers = {"Cargo", "Shipment / Vessel", "Importer / Exporter", "Priority", "Status", "Action"};
+        String[] headers = {"Cargo", "Assigned Ship & Captain", "Exporter & Route", "Priority", "Status", "Action"};
         for (int col = 0; col < headers.length; col++) {
             table.add(tableHeadCell(headers[col]), col, 0);
         }
@@ -1012,15 +1033,16 @@ public class CargoInspection {
     }
 
     private Node createShipCell(Map<String, Object> cargo, boolean isAlt, boolean isSelected) {
-        String vessel = String.valueOf(cargo.get("vessel"));
-        String cont = "Cont: " + String.valueOf(cargo.get("container"));
+        String vessel = cargo.get("assignedShip") != null ? cargo.get("assignedShip").toString() : (cargo.get("vessel") != null ? cargo.get("vessel").toString() : (cargo.get("shipName") != null ? cargo.get("shipName").toString() : "Not Assigned"));
+        String imo = cargo.get("imoNumber") != null ? "IMO: " + cargo.get("imoNumber") : (cargo.get("assignedShipId") != null ? "ID: " + cargo.get("assignedShipId") : "");
+        String capName = cargo.get("assignedCaptainName") != null ? cargo.get("assignedCaptainName").toString() : (cargo.get("assignedCaptain") != null ? cargo.get("assignedCaptain").toString() : "");
 
-        Label vesselLbl = new Label(vessel);
+        Label vesselLbl = new Label(vessel + (!imo.isBlank() ? " (" + imo + ")" : ""));
         vesselLbl.setStyle("-fx-text-fill:" + BLUE + "; -fx-font-size:13; -fx-font-weight:bold;");
-        Label contLbl = new Label(cont);
-        contLbl.setStyle("-fx-text-fill:#64748b; -fx-font-size:11;");
+        Label capLbl = new Label(!capName.isBlank() && !capName.equalsIgnoreCase("Ship Captain") ? "Captain: " + capName : "Captain: Pending Assignment");
+        capLbl.setStyle("-fx-text-fill:#475569; -fx-font-size:11; -fx-font-weight:bold;");
 
-        VBox v = new VBox(2, vesselLbl, contLbl);
+        VBox v = new VBox(2, vesselLbl, capLbl);
         v.setAlignment(Pos.CENTER_LEFT);
         v.setMaxWidth(Double.MAX_VALUE);
         v.setMinHeight(52);
@@ -1031,15 +1053,17 @@ public class CargoInspection {
     }
 
     private Node createPartyCell(Map<String, Object> cargo, boolean isAlt, boolean isSelected) {
-        String exp = "Exp: " + String.valueOf(cargo.get("exporter"));
-        String imp = "Imp: " + String.valueOf(cargo.get("importer"));
+        String exp = cargo.get("exporter") != null ? cargo.get("exporter").toString() : (cargo.get("exporterName") != null ? cargo.get("exporterName").toString() : (cargo.get("company") != null ? cargo.get("company").toString() : "—"));
+        String orig = cargo.get("originPort") != null ? cargo.get("originPort").toString() : (cargo.get("origin") != null ? cargo.get("origin").toString() : "—");
+        String dest = cargo.get("destinationPort") != null ? cargo.get("destinationPort").toString() : (cargo.get("destination") != null ? cargo.get("destination").toString() : "—");
+        String route = orig + " ➔ " + dest;
 
-        Label expLbl = new Label(exp);
-        expLbl.setStyle("-fx-text-fill:#334155; -fx-font-size:12;");
-        Label impLbl = new Label(imp);
-        impLbl.setStyle("-fx-text-fill:#64748b; -fx-font-size:11;");
+        Label expLbl = new Label("Exp: " + exp);
+        expLbl.setStyle("-fx-text-fill:#0f172a; -fx-font-size:12; -fx-font-weight:bold;");
+        Label routeLbl = new Label(route);
+        routeLbl.setStyle("-fx-text-fill:#64748b; -fx-font-size:11;");
 
-        VBox v = new VBox(2, expLbl, impLbl);
+        VBox v = new VBox(2, expLbl, routeLbl);
         v.setAlignment(Pos.CENTER_LEFT);
         v.setMaxWidth(Double.MAX_VALUE);
         v.setMinHeight(52);
@@ -1128,14 +1152,23 @@ public class CargoInspection {
         detailNetWeight.setText(String.valueOf(cargo.get("netWeight")));
         detailContainer.setText(String.valueOf(cargo.get("container")));
 
-        detailVessel.setText(String.valueOf(cargo.get("vessel")));
-        detailVoyage.setText(String.valueOf(cargo.get("voyage")));
+        String shipName = cargo.get("assignedShip") != null ? cargo.get("assignedShip").toString() : (cargo.get("vessel") != null ? cargo.get("vessel").toString() : (cargo.get("shipName") != null ? cargo.get("shipName").toString() : "Not Assigned"));
+        String imo = cargo.get("imoNumber") != null ? "IMO: " + cargo.get("imoNumber") : (cargo.get("assignedShipId") != null ? "ID: " + cargo.get("assignedShipId") : "");
+        String capName = cargo.get("assignedCaptainName") != null ? cargo.get("assignedCaptainName").toString() : (cargo.get("assignedCaptain") != null ? cargo.get("assignedCaptain").toString() : "");
+        String capEmail = cargo.get("assignedCaptainEmail") != null ? cargo.get("assignedCaptainEmail").toString() : "";
+        String capDisplay = (!capName.isBlank() && !capName.equalsIgnoreCase("Ship Captain")) ? capName + (!capEmail.isBlank() ? " (" + capEmail + ")" : "") : "Pending Assignment";
+
+        detailVessel.setText(shipName + (!imo.isBlank() ? " • " + imo : ""));
+        detailVoyage.setText("Captain: " + capDisplay);
         detailRoute.setText(String.valueOf(cargo.get("origin")) + " ➔ " + String.valueOf(cargo.get("destination")));
         detailEtaEtd.setText("ETA: " + String.valueOf(cargo.get("eta")) + " / ETD: " + String.valueOf(cargo.get("etd")));
 
-        detailImporter.setText(String.valueOf(cargo.get("importer")));
-        detailExporter.setText(String.valueOf(cargo.get("exporter")));
-        detailCompany.setText(String.valueOf(cargo.get("company")));
+        String expName = cargo.get("exporter") != null ? cargo.get("exporter").toString() : (cargo.get("exporterName") != null ? cargo.get("exporterName").toString() : "Exporter");
+        String expEmail = cargo.get("exporterEmail") != null ? cargo.get("exporterEmail").toString() : "";
+        String expDisplay = expName + (!expEmail.isBlank() ? " (" + expEmail + ")" : "");
+        detailExporter.setText(expDisplay);
+        detailCompany.setText(cargo.get("company") != null ? cargo.get("company").toString() : expName);
+        detailImporter.setText(cargo.get("importer") != null && !cargo.get("importer").toString().isBlank() && !cargo.get("importer").toString().equals("—") ? cargo.get("importer").toString() : "Consignee at " + cargo.get("destination"));
         detailDocRef.setText(String.valueOf(cargo.get("docId")));
 
         String prio = cargo.get("priority") != null ? String.valueOf(cargo.get("priority")) : "Normal";
@@ -1440,6 +1473,9 @@ public class CargoInspection {
         String cargoId = String.valueOf(selectedCargo.get("cargoId"));
 
         cargoDao.updateInspectionStatus(cargoId, newStatus, officerName, notes, reason);
+        if ("Passed".equalsIgnoreCase(newStatus)) {
+            cargoDao.updateCustomsClearance(cargoId, "Cleared", officerName, notes != null ? notes : "Physical inspection passed successfully");
+        }
         selectedCargo.put("inspectionStatus", newStatus);
         selectedCargo.put("inspectedBy", officerName);
         selectedCargo.put("inspectionDate", LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")));

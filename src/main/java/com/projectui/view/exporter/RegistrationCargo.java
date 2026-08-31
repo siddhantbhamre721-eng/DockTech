@@ -487,7 +487,7 @@ public class RegistrationCargo {
 
                 );
 
-                cargoIdLabel = new Label("Cargo ID: CGO-1027");
+                cargoIdLabel = new Label("Cargo ID: —");
 
                 cargoIdLabel.setStyle(
 

@@ -157,10 +157,12 @@ public class ConfirmDelivery {
 
     private void refreshData() {
         Platform.runLater(() -> {
-            String loggedUser = getLoggedImporterFilter();
-            List<Map<String, Object>> cargos = cargoDao.getShipmentsForImporter(loggedUser);
-            if (cargos == null || cargos.isEmpty()) {
-                cargos = cargoDao.getAllCargos();
+            List<Map<String, Object>> cargos;
+            if (LoginPage.loggedInUser != null && !LoginPage.loggedInUser.isEmpty()) {
+                cargos = cargoDao.getShipmentsForImporter(LoginPage.loggedInUser);
+            } else {
+                String loggedUser = getLoggedImporterFilter();
+                cargos = cargoDao.getShipmentsForImporter(loggedUser);
             }
 
             eligibleShipments.clear();
@@ -168,8 +170,8 @@ public class ConfirmDelivery {
                 eligibleShipments.addAll(cargos);
             }
 
-            if ((selectedShipment == null || !eligibleShipments.contains(selectedShipment)) && !eligibleShipments.isEmpty()) {
-                selectedShipment = eligibleShipments.get(0);
+            if (selectedShipment == null || !eligibleShipments.contains(selectedShipment)) {
+                selectedShipment = !eligibleShipments.isEmpty() ? eligibleShipments.get(0) : null;
             }
 
             renderShipmentList();
@@ -191,7 +193,7 @@ public class ConfirmDelivery {
             emp.setPadding(new Insets(30));
             Label empIcon = new Label("📦");
             empIcon.setStyle("-fx-font-size:28px; -fx-text-fill:#94a3b8;");
-            Label empMsg = new Label("No shipments assigned to your account.");
+            Label empMsg = new Label("No incoming shipments assigned to your account yet.");
             empMsg.setStyle("-fx-font-size:13px; -fx-font-weight:bold; -fx-text-fill:#64748b;");
             emp.getChildren().addAll(empIcon, empMsg);
             shipmentSelectorList.getChildren().add(emp);
@@ -199,9 +201,9 @@ public class ConfirmDelivery {
         }
 
         for (Map<String, Object> c : eligibleShipments) {
-            String cId = str(c.get("cargoId"), "CGO-1024");
-            String cName = str(c.get("cargoName"), "Industrial Freight");
-            String vName = str(c.get("assignedVessel"), str(c.get("vesselName"), "AFRAPEARL II"));
+            String cId = str(c.get("cargoId"), "CGO-N/A");
+            String cName = str(c.get("cargoName"), "Consignment");
+            String vName = str(c.get("assignedVessel"), str(c.get("vesselName"), str(c.get("assignedShip"), "Not Assigned")));
             String status = str(c.get("status"), "In Transit");
             boolean isDelivered = "Delivered".equalsIgnoreCase(status);
 
@@ -249,7 +251,9 @@ public class ConfirmDelivery {
             emp.setPadding(new Insets(60));
             Label empIcon = new Label("📦");
             empIcon.setStyle("-fx-font-size:36px; -fx-text-fill:#94a3b8;");
-            Label empMsg = new Label("Select a consignment from the left panel to execute delivery confirmation.");
+            Label empMsg = new Label(eligibleShipments.isEmpty()
+                    ? "No incoming shipments assigned to your account yet."
+                    : "Select a consignment from the left panel to execute delivery confirmation.");
             empMsg.setStyle("-fx-font-size:14px; -fx-font-weight:bold; -fx-text-fill:#64748b;");
             emp.getChildren().addAll(empIcon, empMsg);
             deliveryDetailsContainer.getChildren().add(emp);
@@ -257,41 +261,39 @@ public class ConfirmDelivery {
         }
 
         Map<String, Object> c = selectedShipment;
-        String cId = str(c.get("cargoId"), "CGO-1024");
-        String cName = str(c.get("cargoName"), "Industrial Freight");
+        String cId = str(c.get("cargoId"), "CGO-N/A");
+        String cName = str(c.get("cargoName"), "Consignment");
         String cType = str(c.get("cargoType"), "General Cargo");
         String qty = str(c.get("quantity"), "1") + " Units";
-        String wt = str(c.get("weight"), "1000") + " kg";
-        String exp = str(c.get("exporterName"), str(c.get("exporter"), "Nayara Energy Ltd."));
+        String rawWt = str(c.get("weight"), "—");
+        String wt = rawWt.equals("—") || rawWt.contains("kg") ? rawWt : (rawWt + " kg");
+        String exp = str(c.get("exporterName"), str(c.get("exporter"), "—"));
         String imp = getLoggedImporterName();
-        String orig = str(c.get("originPort"), "Port of Mumbai");
-        String dest = str(c.get("destinationPort"), "Cochin Port");
-        String vName = str(c.get("assignedVessel"), str(c.get("vesselName"), "AFRAPEARL II"));
+        String orig = str(c.get("originPort"), "—");
+        String dest = str(c.get("destinationPort"), "—");
+        String vName = str(c.get("assignedVessel"), str(c.get("vesselName"), str(c.get("assignedShip"), "Not Assigned")));
         String berth = "Berth B-" + (Math.abs(cId.hashCode() % 5) + 1);
-        String warehouse = "DockTech Central CFS Warehouse #4, " + dest;
+        String warehouse = dest.equals("—") ? "DockTech Central CFS Warehouse" : ("DockTech Central CFS Warehouse, " + dest);
         String status = str(c.get("status"), "In Transit");
         boolean isDelivered = "Delivered".equalsIgnoreCase(status);
 
-        String expDelivery = LocalDateTime.now().plusDays(2).format(DateTimeFormatter.ofPattern("dd MMM yyyy, 18:00"));
-        String actArrival = isDelivered ? str(c.get("deliveredAt"), "Completed") : "Berthing on Schedule (" + expDelivery + ")";
-
-        // 1. Top Header Banner
-        HBox topHdr = new HBox(12);
-        topHdr.setAlignment(Pos.CENTER_LEFT);
+        // 1. Top Shipment Header Banner
+        HBox banner = new HBox(12);
+        banner.setAlignment(Pos.CENTER_LEFT);
         Label idTag = new Label("CONSIGNMENT " + cId);
         idTag.setStyle("-fx-background-color:#e0f2fe; -fx-text-fill:#0284c7; -fx-font-size:13; -fx-font-weight:bold; -fx-padding:6 12; -fx-background-radius:6;");
-        Label titleLbl = new Label("📦  " + cName);
-        titleLbl.setStyle("-fx-font-size:17px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
-        Region sp = new Region();
-        HBox.setHgrow(sp, Priority.ALWAYS);
-        Label statusTag = new Label(status.toUpperCase());
-        statusTag.setStyle(statusBadgeStyle(status));
-        topHdr.getChildren().addAll(idTag, titleLbl, sp, statusTag);
+        Label nameLbl = new Label("📦  " + cName);
+        nameLbl.setStyle("-fx-font-size:16px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
+        Region spB = new Region();
+        HBox.setHgrow(spB, Priority.ALWAYS);
+        Label statusBadge = new Label(status.toUpperCase());
+        statusBadge.setStyle(statusBadgeStyle(status));
+        banner.getChildren().addAll(idTag, nameLbl, spB, statusBadge);
 
-        // 2. Logistics & Delivery Specification Grid
-        VBox gridCard = new VBox(10);
-        gridCard.setPadding(new Insets(14));
-        gridCard.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#e2e8f0; -fx-border-radius:8;");
+        // 2. Consignment Metadata Grid
+        VBox metaBox = new VBox(10);
+        metaBox.setPadding(new Insets(14));
+        metaBox.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#e2e8f0; -fx-border-radius:8;");
 
         GridPane grid = new GridPane();
         grid.setHgap(16);
@@ -299,67 +301,83 @@ public class ConfirmDelivery {
 
         grid.add(detailCell("Consignor (Exporter)", exp), 0, 0);
         grid.add(detailCell("Consignee (Importer)", imp), 1, 0);
-        grid.add(detailCell("Commodity / Quantity", cName + " (" + qty + ")"), 2, 0);
+        grid.add(detailCell("Cargo Category & Quantity", cType + " • " + qty), 0, 1);
+        grid.add(detailCell("Gross Weight", wt), 1, 1);
+        grid.add(detailCell("Origin Port ➔ Destination", orig + " ➔ " + dest), 0, 2);
+        grid.add(detailCell("Assigned Vessel & Berth", vName + " • " + berth), 1, 2);
+        grid.add(detailCell("CFS Warehouse Staging", warehouse), 0, 3);
+        grid.add(detailCell("Customs Clearance Status", str(c.get("customsStatus"), "CLEARED")), 1, 3);
 
-        grid.add(detailCell("Gross Weight", wt), 0, 1);
-        grid.add(detailCell("Assigned Vessel & Berth", vName + " • " + berth), 1, 1);
-        grid.add(detailCell("Port of Discharge", dest), 2, 1);
+        metaBox.getChildren().addAll(grid);
 
-        grid.add(detailCell("CFS Receiving Warehouse", warehouse), 0, 2);
-        grid.add(detailCell("Expected Delivery Schedule", expDelivery), 1, 2);
-        grid.add(detailCell("Actual Arrival / Release Time", actArrival), 2, 2);
-
-        gridCard.getChildren().addAll(grid);
-
-        // 3. Milestone Progress Bar
+        // 3. Milestone Summary
         VBox milestoneBox = buildMilestoneBox(status);
 
-        // 4. Delivery Verification & Signing Form
-        VBox signBox = new VBox(12);
-        signBox.setPadding(new Insets(16));
-        signBox.setStyle("-fx-background-color:" + (isDelivered ? "#f0fdf4" : "#f0f9ff") + "; -fx-border-color:" + (isDelivered ? "#bbf7d0" : "#bae6fd") + "; -fx-border-radius:8;");
+        // 4. Delivery Confirmation Form Card
+        VBox formCard = new VBox(12);
+        formCard.setPadding(new Insets(16));
+        formCard.setStyle("-fx-background-color:#ffffff; -fx-border-color:#cbd5e1; -fx-border-radius:8;");
 
-        Label formTitle = new Label(isDelivered ? "✓ Consignment Successfully Delivered & Stamped" : "✍ Consignee Delivery Acceptance & Gate-Out Authorization");
-        formTitle.setStyle("-fx-font-size:14px; -fx-font-weight:bold; -fx-text-fill:" + (isDelivered ? "#15803d" : "#0369a1") + ";");
+        Label formTitle = new Label("Consignee Delivery Acceptance & Gate-Out Handover");
+        formTitle.setStyle("-fx-font-size:14px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
 
-        if (isDelivered) {
-            String delTime = str(c.get("deliveredAt"), LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")));
-            String delBy = str(c.get("deliveredBy"), imp);
-            String notes = str(c.get("deliveryNotes"), "Container seal intact. Consignment received in full condition.");
+        chkAcceptanceSign = new CheckBox("Authorized Consignee Sign-Off: I confirm receipt of consignment in verified intact condition with seals matched.");
+        chkAcceptanceSign.setStyle("-fx-font-size:12px; -fx-text-fill:#334155; -fx-font-weight:bold;");
+        chkAcceptanceSign.setSelected(isDelivered);
+        chkAcceptanceSign.setDisable(isDelivered);
 
-            Label confInfo = new Label("Delivery confirmed by: " + delBy + " on " + delTime + "\nRemarks: " + notes);
-            confInfo.setStyle("-fx-font-size:12px; -fx-text-fill:#166534; -fx-font-weight:bold;");
-            signBox.getChildren().addAll(formTitle, confInfo);
-        } else {
-            chkConditionVerified = new CheckBox("Physical Cargo Inspection Verified — Goods match manifest specifications without damage.");
-            chkConditionVerified.setStyle("-fx-font-size:12px; -fx-text-fill:#334155;");
+        VBox notesBox = new VBox(4);
+        Label notesLbl = new Label("Delivery Handover Notes / Exceptions (Optional):");
+        notesLbl.setStyle("-fx-font-size:11px; -fx-text-fill:#64748b; -fx-font-weight:bold;");
+        deliveryNotesArea = new TextArea(isDelivered ? str(c.get("deliveryNotes"), "Consignment signed off and received.") : "");
+        deliveryNotesArea.setPromptText("Enter container seal inspection notes or warehouse receiving bay details...");
+        deliveryNotesArea.setPrefRowCount(2);
+        deliveryNotesArea.setDisable(isDelivered);
+        notesBox.getChildren().addAll(notesLbl, deliveryNotesArea);
 
-            chkSealIntact = new CheckBox("Customs Container Seal Intact — Tamper-evident seal numbers match Bill of Lading.");
-            chkSealIntact.setStyle("-fx-font-size:12px; -fx-text-fill:#334155;");
+        HBox btnRow = new HBox(12);
+        btnRow.setAlignment(Pos.CENTER_RIGHT);
 
-            chkAcceptanceSign = new CheckBox("Authorized Consignee Sign-Off — I hereby confirm receipt and release this consignment.");
-            chkAcceptanceSign.setStyle("-fx-font-size:12px; -fx-text-fill:#334155; -fx-font-weight:bold;");
+        deliverySuccessMessage = new Label("✓ Delivery confirmed successfully and synchronized with Exporter & Customs records.");
+        deliverySuccessMessage.setStyle("-fx-text-fill:#16a34a; -fx-font-size:12px; -fx-font-weight:bold;");
+        deliverySuccessMessage.setVisible(isDelivered);
 
-            deliveryNotesArea = new TextArea();
-            deliveryNotesArea.setPromptText("Enter consignee delivery remarks, warehouse bay number, or receiving inspector notes (Optional)...");
-            deliveryNotesArea.setPrefRowCount(2);
-            deliveryNotesArea.setStyle("-fx-background-color:white; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-font-size:12;");
+        Region spF = new Region();
+        HBox.setHgrow(spF, Priority.ALWAYS);
 
-            deliverySuccessMessage = new Label();
-            deliverySuccessMessage.setVisible(false);
-            deliverySuccessMessage.setStyle("-fx-text-fill:#16a34a; -fx-font-size:13px; -fx-font-weight:bold;");
+        Button confirmBtn = new Button(isDelivered ? "✓ Consignment Delivered" : "📦 Confirm & Accept Delivery");
+        confirmBtn.setStyle(isDelivered
+                ? "-fx-background-color:#dcfce7; -fx-text-fill:#16a34a; -fx-font-weight:bold; -fx-padding:10 20; -fx-background-radius:6;"
+                : "-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-weight:bold; -fx-padding:10 20; -fx-background-radius:6; -fx-cursor:hand;");
+        confirmBtn.setDisable(isDelivered);
+        confirmBtn.setOnAction(e -> handleConfirmDelivery(cId, imp));
 
-            confirmDeliveryBtn = new Button("📦 Confirm Consignment Delivery & Release");
-            confirmDeliveryBtn.setStyle("-fx-background-color:#0b63ff; -fx-text-fill:white; -fx-font-size:13px; -fx-font-weight:bold; -fx-padding:10 20; -fx-background-radius:6; -fx-cursor:hand;");
-            confirmDeliveryBtn.setOnAction(e -> handleConfirmDelivery(cId, imp));
+        btnRow.getChildren().addAll(deliverySuccessMessage, spF, confirmBtn);
 
-            signBox.getChildren().addAll(formTitle, chkConditionVerified, chkSealIntact, chkAcceptanceSign, deliveryNotesArea, confirmDeliveryBtn, deliverySuccessMessage);
-        }
+        formCard.getChildren().addAll(formTitle, chkAcceptanceSign, notesBox, btnRow);
 
-        deliveryDetailsContainer.getChildren().addAll(topHdr, gridCard, milestoneBox, signBox);
+        deliveryDetailsContainer.getChildren().addAll(banner, metaBox, milestoneBox, formCard);
     }
 
     private void handleConfirmDelivery(String cargoId, String importerName) {
+        // Strict ownership verification: verify cargo belongs to the logged-in importer's eligible shipments
+        boolean isAuthorized = false;
+        for (Map<String, Object> c : eligibleShipments) {
+            if (c != null && cargoId.equalsIgnoreCase(str(c.get("cargoId"), ""))) {
+                isAuthorized = true;
+                break;
+            }
+        }
+
+        if (!isAuthorized) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Unauthorized Action");
+            alert.setHeaderText("Delivery Confirmation Denied");
+            alert.setContentText("You can only confirm delivery for shipments assigned directly to your account.");
+            alert.showAndWait();
+            return;
+        }
+
         if (chkAcceptanceSign != null && !chkAcceptanceSign.isSelected()) {
             Alert alert = new Alert(Alert.AlertType.WARNING);
             alert.setTitle("Delivery Acceptance Required");
@@ -374,6 +392,21 @@ public class ConfirmDelivery {
 
         boolean ok = cargoDao.confirmDelivery(cargoId, importerName, notes);
         if (ok) {
+            try {
+                com.projectui.dao.NotificationDao notifDao = new com.projectui.dao.NotificationDao();
+                String uId = LoginPage.loggedInUser != null ? str(LoginPage.loggedInUser.get("uid"), str(LoginPage.loggedInUser.get("email"), importerName)) : importerName;
+                com.projectui.model.Notification notif = new com.projectui.model.Notification();
+                notif.setId("notif_" + System.currentTimeMillis());
+                notif.setUserId(uId);
+                notif.setTitle("Shipment Delivered");
+                notif.setMessage("Consignment " + cargoId + " has been marked as Delivered by " + importerName + ".");
+                notif.setType("CARGO");
+                notif.setStatus("Delivered");
+                notif.setRead(false);
+                notif.setTimestamp(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")));
+                notifDao.createNotification(notif);
+            } catch (Exception ignored) {}
+
             if (deliverySuccessMessage != null) {
                 deliverySuccessMessage.setText("✓ Delivery confirmed successfully and synchronized with Exporter & Customs records.");
                 deliverySuccessMessage.setVisible(true);
@@ -468,8 +501,12 @@ public class ConfirmDelivery {
             if (n != null && !n.toString().isBlank()) return n.toString().trim();
             Object f = LoginPage.loggedInUser.get("fullName");
             if (f != null && !f.toString().isBlank()) return f.toString().trim();
+            Object d = LoginPage.loggedInUser.get("displayName");
+            if (d != null && !d.toString().isBlank()) return d.toString().trim();
+            Object c = LoginPage.loggedInUser.get("company");
+            if (c != null && !c.toString().isBlank()) return c.toString().trim();
         }
-        return "Harsh Patel";
+        return "Importer";
     }
 
     private String getLoggedImporterFilter() {
@@ -480,8 +517,10 @@ public class ConfirmDelivery {
             if (e != null && !e.toString().isBlank()) return e.toString().trim();
             Object n = LoginPage.loggedInUser.get("name");
             if (n != null && !n.toString().isBlank()) return n.toString().trim();
+            Object u = LoginPage.loggedInUser.get("uid");
+            if (u != null && !u.toString().isBlank()) return u.toString().trim();
         }
-        return "Harsh";
+        return "";
     }
 
     private VBox createSidebar(Runnable back) {

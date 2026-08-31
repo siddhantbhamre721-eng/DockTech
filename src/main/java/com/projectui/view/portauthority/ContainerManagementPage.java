@@ -1036,30 +1036,6 @@ public class ContainerManagementPage {
         for (Map<String, Object> c : cargos) {
             if (isCargoAssociatedWithPort(c, activeViewingPort)) {
                 matchedCargos.add(new HashMap<>(c));
-
-                String cType = getString(c, "cargoType", "");
-                if (cType.toLowerCase().contains("container") || cType.toLowerCase().contains("general") || cType.toLowerCase().contains("machinery")) {
-                    String cargoId = (String) c.get("cargoId");
-                    boolean alreadyPresent = false;
-                    for (Map<String, Object> b : matchedContainers) {
-                        if (cargoId != null && cargoId.equalsIgnoreCase((String) b.get("cargoId"))) {
-                            alreadyPresent = true;
-                            break;
-                        }
-                    }
-                    if (!alreadyPresent) {
-                        Map<String, Object> synth = new HashMap<>(c);
-                        int hash = cargoId != null ? Math.abs(cargoId.hashCode()) : Math.abs(c.hashCode());
-                        synth.put("bookingId", "CONT-" + (hash % 8999 + 1000));
-                        synth.put("containerNo", "MSKU-" + (hash % 899999 + 100000));
-                        synth.put("containerType", "20 ft Standard Dry");
-                        synth.put("preferredPort", activeViewingPort);
-                        synth.put("location", "Yard Bay A-01 • " + activeViewingPort);
-                        synth.put("size", "20 ft (2,200 kg)");
-                        synth.put("shipName", "MV " + activeViewingPort.replace("Port of ", "") + " Star");
-                        matchedContainers.add(synth);
-                    }
-                }
             }
         }
 
@@ -1425,9 +1401,6 @@ public class ContainerManagementPage {
                 requestMap.put(label, r);
             }
         }
-        if (cargoItems.isEmpty()) {
-            cargoItems.add("CGO-1024 — Industrial Electronics (Remaining Demand: 1)");
-        }
         cargoCombo.getItems().addAll(cargoItems);
         if (preselectedRequest != null) {
             String rId = getString(preselectedRequest, "bookingId", getString(preselectedRequest, "cargoId", "REQ"));
@@ -1527,15 +1500,23 @@ public class ContainerManagementPage {
             String exporterName = targetReq != null ? getRequesterDisplay(targetReq) : "Global Logistics Ltd.";
             String customerType = targetReq != null ? getString(targetReq, "customerType", "Exporter") : "Exporter";
 
-            // 1. Create unique allocation record in containerDao
-            String alcId = "ALC-" + (Math.abs((cNo + rId + System.currentTimeMillis()).hashCode()) % 89999 + 10000);
-            containerDao.saveBooking(alcId, rId, cName, "20 ft Standard Dry", "1", activeViewingPort, activeViewingPort, dest, 0.0, "Allocated", customerType, exporterName);
+            // 1. Update existing container booking in ContainerDao without creating duplicate records
+            String orig = targetReq != null ? getString(targetReq, "originPort", "—") : "—";
+            String finalDest = targetReq != null ? getString(targetReq, "destinationPort", dest) : dest;
 
-            // 2. Mark container unit as Allocated in containerDao
-            containerDao.saveBooking(cNo, rId, cName, "20 ft Standard Dry", "1", activeViewingPort, activeViewingPort, dest, 0.0, "Allocated", customerType, exporterName);
+            if (targetReq != null) {
+                targetReq.put("status", "Allocated");
+                targetReq.put("containerNumber", cNo);
+                targetReq.put("assignedContainer", cNo);
+                targetReq.put("assignedShip", ship);
+                targetReq.put("originPort", orig);
+                targetReq.put("destinationPort", finalDest);
+            }
 
-            // 3. Update persistent Cargo status in CargoDao
-            if (cId != null && cId.startsWith("CGO-")) {
+            containerDao.saveBooking(rId, cId, cName, "20 ft Standard Dry", "1", activeViewingPort, orig, finalDest, 0.0, "Allocated", customerType, exporterName);
+
+            // 2. Update persistent Cargo status in CargoDao
+            if (cId != null && !cId.isBlank()) {
                 int rem = targetReq != null ? getRequestRemainingUnits(targetReq) : 1;
                 if (rem <= 1) {
                     cargoDao.updateCargoStatus(cId, "Allocated");
@@ -1544,11 +1525,11 @@ public class ContainerManagementPage {
                 }
             }
 
-            // 4. Refresh allocation UI data immediately
+            // 3. Refresh allocation UI data immediately
             refreshContainerData();
 
-            // 5. Show rich, populated Allocation Confirmed popup
-            showAllocationConfirmedPopup(alcId, cNo, cName, rId, exporterName, customerType, ship, dest, "Allocated");
+            // 4. Show rich, populated Allocation Confirmed popup
+            showAllocationConfirmedPopup(rId, cNo, cName, rId, exporterName, customerType, ship, finalDest, "Allocated");
         }
     }
 
@@ -1633,10 +1614,18 @@ public class ContainerManagementPage {
         currentCargoField.setStyle("-fx-background-color:#f1f5f9;");
 
         ComboBox<String> newCargoCombo = new ComboBox<>();
-        newCargoCombo.getItems().addAll("CGO-1025 — Heavy Industrial Machinery", "CGO-1026 — Premium Export Textiles", "CGO-1027 — High Tech Components");
-        newCargoCombo.setValue("CGO-1025 — Heavy Industrial Machinery");
+        for (Map<String, Object> c : masterCargosList) {
+            String cId = getString(c, "cargoId", "");
+            String cName = getString(c, "cargoName", "Commercial Goods");
+            if (!cId.isEmpty()) {
+                newCargoCombo.getItems().add(cId + " — " + cName);
+            }
+        }
+        if (!newCargoCombo.getItems().isEmpty()) {
+            newCargoCombo.setValue(newCargoCombo.getItems().get(0));
+        }
 
-        TextField shipField = new TextField("MV " + activeViewingPort.replace("Port of ", "") + " Leader");
+        TextField shipField = new TextField(getString(allocation, "shipName", getString(allocation, "assignedShip", "")));
 
         grid.add(new Label("Container:"), 0, 0);
         grid.add(contField, 1, 0);
@@ -1898,6 +1887,10 @@ public class ContainerManagementPage {
     }
 
     public VBox getContent() {
+        return content;
+    }
+
+    public VBox getRoot() {
         return content;
     }
 }

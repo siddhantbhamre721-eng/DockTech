@@ -56,6 +56,9 @@ public class DashboardPage extends AdminTheme {
         pageContainer = pageContent();
         pageContainer.setSpacing(10);
         buildContent();
+        new com.projectui.dao.PortRequestDao().syncWithDatabase().whenComplete((list, err) -> {
+            javafx.application.Platform.runLater(() -> refreshData());
+        });
         return pageContainer;
     }
 

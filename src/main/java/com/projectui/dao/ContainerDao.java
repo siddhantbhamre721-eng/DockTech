@@ -48,7 +48,16 @@ public class ContainerDao extends Dao {
                     if (snap != null && !snap.isEmpty()) {
                         for (com.google.cloud.firestore.DocumentSnapshot doc : snap.getDocuments()) {
                             if (doc.exists() && doc.getData() != null) {
-                                localBookingStore.put(doc.getId(), new HashMap<>(doc.getData()));
+                                Map<String, Object> data = new HashMap<>(doc.getData());
+                                String orig = (String) data.get("originPort");
+                                String pref = (String) data.get("preferredPort");
+                                String dest = (String) data.get("destinationPort");
+                                if ((orig != null && com.projectui.view.admin.AdminDataStore.isPortDeleted(orig, null))
+                                        || (pref != null && com.projectui.view.admin.AdminDataStore.isPortDeleted(pref, null))
+                                        || (dest != null && com.projectui.view.admin.AdminDataStore.isPortDeleted(dest, null))) {
+                                    continue;
+                                }
+                                localBookingStore.put(doc.getId(), data);
                             }
                         }
                         notifyListeners();
@@ -59,7 +68,16 @@ public class ContainerDao extends Dao {
                         if (snapshot != null && !snapshot.isEmpty()) {
                             for (com.google.cloud.firestore.DocumentSnapshot doc : snapshot.getDocuments()) {
                                 if (doc.exists() && doc.getData() != null) {
-                                    localBookingStore.put(doc.getId(), new HashMap<>(doc.getData()));
+                                    Map<String, Object> data = new HashMap<>(doc.getData());
+                                    String orig = (String) data.get("originPort");
+                                    String pref = (String) data.get("preferredPort");
+                                    String dest = (String) data.get("destinationPort");
+                                    if ((orig != null && com.projectui.view.admin.AdminDataStore.isPortDeleted(orig, null))
+                                            || (pref != null && com.projectui.view.admin.AdminDataStore.isPortDeleted(pref, null))
+                                            || (dest != null && com.projectui.view.admin.AdminDataStore.isPortDeleted(dest, null))) {
+                                        continue;
+                                    }
+                                    localBookingStore.put(doc.getId(), data);
                                 }
                             }
                             notifyListeners();
@@ -76,12 +94,12 @@ public class ContainerDao extends Dao {
 
     public CompletableFuture<Map<String, Object>> saveBooking(String bookingId, String cargoId, String cargoName,
             String containerType, String quantity, String preferredPort, String origin, String destination, String status) {
-        return saveBooking(bookingId, cargoId, cargoName, containerType, quantity, preferredPort, origin, destination, 0.0, status, "Exporter", "Global Logistics Ltd.");
+        return saveBooking(bookingId, cargoId, cargoName, containerType, quantity, preferredPort, origin, destination, 0.0, status, "Exporter", "");
     }
 
     public CompletableFuture<Map<String, Object>> saveBooking(String bookingId, String cargoId, String cargoName,
             String containerType, String quantity, String preferredPort, String origin, String destination, double totalAmount, String status) {
-        return saveBooking(bookingId, cargoId, cargoName, containerType, quantity, preferredPort, origin, destination, totalAmount, status, "Exporter", "Global Logistics Ltd.");
+        return saveBooking(bookingId, cargoId, cargoName, containerType, quantity, preferredPort, origin, destination, totalAmount, status, "Exporter", "");
     }
 
     public CompletableFuture<Map<String, Object>> saveBooking(String bookingId, String cargoId, String cargoName,
@@ -94,17 +112,43 @@ public class ContainerDao extends Dao {
 
             Map<String, Object> bookingData = localBookingStore.getOrDefault(finalBookingId, new HashMap<>());
             bookingData.put("bookingId", finalBookingId);
-            bookingData.put("cargoId", cargoId != null ? cargoId : "CGO-1024");
-            bookingData.put("cargoName", cargoName != null ? cargoName : "Electronics");
+            bookingData.put("cargoId", cargoId != null ? cargoId : "");
+            bookingData.put("cargoName", cargoName != null ? cargoName : "Commercial Cargo");
             bookingData.put("containerType", containerType != null ? containerType : "20 ft Standard Dry");
             bookingData.put("quantity", quantity != null ? quantity : "1");
-            bookingData.put("preferredPort", preferredPort != null ? preferredPort : "Port of Mumbai (JNPT)");
-            bookingData.put("originPort", origin != null ? origin : "Port of Mumbai");
-            bookingData.put("destinationPort", destination != null ? destination : "Port of Singapore");
+            bookingData.put("preferredPort", preferredPort != null ? preferredPort : "");
+            bookingData.put("originPort", origin != null ? origin : "");
+            bookingData.put("destinationPort", destination != null ? destination : "");
             bookingData.put("totalAmount", totalAmount > 0 ? totalAmount : 0.0);
             bookingData.put("status", status != null && !status.isBlank() ? status : "Booked");
             bookingData.put("customerType", customerType != null ? customerType : "Exporter");
-            bookingData.put("exporter", exporterName != null ? exporterName : "Global Logistics Ltd.");
+            bookingData.put("exporter", exporterName != null ? exporterName : "");
+
+            if (com.projectui.view.login.LoginPage.loggedInUser != null) {
+                Map<String, Object> u = com.projectui.view.login.LoginPage.loggedInUser;
+                Object uid = u.get("uid");
+                Object email = u.get("email");
+                Object name = u.get("name") != null ? u.get("name") : u.get("fullName");
+                Object comp = u.get("company") != null ? u.get("company") : u.get("organization");
+
+                if (uid != null && !uid.toString().isBlank() && !bookingData.containsKey("ownerUid")) {
+                    bookingData.put("ownerUid", uid.toString());
+                    bookingData.put("exporterUid", uid.toString());
+                    bookingData.put("userId", uid.toString());
+                }
+                if (email != null && !email.toString().isBlank() && !bookingData.containsKey("exporterEmail")) {
+                    bookingData.put("ownerEmail", email.toString());
+                    bookingData.put("exporterEmail", email.toString());
+                }
+                if (name != null && !name.toString().isBlank()) {
+                    bookingData.put("exporterName", name.toString());
+                    bookingData.put("exporter", name.toString());
+                }
+                if (comp != null && !comp.toString().isBlank()) {
+                    bookingData.put("company", comp.toString());
+                }
+            }
+
             if (!bookingData.containsKey("createdAt")) {
                 bookingData.put("createdAt", LocalDateTime.now().toString());
             }
@@ -155,13 +199,167 @@ public class ContainerDao extends Dao {
         return null;
     }
 
+    public List<Map<String, Object>> getContainersForExporter(Map<String, Object> exporterUser) {
+        List<Map<String, Object>> res = new ArrayList<>();
+        if (exporterUser == null || exporterUser.isEmpty()) {
+            return res;
+        }
+
+        for (Map<String, Object> b : localBookingStore.values()) {
+            if (b == null) continue;
+            if (isContainerAssignedToExporter(b, exporterUser)) {
+                res.add(b);
+            }
+        }
+        Collections.reverse(res);
+        return res;
+    }
+
+    public List<Map<String, Object>> getContainersForImporter(Map<String, Object> importerUser) {
+        List<Map<String, Object>> res = new ArrayList<>();
+        if (importerUser == null || importerUser.isEmpty()) {
+            return res;
+        }
+
+        for (Map<String, Object> b : localBookingStore.values()) {
+            if (b == null) continue;
+            if (isContainerAssignedToImporter(b, importerUser)) {
+                res.add(b);
+            }
+        }
+        Collections.reverse(res);
+        return res;
+    }
+
+    public static boolean isContainerAssignedToImporter(Map<String, Object> b, Map<String, Object> u) {
+        if (b == null || u == null || u.isEmpty()) return false;
+
+        String uUid = getTrimmedLower(u, "uid", "userId", "id");
+        String uEmail = getTrimmedLower(u, "email");
+        String uName = getTrimmedLower(u, "name", "fullName", "displayName");
+        String uComp = getTrimmedLower(u, "company", "organization");
+
+        String bImpUid = getTrimmedLower(b, "importerUid", "importerId", "importerUserId", "ownerUid", "userId");
+        if (!bImpUid.isEmpty() && !uUid.isEmpty() && (bImpUid.equals(uUid) || bImpUid.equalsIgnoreCase(uUid))) {
+            return true;
+        }
+
+        String bImpEmail = getTrimmedLower(b, "importerEmail", "ownerEmail", "email", "userEmail");
+        if (!bImpEmail.isEmpty() && !uEmail.isEmpty() && (bImpEmail.equals(uEmail) || bImpEmail.equalsIgnoreCase(uEmail))) {
+            return true;
+        }
+
+        String bImpName = getTrimmedLower(b, "importerName", "importer", "assignedImporter", "consignee");
+        if (!bImpName.isEmpty()) {
+            if (!uName.isEmpty() && (bImpName.equals(uName) || bImpName.contains(uName) || uName.contains(bImpName))) return true;
+            if (!uComp.isEmpty() && (bImpName.equals(uComp) || bImpName.contains(uComp) || uComp.contains(bImpName))) return true;
+        }
+
+        return false;
+    }
+
+    public static boolean isContainerAssignedToExporter(Map<String, Object> b, Map<String, Object> u) {
+        if (b == null || u == null || u.isEmpty()) return false;
+
+        String uUid = getTrimmedLower(u, "uid", "userId", "id");
+        String uEmail = getTrimmedLower(u, "email");
+        String bOwnerUid = getTrimmedLower(b, "ownerUid", "exporterUid", "exporterId", "userId", "createdBy");
+
+        if (!bOwnerUid.isEmpty()) {
+            return !uUid.isEmpty() && (bOwnerUid.equals(uUid) || bOwnerUid.equalsIgnoreCase(uUid));
+        }
+
+        if (!uEmail.isEmpty()) {
+            String bEmail = getTrimmedLower(b, "ownerEmail", "exporterEmail", "email", "userEmail");
+            if (!bEmail.isEmpty() && (bEmail.equals(uEmail) || bEmail.equalsIgnoreCase(uEmail))) return true;
+        }
+
+        return false;
+    }
+
+    private static String getTrimmedLower(Map<String, Object> map, String... keys) {
+        if (map == null) return "";
+        for (String k : keys) {
+            Object v = map.get(k);
+            if (v != null && !v.toString().isBlank()) {
+                return v.toString().trim().toLowerCase();
+            }
+        }
+        return "";
+    }
+
     public List<Map<String, Object>> getAllBookings() {
         List<Map<String, Object>> list = new ArrayList<>(localBookingStore.values());
         Collections.reverse(list);
         return list;
     }
 
-    public List<Map<String, Object>> getAllContainers() {
-        return getAllBookings();
+    public synchronized void deleteBookingsForPort(String portName, String portCode) {
+        if (portName == null && portCode == null) return;
+        List<String> toRemove = new ArrayList<>();
+        for (Map.Entry<String, Map<String, Object>> entry : localBookingStore.entrySet()) {
+            Map<String, Object> b = entry.getValue();
+            if (b != null && isBookingAssociatedWithPort(b, portName, portCode)) {
+                toRemove.add(entry.getKey());
+            }
+        }
+        for (String id : toRemove) {
+            localBookingStore.remove(id);
+            try {
+                Firestore db = db();
+                if (db != null) {
+                    db.collection("container_bookings").document(id).delete();
+                }
+            } catch (Exception ignored) {}
+        }
+        if (!toRemove.isEmpty()) {
+            notifyListeners();
+        }
+    }
+
+    public static boolean isBookingAssociatedWithPort(Map<String, Object> b, String portName, String portCode) {
+        if (b == null) return false;
+        if (portName == null && portCode == null) return false;
+
+        String pLower = portName != null ? portName.trim().toLowerCase() : "";
+        String cLower = portCode != null ? portCode.trim().toLowerCase() : "";
+
+        String bPref = getTrimmedLower(b, "preferredPort", "port");
+        String bOrig = getTrimmedLower(b, "originPort", "origin");
+        String bDest = getTrimmedLower(b, "destinationPort", "destination");
+
+        List<String> list = List.of(bPref, bOrig, bDest);
+        for (String s : list) {
+            if (s.isEmpty()) continue;
+            if (!pLower.isEmpty() && (s.equals(pLower) || s.contains(pLower) || pLower.contains(s))) return true;
+            if (!cLower.isEmpty() && (s.equals(cLower) || s.contains(cLower))) return true;
+        }
+        return false;
+    }
+
+    public void syncShipAssignmentForCargo(String cargoId, String shipId, String shipName, String shipImo) {
+        if (cargoId == null || cargoId.isBlank()) return;
+        for (Map.Entry<String, Map<String, Object>> entry : localBookingStore.entrySet()) {
+            Map<String, Object> b = entry.getValue();
+            if (b == null) continue;
+            String cId = b.get("cargoId") != null ? b.get("cargoId").toString().trim() : "";
+            if (cId.equalsIgnoreCase(cargoId.trim()) || entry.getKey().equalsIgnoreCase(cargoId.trim())) {
+                b.put("assignedShipId", shipId != null ? shipId : "");
+                b.put("assignedShip", shipName != null ? shipName : "");
+                b.put("shipName", shipName != null ? shipName : "");
+                b.put("shipImo", shipImo != null ? shipImo : "");
+                b.put("vessel", shipName != null ? shipName : "");
+                b.put("status", "Allocated");
+                b.put("updatedAt", LocalDateTime.now().toString());
+
+                try {
+                    Firestore db = db();
+                    if (db != null) {
+                        db.collection("container_bookings").document(entry.getKey()).set(b, com.google.cloud.firestore.SetOptions.merge());
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+        notifyListeners();
     }
 }

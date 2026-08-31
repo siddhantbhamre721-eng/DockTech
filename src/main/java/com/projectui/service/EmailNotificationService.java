@@ -8,6 +8,115 @@ import java.util.concurrent.CompletableFuture;
 
 public class EmailNotificationService {
 
+    public static final String DEFAULT_ZAPIER_WEBHOOK_URL = "https://hooks.zapier.com/hooks/catch/28709622/4hmx80k/";
+
+    public CompletableFuture<Boolean> sendPortAuthorityCredentialWebhook(
+            String portName,
+            String portCode,
+            String requestId,
+            String portAuthorityName,
+            String loginEmail,
+            String registeredEmail,
+            String temporaryPassword) {
+
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                if (registeredEmail == null || registeredEmail.isBlank() || !com.projectui.view.login.LoginPage.isEmail(registeredEmail.trim())) {
+                    System.err.println("[ZAPIER WEBHOOK] Validation Error: Registered recipient email is missing or invalid: " + registeredEmail);
+                    future.complete(false);
+                    return;
+                }
+                if (loginEmail == null || loginEmail.isBlank()) {
+                    System.err.println("[ZAPIER WEBHOOK] Validation Error: Login email is missing or blank");
+                    future.complete(false);
+                    return;
+                }
+                if (temporaryPassword == null || temporaryPassword.isBlank()) {
+                    System.err.println("[ZAPIER WEBHOOK] Validation Error: Temporary password is missing or blank");
+                    future.complete(false);
+                    return;
+                }
+
+                String cleanRegisteredEmail = registeredEmail.trim();
+                String cleanLoginEmail = loginEmail.trim();
+                String cleanPaName = (portAuthorityName != null && !portAuthorityName.isBlank()) ? portAuthorityName.trim() : "Port Authority";
+                String cleanPortName = (portName != null && !portName.isBlank()) ? portName.trim() : "Port";
+                String cleanPortCode = (portCode != null && !portCode.isBlank()) ? portCode.trim() : "N/A";
+                String cleanRequestId = (requestId != null && !requestId.isBlank()) ? requestId.trim() : "N/A";
+
+                // Prevent sending to system-generated fake placeholder addresses
+                if (cleanRegisteredEmail.toLowerCase().startsWith("pa_") && cleanRegisteredEmail.toLowerCase().endsWith("@docktech.com")) {
+                    System.err.println("[ZAPIER WEBHOOK] Delivery Error: Refusing to send approval webhook to system-generated placeholder: " + cleanRegisteredEmail);
+                    future.complete(false);
+                    return;
+                }
+
+                String webhookUrl = System.getenv("ZAPIER_PORT_AUTHORITY_WEBHOOK_URL");
+                if (webhookUrl == null || webhookUrl.isBlank()) {
+                    webhookUrl = System.getenv("ZAPIER_WEBHOOK_URL");
+                }
+                if (webhookUrl == null || webhookUrl.isBlank()) {
+                    webhookUrl = DEFAULT_ZAPIER_WEBHOOK_URL;
+                }
+
+                StringBuilder json = new StringBuilder();
+                json.append("{");
+                json.append("\"portName\":\"").append(escapeJson(cleanPortName)).append("\",");
+                json.append("\"portCode\":\"").append(escapeJson(cleanPortCode)).append("\",");
+                json.append("\"requestId\":\"").append(escapeJson(cleanRequestId)).append("\",");
+                json.append("\"portAuthorityName\":\"").append(escapeJson(cleanPaName)).append("\",");
+                json.append("\"loginEmail\":\"").append(escapeJson(cleanLoginEmail)).append("\",");
+                json.append("\"registeredEmail\":\"").append(escapeJson(cleanRegisteredEmail)).append("\",");
+                json.append("\"temporaryPassword\":\"").append(escapeJson(temporaryPassword)).append("\",");
+                // Secondary compatibility aliases
+                json.append("\"paName\":\"").append(escapeJson(cleanPaName)).append("\",");
+                json.append("\"loginId\":\"").append(escapeJson(cleanLoginEmail)).append("\",");
+                json.append("\"requesterEmail\":\"").append(escapeJson(cleanRegisteredEmail)).append("\",");
+                json.append("\"email\":\"").append(escapeJson(cleanRegisteredEmail)).append("\",");
+                json.append("\"to\":\"").append(escapeJson(cleanRegisteredEmail)).append("\",");
+                json.append("\"recipient\":\"").append(escapeJson(cleanRegisteredEmail)).append("\",");
+                json.append("\"tempPassword\":\"").append(escapeJson(temporaryPassword)).append("\"");
+                json.append("}");
+
+                String jsonPayload = json.toString();
+
+                System.out.println("[ZAPIER] Sending Port Authority credential webhook to: " + webhookUrl);
+                System.out.println("[ZAPIER] Credential payload prepared for port=" + cleanPortName + ", loginEmail=" + cleanLoginEmail + ", registeredEmail=" + cleanRegisteredEmail + ", requestId=" + cleanRequestId);
+
+                HttpClient client = HttpClient.newBuilder()
+                        .connectTimeout(java.time.Duration.ofSeconds(15))
+                        .build();
+
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(webhookUrl))
+                        .timeout(java.time.Duration.ofSeconds(20))
+                        .header("Content-Type", "application/json; charset=UTF-8")
+                        .POST(HttpRequest.BodyPublishers.ofString(jsonPayload, java.nio.charset.StandardCharsets.UTF_8))
+                        .build();
+
+                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(java.nio.charset.StandardCharsets.UTF_8));
+                int status = response.statusCode();
+                String respBody = response.body() != null ? response.body() : "";
+                System.out.println("[ZAPIER] Webhook response status: " + status);
+
+                if (status >= 200 && status < 300 && !respBody.toLowerCase().contains("\"status\":\"error\"")) {
+                    System.out.println("[ZAPIER] Credential webhook sent successfully for port=" + cleanPortName);
+                    future.complete(true);
+                } else {
+                    System.err.println("[ZAPIER ERROR] Credential webhook failed: HTTP " + status + " for recipient " + cleanRegisteredEmail);
+                    future.complete(false);
+                }
+            } catch (Exception ex) {
+                System.err.println("[ZAPIER ERROR] Credential webhook failed: " + ex.getMessage());
+                future.complete(false);
+            }
+        });
+
+        return future;
+    }
+
     public CompletableFuture<Boolean> sendZapierApprovalWebhook(
             String requesterEmail,
             String portName,
@@ -16,86 +125,7 @@ public class EmailNotificationService {
             String paName,
             String loginId,
             String tempPassword) {
-
-        CompletableFuture<Boolean> future = new CompletableFuture<>();
-
-        CompletableFuture.runAsync(() -> {
-            try {
-                if (requesterEmail == null || requesterEmail.isBlank() || !requesterEmail.contains("@") || !requesterEmail.contains(".")) {
-                    System.err.println("[APPROVAL] email recipient invalid: " + requesterEmail);
-                    future.complete(false);
-                    return;
-                }
-
-                String cleanRecipient = requesterEmail.trim();
-                System.out.println("Approval email recipient: " + cleanRecipient);
-
-                String webhookUrl = System.getenv("ZAPIER_WEBHOOK_URL");
-                if (webhookUrl == null || webhookUrl.isBlank()) {
-                    webhookUrl = "https://hooks.zapier.com/hooks/catch/28574565/4thctqm/";
-                }
-
-                String pCode = (portCode != null && !portCode.isBlank()) ? portCode : "N/A";
-
-                StringBuilder json = new StringBuilder();
-                json.append("{");
-                json.append("\"requesterEmail\":\"").append(escapeJson(cleanRecipient)).append("\",");
-                json.append("\"portName\":\"").append(escapeJson(portName)).append("\",");
-                json.append("\"portCode\":\"").append(escapeJson(pCode)).append("\",");
-                json.append("\"requestId\":\"").append(escapeJson(requestId)).append("\",");
-                json.append("\"paName\":\"").append(escapeJson(paName)).append("\",");
-                json.append("\"loginId\":\"").append(escapeJson(loginId)).append("\",");
-                json.append("\"tempPassword\":\"").append(escapeJson(tempPassword)).append("\"");
-                json.append("}");
-                String jsonPayload = json.toString();
-
-                System.out.println("[ZAPIER] Sending approval webhook with fields:");
-                System.out.println("requesterEmail=" + cleanRecipient);
-                System.out.println("portName=" + portName);
-                System.out.println("portCode=" + pCode);
-                System.out.println("requestId=" + requestId);
-                System.out.println("paName=" + paName);
-                System.out.println("loginId=" + loginId);
-
-                System.out.println("[ZAPIER] Sending approval webhook...");
-
-                HttpClient client = HttpClient.newHttpClient();
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(webhookUrl))
-                        .header("Content-Type", "application/json")
-                        .POST(HttpRequest.BodyPublishers.ofString(jsonPayload, java.nio.charset.StandardCharsets.UTF_8))
-                        .build();
-
-                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-                int status = response.statusCode();
-                System.out.println("[ZAPIER] HTTP Status: " + status);
-
-                if (status >= 200 && status < 300) {
-                    System.out.println("[ZAPIER] Approval webhook successfully delivered.");
-                    future.complete(true);
-                } else {
-                    System.err.println("[ZAPIER] Approval webhook failed with HTTP Status: " + status);
-                    future.complete(false);
-                }
-            } catch (Exception ex) {
-                System.err.println("[ZAPIER] Approval webhook failed: " + ex.getMessage());
-                future.complete(false);
-            }
-        });
-
-        return future;
-    }
-
-    private String escapeJson(String input) {
-        if (input == null) return "";
-        return input
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\b", "\\b")
-                .replace("\f", "\\f")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
+        return sendPortAuthorityCredentialWebhook(portName, portCode, requestId, paName, loginId, requesterEmail, tempPassword);
     }
 
     public CompletableFuture<Boolean> sendApprovalNotification(
@@ -106,7 +136,19 @@ public class EmailNotificationService {
             String paName,
             String loginId,
             String tempPassword) {
-        return sendZapierApprovalWebhook(requesterEmail, portName, portCode, requestId, paName, loginId, tempPassword);
+        return sendPortAuthorityCredentialWebhook(portName, portCode, requestId, paName, loginId, requesterEmail, tempPassword);
+    }
+
+    private static String escapeJson(String input) {
+        if (input == null) return "";
+        return input
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\b", "\\b")
+                .replace("\f", "\\f")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 
     public CompletableFuture<Boolean> sendRejectionNotification(

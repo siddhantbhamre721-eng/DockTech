@@ -17,7 +17,10 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
@@ -27,6 +30,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Popup;
 import javafx.stage.Stage;
@@ -209,8 +213,32 @@ public class DashBoard {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Label notification = new Label("🔔");
-        notification.setStyle("-fx-text-fill:#0f172a; -fx-font-size:16;");
+        StackPane notifStack = new StackPane();
+        Label notifIcon = new Label("🔔");
+        notifIcon.setStyle("-fx-text-fill:#0f172a; -fx-font-size:16; -fx-cursor:hand;");
+
+        Label notifBadge = new Label();
+        notifBadge.setStyle("-fx-background-color:#ef4444; -fx-text-fill:white; -fx-font-size:9px; -fx-font-weight:bold; -fx-padding:1 4; -fx-background-radius:10;");
+        notifBadge.setVisible(false);
+        StackPane.setAlignment(notifBadge, Pos.TOP_RIGHT);
+        StackPane.setMargin(notifBadge, new Insets(-4, -6, 0, 0));
+
+        notifStack.getChildren().addAll(notifIcon, notifBadge);
+        notifStack.setCursor(javafx.scene.Cursor.HAND);
+
+        String capUid = CaptainSessionService.getCaptainUid();
+        String capEmail = CaptainSessionService.getCaptainEmail();
+        com.projectui.dao.NotificationDao notifDao = new com.projectui.dao.NotificationDao();
+        List<com.projectui.model.Notification> notifs = notifDao.getNotificationsForUser(!capUid.isBlank() ? capUid : capEmail);
+        long unreadCount = notifs != null ? notifs.stream().filter(n -> n != null && !n.isRead()).count() : 0;
+        if (unreadCount > 0) {
+            notifBadge.setText(String.valueOf(unreadCount));
+            notifBadge.setVisible(true);
+        }
+
+        notifStack.setOnMouseClicked(e -> {
+            showCaptainNotificationsModal(notifs, notifBadge, title);
+        });
 
         String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy"));
         Label dateLabel = new Label(date);
@@ -260,8 +288,48 @@ public class DashBoard {
             showCaptainProfilePopup(owner, profile, title);
         });
 
-        header.getChildren().addAll(title, spacer, notification, dateLabel, timeLabel, system, profile);
+        header.getChildren().addAll(title, spacer, notifStack, dateLabel, timeLabel, system, profile);
         return header;
+    }
+
+    private void showCaptainNotificationsModal(List<com.projectui.model.Notification> notifs, Label notifBadge, Label title) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Captain Notifications & Directives");
+        alert.setHeaderText("Active Operational Notifications");
+
+        StringBuilder sb = new StringBuilder();
+        if (notifs != null && !notifs.isEmpty()) {
+            for (com.projectui.model.Notification n : notifs) {
+                if (n == null) continue;
+                sb.append(n.getTitle()).append(" [").append(n.getTimestamp()).append("]\n");
+                sb.append(n.getMessage()).append("\n\n");
+            }
+        } else {
+            sb.append("• No new notifications from Port Authority or Customs.\n• Vessel voyage operating normally.");
+        }
+
+        alert.setContentText(sb.toString().trim());
+
+        ButtonType confirmLoadingBtn = new ButtonType("Open Confirm Loading", ButtonBar.ButtonData.OK_DONE);
+        ButtonType closeBtn = new ButtonType("Close", ButtonBar.ButtonData.CANCEL_CLOSE);
+        alert.getButtonTypes().setAll(confirmLoadingBtn, closeBtn);
+
+        // Mark as read
+        if (notifs != null) {
+            com.projectui.dao.NotificationDao notifDao = new com.projectui.dao.NotificationDao();
+            for (com.projectui.model.Notification n : notifs) {
+                if (n != null && !n.isRead() && n.getId() != null) {
+                    n.setRead(true);
+                    notifDao.markAsRead(n.getId());
+                }
+            }
+        }
+        if (notifBadge != null) notifBadge.setVisible(false);
+
+        java.util.Optional<ButtonType> res = alert.showAndWait();
+        if (res.isPresent() && res.get() == confirmLoadingBtn) {
+            switchPage("Confirm Loading", title);
+        }
     }
 
     private void showCaptainProfilePopup(Window owner, Button profile, Label title) {
@@ -643,9 +711,13 @@ public class DashBoard {
         GridPane g2 = new GridPane();
         g2.setHgap(16);
         g2.setVgap(10);
-
-        String origin = ship.getArrival() != null && !ship.getArrival().isBlank() ? "Port of Chennai" : "Port of Mumbai";
-        String dest = ship.getDeparture() != null && !ship.getDeparture().isBlank() ? ship.getDeparture() : (v != null ? v.destination : "Port of Singapore");
+        List<Map<String, Object>> cargos = CaptainSessionService.getAssignedCargos();
+        String origin = (!cargos.isEmpty() && cargos.get(0).get("originPort") != null && !cargos.get(0).get("originPort").toString().isBlank())
+                ? cargos.get(0).get("originPort").toString()
+                : (ship.getArrival() != null && !ship.getArrival().isBlank() ? ship.getArrival() : "Origin Port");
+        String dest = (!cargos.isEmpty() && cargos.get(0).get("destinationPort") != null && !cargos.get(0).get("destinationPort").toString().isBlank())
+                ? cargos.get(0).get("destinationPort").toString()
+                : (ship.getDeparture() != null && !ship.getDeparture().isBlank() ? ship.getDeparture() : (v != null && v.destination != null ? v.destination : "Destination Port"));
         String berth = ship.getBerth() != null && !ship.getBerth().isBlank() ? ship.getBerth() : "Berth B04";
 
         g2.add(fieldCell("Origin Port", origin), 0, 0);
@@ -667,9 +739,14 @@ public class DashBoard {
         Label title = new Label("Voyage & Route Progress");
         title.setStyle("-fx-text-fill:#05070c; -fx-font-size:16; -fx-font-weight:bold;");
 
-        String origin = ship.getArrival() != null && !ship.getArrival().isBlank() ? "Port of Chennai" : "Port of Mumbai";
-        String dest = ship.getDeparture() != null && !ship.getDeparture().isBlank() ? ship.getDeparture() : (v != null ? v.destination : "Port of Singapore");
-        String currentLoc = ship.getBerth() != null && !ship.getBerth().isBlank() ? ship.getBerth() : "Port of Mumbai (Berth B04)";
+        List<Map<String, Object>> cargos = CaptainSessionService.getAssignedCargos();
+        String origin = (!cargos.isEmpty() && cargos.get(0).get("originPort") != null && !cargos.get(0).get("originPort").toString().isBlank())
+                ? cargos.get(0).get("originPort").toString()
+                : (ship.getArrival() != null && !ship.getArrival().isBlank() ? ship.getArrival() : "Origin Port");
+        String dest = (!cargos.isEmpty() && cargos.get(0).get("destinationPort") != null && !cargos.get(0).get("destinationPort").toString().isBlank())
+                ? cargos.get(0).get("destinationPort").toString()
+                : (ship.getDeparture() != null && !ship.getDeparture().isBlank() ? ship.getDeparture() : (v != null && v.destination != null ? v.destination : "Destination Port"));
+        String currentLoc = ship.getBerth() != null && !ship.getBerth().isBlank() ? ship.getBerth() : "At Berth / Sea";
         String eta = ship.getArrival() != null && !ship.getArrival().isBlank() ? ship.getArrival() : "10:30 AM";
         String status = ship.getStatus() != null ? ship.getStatus() : (v != null ? v.navigationStatus : "At Berth");
 

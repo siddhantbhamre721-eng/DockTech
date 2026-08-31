@@ -3,6 +3,8 @@ package com.projectui.view.login;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import com.projectui.view.admin.AdminDataStore;
+
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -126,6 +128,26 @@ public class RequestNewPortPage {
         stage.setTitle("Dock Tech - Request New Port");
     }
 
+    public void show(Stage stage, AdminDataStore.PortRequest existingRequest) {
+        show(stage);
+        if (existingRequest != null) {
+            currentStep = 4;
+            renderStepper();
+            stepContentContainer.getChildren().clear();
+            VBox card = new VBox(20);
+            card.setPadding(new Insets(24));
+            card.setStyle("-fx-background-color: white; -fx-background-radius: 14px; -fx-border-color: #E2E8F0; -fx-border-radius: 14px; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.03), 10, 0, 0, 2);");
+
+            renderSuccessView(card, existingRequest.requestId, existingRequest.portName, existingRequest.portCode,
+                    existingRequest.location, existingRequest.address,
+                    existingRequest.lat, existingRequest.lng,
+                    existingRequest.requesterName, existingRequest.requesterEmail, existingRequest.requesterPhone,
+                    existingRequest.proposedPaName, existingRequest.proposedPaEmail, existingRequest.requesterPhone,
+                    existingRequest.aadhaarFileName, existingRequest.supportingFileName, existingRequest.requestDate);
+            stepContentContainer.getChildren().add(card);
+        }
+    }
+
     private void renderStepper() {
         stepperRow.getChildren().clear();
         stepperRow.setAlignment(Pos.CENTER_LEFT);
@@ -227,12 +249,13 @@ public class RequestNewPortPage {
             }
         });
 
-        Button nextBtn = new Button("Next: Port Authority Details →");
+            Button nextBtn = new Button("Next: Port Authority Details →");
         nextBtn.setStyle(primaryBtnStyle());
         nextBtn.setOnAction(e -> {
             String pName = portNameField.getText().trim();
             String pLoc = locationField.getText().trim();
             if (pName.isEmpty() || pLoc.isEmpty()) {
+                if (errorLabel != null) errorLabel.setStyle("-fx-text-fill:#ef4444; -fx-font-size:13px; -fx-font-weight:bold;");
                 showError("⚠️ Port Name and Location are required.");
                 return;
             }
@@ -240,27 +263,41 @@ public class RequestNewPortPage {
             String latText = latField.getText().trim();
             String lngText = lngField.getText().trim();
             if (latText.isEmpty() || lngText.isEmpty()) {
+                if (errorLabel != null) errorLabel.setStyle("-fx-text-fill:#ef4444; -fx-font-size:13px; -fx-font-weight:bold;");
                 showError("⚠️ Please enter or click 'Get Coordinates' to retrieve Latitude and Longitude.");
                 return;
             }
+            double lat;
             try {
-                double lat = Double.parseDouble(latText);
+                lat = Double.parseDouble(latText);
                 if (lat < -90.0 || lat > 90.0) {
+                    if (errorLabel != null) errorLabel.setStyle("-fx-text-fill:#ef4444; -fx-font-size:13px; -fx-font-weight:bold;");
                     showError("⚠️ Latitude must be between -90 and +90 degrees.");
                     return;
                 }
             } catch (NumberFormatException ex) {
+                if (errorLabel != null) errorLabel.setStyle("-fx-text-fill:#ef4444; -fx-font-size:13px; -fx-font-weight:bold;");
                 showError("⚠️ Invalid Latitude numeric format.");
                 return;
             }
+            double lng;
             try {
-                double lng = Double.parseDouble(lngText);
+                lng = Double.parseDouble(lngText);
                 if (lng < -180.0 || lng > 180.0) {
+                    if (errorLabel != null) errorLabel.setStyle("-fx-text-fill:#ef4444; -fx-font-size:13px; -fx-font-weight:bold;");
                     showError("⚠️ Longitude must be between -180 and +180 degrees.");
                     return;
                 }
             } catch (NumberFormatException ex) {
+                if (errorLabel != null) errorLabel.setStyle("-fx-text-fill:#ef4444; -fx-font-size:13px; -fx-font-weight:bold;");
                 showError("⚠️ Invalid Longitude numeric format.");
+                return;
+            }
+
+            // Perform coastal/sea-accessible validation again on Next
+            if (!com.projectui.service.CoastalLocationValidator.isCoastal(lat, lng)) {
+                if (errorLabel != null) errorLabel.setStyle("-fx-text-fill:#ef4444; -fx-font-size:13px; -fx-font-weight:bold;");
+                showError("⚠️ " + com.projectui.service.CoastalLocationValidator.REJECTION_MESSAGE);
                 return;
             }
 
@@ -473,6 +510,17 @@ public class RequestNewPortPage {
         submitBtn.setStyle("-fx-background-color: #16A34A; -fx-text-fill: white; -fx-font-size: 13px; -fx-font-weight: bold; -fx-padding: 10px 20px; -fx-background-radius: 8px; -fx-cursor: hand;");
 
         submitBtn.setOnAction(e -> {
+            if (!com.projectui.service.CoastalLocationValidator.isCoastal(finalLat, finalLng)) {
+                submitBtn.setText("SUBMIT PORT REQUEST (PENDING ADMIN APPROVAL)");
+                submitBtn.setDisable(false);
+                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                        javafx.scene.control.Alert.AlertType.ERROR,
+                        com.projectui.service.CoastalLocationValidator.REJECTION_MESSAGE
+                );
+                alert.showAndWait();
+                return;
+            }
+
             com.projectui.dao.PortRequestDao requestDao = new com.projectui.dao.PortRequestDao();
             String reqId = "NPR-" + (int)(Math.random() * 8999 + 1000);
 
@@ -502,39 +550,9 @@ public class RequestNewPortPage {
 
                 System.out.println("Firestore save successful requestId=" + reqId);
 
-                card.getChildren().clear();
-                VBox successBox = new VBox(16);
-                successBox.setAlignment(Pos.CENTER);
-                successBox.setPadding(new Insets(30));
-
-                Label icon = new Label("✓");
-                icon.setStyle("-fx-background-color:#DCFCE7; -fx-text-fill:#16A34A; -fx-font-size:32px; -fx-font-weight:bold; -fx-alignment:center; -fx-min-width:64; -fx-min-height:64; -fx-background-radius:999;");
-
-                Label msgTitle = new Label("Request Submitted Successfully");
-                msgTitle.setStyle("-fx-font-size:22px; -fx-font-weight:bold; -fx-text-fill:#0F172A;");
-
-                VBox detailsBox = new VBox(8);
-                detailsBox.setAlignment(Pos.CENTER);
-                detailsBox.setPadding(new Insets(16));
-                detailsBox.setStyle("-fx-background-color:#F8FAFC; -fx-border-color:#E2E8F0; -fx-border-radius:10px; -fx-background-radius:10px;");
-
-                Label reqIdLbl = new Label("Request ID: " + reqId);
-                reqIdLbl.setStyle("-fx-font-size:15px; -fx-font-weight:bold; -fx-text-fill:#0B63FF;");
-
-                Label statusLbl = new Label("Status: PENDING");
-                statusLbl.setStyle("-fx-background-color:#FFF7ED; -fx-text-fill:#C2410C; -fx-font-size:12px; -fx-font-weight:bold; -fx-padding:4 12; -fx-background-radius:12;");
-
-                Label msgSub = new Label("Your New Port Request has been submitted to\nDock Tech Admin for verification and approval.\nYou will receive an email when the request\nis approved or rejected.");
-                msgSub.setStyle("-fx-font-size:14px; -fx-text-fill:#64748B; -fx-text-alignment:center; -fx-line-spacing:3px;");
-
-                detailsBox.getChildren().addAll(reqIdLbl, statusLbl, msgSub);
-
-                Button returnBtn = new Button("← Return to Login");
-                returnBtn.setStyle(primaryBtnStyle());
-                returnBtn.setOnAction(evt -> new LoginPage().show(stage));
-
-                successBox.getChildren().addAll(icon, msgTitle, detailsBox, returnBtn);
-                card.getChildren().add(successBox);
+                renderSuccessView(card, reqId, pName, pCode, pLoc, pAddr, finalLat, finalLng,
+                        rName, rEmail, rPhone, paName, paEmail, paPhone,
+                        aadhaarDocMeta.fileName, supportingDocMeta.fileName, "Today");
             }));
         });
 
@@ -543,6 +561,127 @@ public class RequestNewPortPage {
         HBox btnRow = new HBox(12, backBtn, space, submitBtn);
 
         card.getChildren().addAll(stepTitle, summaryBox, notice, btnRow);
+    }
+
+    public void renderSuccessView(VBox card, String reqId, String pName, String pCode, String pLoc, String pAddr,
+                                  double lat, double lng, String rName, String rEmail, String rPhone,
+                                  String paName, String paEmail, String paPhone,
+                                  String aadhaarDoc, String supportingDoc, String submitDate) {
+        card.getChildren().clear();
+        card.setPadding(new Insets(24));
+        card.setSpacing(18);
+
+        // Header: Success Icon + Title + Request Badges
+        HBox headerBox = new HBox(16);
+        headerBox.setAlignment(Pos.CENTER_LEFT);
+
+        Label icon = new Label("✓");
+        icon.setStyle("-fx-background-color:#DCFCE7; -fx-text-fill:#16A34A; -fx-font-size:24px; -fx-font-weight:bold; -fx-alignment:center; -fx-min-width:52; -fx-min-height:52; -fx-background-radius:999; -fx-border-color:#BBF7D0; -fx-border-radius:999;");
+
+        VBox titleBox = new VBox(4);
+        Label msgTitle = new Label("Request Submitted Successfully");
+        msgTitle.setStyle("-fx-font-size:20px; -fx-font-weight:bold; -fx-text-fill:#0F172A;");
+        Label msgSub = new Label("Your port proposal has been securely registered and queued for Dock Tech Admin review.");
+        msgSub.setStyle("-fx-font-size:13px; -fx-text-fill:#64748B;");
+        titleBox.getChildren().addAll(msgTitle, msgSub);
+
+        Region headerSpacer = new Region();
+        HBox.setHgrow(headerSpacer, Priority.ALWAYS);
+
+        // Dynamic status lookup from existing database/memory store
+        String currentStatus = "PENDING";
+        if (reqId != null) {
+            for (AdminDataStore.PortRequest r : AdminDataStore.getInstance().portRequests) {
+                if (reqId.equalsIgnoreCase(r.requestId)) {
+                    if (r.status != null && !r.status.isBlank()) currentStatus = r.status.toUpperCase().trim();
+                    break;
+                }
+            }
+        }
+
+        Label reqIdBadge = new Label("REQUEST ID: " + (reqId != null ? reqId : "NPR-8293"));
+        reqIdBadge.setStyle("-fx-background-color:#EFF6FF; -fx-text-fill:#1D4ED8; -fx-font-size:12px; -fx-font-weight:bold; -fx-padding:6 12; -fx-background-radius:8; -fx-border-color:#BFDBFE; -fx-border-radius:8;");
+
+        Label statusBadge = new Label("● " + currentStatus);
+        if ("APPROVED".equalsIgnoreCase(currentStatus)) {
+            statusBadge.setStyle("-fx-background-color:#ECFDF5; -fx-text-fill:#047857; -fx-font-size:12px; -fx-font-weight:bold; -fx-padding:6 12; -fx-background-radius:8; -fx-border-color:#A7F3D0; -fx-border-radius:8;");
+        } else if ("REJECTED".equalsIgnoreCase(currentStatus)) {
+            statusBadge.setStyle("-fx-background-color:#FEF2F2; -fx-text-fill:#B91C1C; -fx-font-size:12px; -fx-font-weight:bold; -fx-padding:6 12; -fx-background-radius:8; -fx-border-color:#FECACA; -fx-border-radius:8;");
+        } else {
+            statusBadge.setStyle("-fx-background-color:#FFF7ED; -fx-text-fill:#C2410C; -fx-font-size:12px; -fx-font-weight:bold; -fx-padding:6 12; -fx-background-radius:8; -fx-border-color:#FED7AA; -fx-border-radius:8;");
+        }
+
+        HBox badgesBox = new HBox(8, reqIdBadge, statusBadge);
+        badgesBox.setAlignment(Pos.CENTER_RIGHT);
+
+        headerBox.getChildren().addAll(icon, titleBox, headerSpacer, badgesBox);
+
+        // 2-Column Summary Cards
+        HBox gridRow = new HBox(16);
+        gridRow.setAlignment(Pos.TOP_LEFT);
+
+        // Left Column: Port & Terminal Details
+        VBox portCard = new VBox(10);
+        portCard.setPadding(new Insets(14, 16, 14, 16));
+        portCard.setStyle("-fx-background-color:#F8FAFC; -fx-border-color:#E2E8F0; -fx-border-radius:10px; -fx-background-radius:10px;");
+        HBox.setHgrow(portCard, Priority.ALWAYS);
+
+        Label portSectionTitle = new Label("⚓  PORT ESTABLISHMENT DETAILS");
+        portSectionTitle.setStyle("-fx-font-size:12px; -fx-font-weight:bold; -fx-text-fill:#475569;");
+
+        portCard.getChildren().addAll(
+                portSectionTitle,
+                summaryRow("Port Name & Code", pName + " (" + pCode + ")"),
+                summaryRow("Location & City", pLoc),
+                summaryRow("Terminal Address", pAddr),
+                summaryRow("Coordinates", String.format(java.util.Locale.US, "%.4f° N, %.4f° E", lat, lng)),
+                summaryRow("Submission Date", submitDate != null && !submitDate.isBlank() ? submitDate : "Today")
+        );
+
+        // Right Column: Authorities, Requester & Documents
+        VBox authorityCard = new VBox(10);
+        authorityCard.setPadding(new Insets(14, 16, 14, 16));
+        authorityCard.setStyle("-fx-background-color:#F8FAFC; -fx-border-color:#E2E8F0; -fx-border-radius:10px; -fx-background-radius:10px;");
+        HBox.setHgrow(authorityCard, Priority.ALWAYS);
+
+        Label authSectionTitle = new Label("🛡️  PERSONNEL & VERIFICATION");
+        authSectionTitle.setStyle("-fx-font-size:12px; -fx-font-weight:bold; -fx-text-fill:#475569;");
+
+        authorityCard.getChildren().addAll(
+                authSectionTitle,
+                summaryRow("Proposed Port Authority", paName + " (" + paEmail + ")"),
+                summaryRow("PA Contact Phone", paPhone),
+                summaryRow("Requested By", rName + " (" + rEmail + " • " + rPhone + ")"),
+                summaryRow("Aadhaar Card", (aadhaarDoc != null && !aadhaarDoc.isBlank()) ? aadhaarDoc : "Aadhaar_Verification.pdf"),
+                summaryRow("Proposal Document", (supportingDoc != null && !supportingDoc.isBlank()) ? supportingDoc : "Port_Establishment_Proposal.pdf")
+        );
+
+        gridRow.getChildren().addAll(portCard, authorityCard);
+
+        // Process Workflow Banner
+        HBox workflowCard = new HBox(12);
+        workflowCard.setPadding(new Insets(12, 16, 12, 16));
+        workflowCard.setAlignment(Pos.CENTER_LEFT);
+        workflowCard.setStyle("-fx-background-color:#F0FDF4; -fx-border-color:#BBF7D0; -fx-border-radius:8px; -fx-background-radius:8px;");
+
+        Label wfIcon = new Label("ℹ️");
+        wfIcon.setStyle("-fx-font-size:16px;");
+
+        Label wfText = new Label("Workflow Status: Request submitted to Dock Tech Admin. Upon administrative review and approval, the active port will be established and official Port Authority credentials will be dispatched to " + paEmail + ".");
+        wfText.setStyle("-fx-text-fill:#166534; -fx-font-size:12px; -fx-font-weight:500; -fx-wrap-text:true;");
+        HBox.setHgrow(wfText, Priority.ALWAYS);
+
+        workflowCard.getChildren().addAll(wfIcon, wfText);
+
+        // Action Buttons Row
+        Button returnBtn = new Button("← Return to Login");
+        returnBtn.setStyle(primaryBtnStyle());
+        returnBtn.setOnAction(evt -> new LoginPage().show(stage));
+
+        HBox btnRow = new HBox(12, returnBtn);
+        btnRow.setAlignment(Pos.CENTER_RIGHT);
+
+        card.getChildren().addAll(headerBox, gridRow, workflowCard, btnRow);
     }
 
     private void handleGetCoordinates(Button btn) {
@@ -571,11 +710,21 @@ public class RequestNewPortPage {
                     }
                 } else {
                     com.projectui.service.GeocodingService.GeocodedLocation loc = locations.get(0);
-                    latField.setText(String.format(java.util.Locale.US, "%.4f", loc.lat));
-                    lngField.setText(String.format(java.util.Locale.US, "%.4f", loc.lng));
-                    if (errorLabel != null) {
-                        errorLabel.setStyle("-fx-text-fill:#16a34a; -fx-font-size:13px; -fx-font-weight:bold;");
-                        showError("✓ Coordinates obtained: Lat " + String.format(java.util.Locale.US, "%.4f", loc.lat) + ", Lng " + String.format(java.util.Locale.US, "%.4f", loc.lng));
+                    // Validate whether coordinates are in a coastal/sea-accessible location
+                    if (!com.projectui.service.CoastalLocationValidator.isCoastal(loc.lat, loc.lng)) {
+                        latField.setText("");
+                        lngField.setText("");
+                        if (errorLabel != null) {
+                            errorLabel.setStyle("-fx-text-fill:#ef4444; -fx-font-size:13px; -fx-font-weight:bold;");
+                            showError("⚠️ " + com.projectui.service.CoastalLocationValidator.REJECTION_MESSAGE);
+                        }
+                    } else {
+                        latField.setText(String.format(java.util.Locale.US, "%.4f", loc.lat));
+                        lngField.setText(String.format(java.util.Locale.US, "%.4f", loc.lng));
+                        if (errorLabel != null) {
+                            errorLabel.setStyle("-fx-text-fill:#16a34a; -fx-font-size:13px; -fx-font-weight:bold;");
+                            showError("✓ Coordinates obtained: Lat " + String.format(java.util.Locale.US, "%.4f", loc.lat) + ", Lng " + String.format(java.util.Locale.US, "%.4f", loc.lng));
+                        }
                     }
                 }
             });

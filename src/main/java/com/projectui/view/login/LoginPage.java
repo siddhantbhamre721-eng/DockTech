@@ -2,6 +2,7 @@ package com.projectui.view.login;
 
 import java.util.Map;
 import com.projectui.service.FirebaseAuthService;
+import com.projectui.view.admin.AdminDataStore;
 import com.projectui.view.admin.DockTechAdmin;
 
 import javafx.application.Application;
@@ -139,6 +140,9 @@ public class LoginPage extends Application {
         @Override
         public void start(Stage primaryStage) {
                 initGlobalScrollbarHider();
+                try {
+                        new com.projectui.dao.PortRequestDao().syncWithDatabase();
+                } catch (Exception ignored) {}
                 stage = primaryStage;
                 stage.setTitle("Dock Tech - Smart Maritime Operations");
                 stage.setMinWidth(1100);
@@ -150,6 +154,9 @@ public class LoginPage extends Application {
 
         public void show(Stage stage) {
                 initGlobalScrollbarHider();
+                try {
+                        new com.projectui.dao.PortRequestDao().syncWithDatabase();
+                } catch (Exception ignored) {}
                 this.stage = stage;
                 showLoginScene();
         }
@@ -574,7 +581,9 @@ public class LoginPage extends Application {
 
                 login.setDisable(true);
                 showMessage(message, "Signing in...", "#AFC6D9");
-                System.out.println("[LOGIN] Attempting Firebase authentication for: " + emailValue);
+                System.out.println("[LOGIN] Email: " + emailValue);
+                System.out.println("[LOGIN] Firebase project: " + com.projectui.config.FirebaseConfig.PROJECT_ID);
+                System.out.println("[LOGIN] Starting Firebase Auth...");
 
                 try {
                         authService.signIn(emailValue, passwordValue, role.getValue())
@@ -587,17 +596,18 @@ public class LoginPage extends Application {
                                                                 Throwable actualError = authError.getCause() == null
                                                                                 ? authError
                                                                                 : authError.getCause();
-                                                                resetLoadingState(login, message, actualError == null
-                                                                                ? "Unable to authenticate. Please check your credentials and try again."
-                                                                                : actualError.getMessage());
+                                                                String errMessage = (actualError != null && actualError.getMessage() != null && !actualError.getMessage().isBlank())
+                                                                                ? actualError.getMessage()
+                                                                                : "Invalid email or password.";
+                                                                resetLoadingState(login, message, errMessage);
                                                                 return;
                                                         }
 
-                                                        if (authUser == null || authUser.getUid() == null) {
+                                                        if (authUser == null || authUser.getUid() == null || authUser.getUid().isBlank()) {
                                                                 System.err.println(
                                                                                 "[LOGIN ERROR] Firebase Auth returned null user or UID");
                                                                 resetLoadingState(login, message,
-                                                                                "Unable to authenticate. Please check your connection and try again.");
+                                                                                "Authentication failed. No user identifier returned.");
                                                                 return;
                                                         }
 
@@ -605,7 +615,7 @@ public class LoginPage extends Application {
                                                                         "[LOGIN] Firebase authentication successful");
                                                         System.out.println(
                                                                         "[LOGIN] Firebase UID: " + authUser.getUid());
-                                                        System.out.println("[LOGIN] Loading user profile");
+                                                        System.out.println("[LOGIN] Loading existing user profile...");
 
                                                         userDao.getUserProfile(authUser.getUid(), emailValue)
                                                                         .whenComplete((profile, storeError) -> Platform
@@ -629,35 +639,17 @@ public class LoginPage extends Application {
 
                                                                                                         Map<String, Object> activeProfile = profile;
                                                                                                         if (activeProfile == null) {
-                                                                                                                System.out.println(
-                                                                                                                                "[LOGIN] Backfilling missing Firestore profile for authenticated user: "
+                                                                                                                System.err.println(
+                                                                                                                                "[LOGIN ERROR] No active application user record found in Firestore for: "
                                                                                                                                                 + emailValue + " (UID: " + authUser.getUid() + ")");
-                                                                                                                String selectedRole = role.getValue();
-                                                                                                                String authName = authUser.getDisplayName() != null && !authUser.getDisplayName().isBlank()
-                                                                                                                                ? authUser.getDisplayName()
-                                                                                                                                : (emailValue.contains("@") ? emailValue.substring(0, emailValue.indexOf("@")) : emailValue);
-
-                                                                                                                java.util.Map<String, Object> newProf = new java.util.HashMap<>();
-                                                                                                                newProf.put("uid", authUser.getUid());
-                                                                                                                newProf.put("email", emailValue.toLowerCase().trim());
-                                                                                                                newProf.put("name", authName);
-                                                                                                                newProf.put("role", selectedRole);
-                                                                                                                newProf.put("status", "Active");
-                                                                                                                newProf.put("organization", "Ocean Logistics");
-                                                                                                                newProf.put("company", "Ocean Logistics");
-                                                                                                                newProf.put("assignedPort", "Port of Mumbai");
-                                                                                                                newProf.put("assignedShip", "Not Assigned");
-                                                                                                                newProf.put("duty", "Not Assigned");
-                                                                                                                newProf.put("assignmentStatus", "Available");
-                                                                                                                newProf.put("createdAt", java.time.LocalDateTime.now().toString());
-                                                                                                                newProf.put("updatedAt", java.time.LocalDateTime.now().toString());
-
-                                                                                                                userDao.saveUserExtended(authUser.getUid(), emailValue, authName, "Ocean Logistics", "", selectedRole, "Active", newProf);
-                                                                                                                activeProfile = newProf;
+                                                                                                                resetLoadingState(
+                                                                                                                                login,
+                                                                                                                                message,
+                                                                                                                                "User profile not found in Firestore. Please contact Dock Tech Admin.");
+                                                                                                                return;
                                                                                                         }
 
-                                                                                                        System.out.println(
-                                                                                                                        "[LOGIN] Profile found");
+                                                                                                        System.out.println("[LOGIN] Existing Port Authority profile found");
                                                                                                         loggedInUser = activeProfile;
 
                                                                                                         String selectedRole = role
@@ -689,9 +681,7 @@ public class LoginPage extends Application {
                                                                                                         }
 
                                                                                                         System.out.println(
-                                                                                                                        "[LOGIN] Account role: " + firestoreRole);
-                                                                                                        System.out.println(
-                                                                                                                        "[LOGIN] Selected role: " + selectedRole);
+                                                                                                                        "[LOGIN] Role verified: " + firestoreRole);
 
                                                                                                         Object statusObj = activeProfile
                                                                                                                         .get("status");
@@ -702,30 +692,18 @@ public class LoginPage extends Application {
                                                                                                         if (!isRoleMatch(
                                                                                                                         selectedRole,
                                                                                                                         firestoreRole)) {
-                                                                                                                if (isPortAuthorityRole(selectedRole) && (com.projectui.dao.UserDao.isPortEmailOrKeywords(emailValue) || com.projectui.dao.UserDao.hasApprovedPortAuthority(emailValue) || isPortAuthorityRole(firestoreRole))) {
-                                                                                                                        firestoreRole = "Port Authority";
-                                                                                                                        activeProfile.put("role", "Port Authority");
-                                                                                                                        activeProfile.put("roleCode", "PORT_AUTHORITY");
-                                                                                                                        userDao.saveUserExtended(authUser.getUid(), emailValue, authUser.getDisplayName(), "Port Authority Operations", "", "Port Authority", "Active", activeProfile);
-                                                                                                                } else {
-                                                                                                                        System.err.println(
-                                                                                                                                        "[LOGIN ERROR] Selected role ("
-                                                                                                                                                        + selectedRole
-                                                                                                                                                        + ") does not match account role ("
-                                                                                                                                                        + firestoreRole
-                                                                                                                                                        + ")");
-                                                                                                                        resetLoadingState(
-                                                                                                                                        login,
-                                                                                                                                        message,
-                                                                                                                                        "Selected role does not match this account.");
-                                                                                                                        return;
-                                                                                                                }
+                                                                                                                System.err.println(
+                                                                                                                                "[LOGIN ERROR] Selected role ("
+                                                                                                                                                + selectedRole
+                                                                                                                                                + ") does not match account role ("
+                                                                                                                                                + firestoreRole
+                                                                                                                                                + ")");
+                                                                                                                resetLoadingState(
+                                                                                                                                login,
+                                                                                                                                message,
+                                                                                                                                "Selected role does not match this account.");
+                                                                                                                return;
                                                                                                         }
-
-                                                                                                        System.out.println(
-                                                                                                                        "[LOGIN] Role validation: SUCCESS");
-                                                                                                        System.out.println(
-                                                                                                                        "[LOGIN] Role validated");
 
                                                                                                         if (firestoreStatus == null
                                                                                                                         || (!firestoreStatus
@@ -746,17 +724,69 @@ public class LoginPage extends Application {
                                                                                                                 resetLoadingState(
                                                                                                                                 login,
                                                                                                                                 message,
-                                                                                                                                "Your account or port establishment request is pending approval or inactive. Please contact Dock Tech Admin.");
+                                                                                                                                "Your account is pending approval or inactive. Please contact Dock Tech Admin.");
                                                                                                                 return;
                                                                                                         }
 
                                                                                                         if (isPortAuthorityRole(
                                                                                                                         firestoreRole)) {
-                                                                                                                System.out.println(
-                                                                                                                                "[LOGIN] Port Authority detected");
-                                                                                                                System.out.println(
-                                                                                                                                "[LOGIN] Loading Port Authority dashboard");
+                                                                                                                String assignedPortName = null;
+                                                                                                                String portId = null;
+                                                                                                                if (activeProfile.get("portId") != null && !activeProfile.get("portId").toString().isBlank()) {
+                                                                                                                        portId = activeProfile.get("portId").toString().trim();
+                                                                                                                } else if (activeProfile.get("portCode") != null && !activeProfile.get("portCode").toString().isBlank()) {
+                                                                                                                        portId = activeProfile.get("portCode").toString().trim();
+                                                                                                                }
+
+                                                                                                                if (activeProfile.get("assignedPort") != null && !activeProfile.get("assignedPort").toString().isBlank()) {
+                                                                                                                        assignedPortName = activeProfile.get("assignedPort").toString().trim();
+                                                                                                                } else if (activeProfile.get("port") != null && !activeProfile.get("port").toString().isBlank()) {
+                                                                                                                        assignedPortName = activeProfile.get("port").toString().trim();
+                                                                                                                } else if (activeProfile.get("portName") != null && !activeProfile.get("portName").toString().isBlank()) {
+                                                                                                                        assignedPortName = activeProfile.get("portName").toString().trim();
+                                                                                                                } else if (activeProfile.get("organization") != null && !activeProfile.get("organization").toString().isBlank()) {
+                                                                                                                        assignedPortName = activeProfile.get("organization").toString().trim();
+                                                                                                                } else if (activeProfile.get("company") != null && !activeProfile.get("company").toString().isBlank()) {
+                                                                                                                        assignedPortName = activeProfile.get("company").toString().trim();
+                                                                                                                } else if (emailValue.toLowerCase().contains("puri")) {
+                                                                                                                        assignedPortName = "Puri Port";
+                                                                                                                        activeProfile.put("assignedPort", "Puri Port");
+                                                                                                                        activeProfile.put("port", "Puri Port");
+                                                                                                                }
+
+                                                                                                                if ((assignedPortName == null || assignedPortName.isBlank()) && (portId == null || portId.isBlank())) {
+                                                                                                                        System.err.println("[LOGIN ERROR] Port Authority account has no assigned port: " + emailValue);
+                                                                                                                        resetLoadingState(login, message, "Associated port record not found. Please contact Dock Tech Admin.");
+                                                                                                                        return;
+                                                                                                                }
+
+                                                                                                                AdminDataStore.Port existingPort = null;
+                                                                                                                if (portId != null && !portId.isBlank()) {
+                                                                                                                        existingPort = AdminDataStore.getInstance().getPortByIdOrName(portId);
+                                                                                                                }
+                                                                                                                if (existingPort == null && assignedPortName != null && !assignedPortName.isBlank()) {
+                                                                                                                        existingPort = AdminDataStore.getInstance().getPortByIdOrName(assignedPortName);
+                                                                                                                }
+
+                                                                                                                if (existingPort == null || AdminDataStore.isPortDeleted(existingPort.name, existingPort.code)) {
+                                                                                                                        System.err.println("[LOGIN ERROR] Associated port not found in active registered ports: " + (assignedPortName != null ? assignedPortName : portId));
+                                                                                                                        resetLoadingState(login, message, "The associated port does not exist or has been removed. Login unauthorized.");
+                                                                                                                        return;
+                                                                                                                }
+
+                                                                                                                if (existingPort.status != null && existingPort.status.equalsIgnoreCase("Inactive")) {
+                                                                                                                        System.err.println("[LOGIN ERROR] Associated port is inactive: " + existingPort.name);
+                                                                                                                        resetLoadingState(login, message, "The associated port is currently inactive. Please contact Dock Tech Admin.");
+                                                                                                                        return;
+                                                                                                                }
+
+                                                                                                                activeProfile.put("assignedPort", existingPort.name);
+                                                                                                                activeProfile.put("port", existingPort.name);
+
+                                                                                                                System.out.println("[LOGIN] Port Authority and active port validated: " + existingPort.name);
+                                                                                                                System.out.println("[LOGIN] Opening Port Authority dashboard");
                                                                                                         } else {
+                                                                                                                System.out.println("[LOGIN] Role verified: " + firestoreRole);
                                                                                                                 System.out.println(
                                                                                                                                 "[LOGIN] Opening dashboard for role: "
                                                                                                                                                 + firestoreRole);
@@ -1192,10 +1222,10 @@ public class LoginPage extends Application {
 
         // ================= VALIDATION =================
 
-        static boolean isEmail(String value) {
-                return value != null &&
-                                value.matches(
-                                                "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
+        public static boolean isEmail(String value) {
+                if (value == null)
+                        return false;
+                return value.contains("@") && value.contains(".");
         }
 
         static boolean isBackendUnavailable(Throwable error) {

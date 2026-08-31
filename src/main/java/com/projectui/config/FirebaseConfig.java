@@ -17,6 +17,16 @@ import com.google.firebase.cloud.FirestoreClient;
  */
 public class FirebaseConfig {
 
+    public static final String PROJECT_ID = System.getenv("FIREBASE_PROJECT_ID") != null && !System.getenv("FIREBASE_PROJECT_ID").isBlank()
+            ? System.getenv("FIREBASE_PROJECT_ID")
+            : "fir-demo-4dbd9";
+
+    public static final String API_KEY = System.getenv("FIREBASE_API_KEY") != null && !System.getenv("FIREBASE_API_KEY").isBlank()
+            ? System.getenv("FIREBASE_API_KEY")
+            : "AIzaSyDO3l4YIlfgO9qvU2XB54k2pBvayr_ID1U";
+
+    public static final String AUTH_DOMAIN = PROJECT_ID + ".firebaseapp.com";
+
     private static Firestore firestore;
     private static boolean firebaseAppInitialized = false;
 
@@ -45,10 +55,12 @@ public class FirebaseConfig {
                 }
             }
 
+            String projectId = PROJECT_ID;
+
             if (serviceAccount != null) {
                 FirebaseOptions options = FirebaseOptions.builder()
                         .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                        .setProjectId("fir-demo-4dbd9")
+                        .setProjectId(projectId)
                         .build();
                 FirebaseApp.initializeApp(options);
                 firebaseAppInitialized = true;
@@ -59,7 +71,7 @@ public class FirebaseConfig {
             try {
                 FirebaseOptions options = FirebaseOptions.builder()
                         .setCredentials(GoogleCredentials.getApplicationDefault())
-                        .setProjectId("fir-demo-4dbd9")
+                        .setProjectId(projectId)
                         .build();
                 FirebaseApp.initializeApp(options);
                 firestore = FirestoreClient.getFirestore();
@@ -67,7 +79,7 @@ public class FirebaseConfig {
             } catch (Throwable t) {
                 try {
                     FirestoreOptions firestoreOptions = FirestoreOptions.newBuilder()
-                            .setProjectId("fir-demo-4dbd9")
+                            .setProjectId(projectId)
                             .build();
                     if (firestoreOptions != null) {
                         firestore = firestoreOptions.getService();

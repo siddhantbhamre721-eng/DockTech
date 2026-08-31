@@ -65,82 +65,216 @@ public class SosEmergencyService extends Dao {
         private boolean readByPortAuthority;
         private long createdAtEpoch;
 
-        public SosAlert() {}
+        public SosAlert() {
+        }
 
-        public String getIncidentId() { return incidentId; }
-        public void setIncidentId(String incidentId) { this.incidentId = incidentId; }
+        public String getIncidentId() {
+            return incidentId;
+        }
 
-        public String getVesselName() { return vesselName; }
-        public void setVesselName(String vesselName) { this.vesselName = vesselName; }
+        public void setIncidentId(String incidentId) {
+            this.incidentId = incidentId;
+        }
 
-        public String getVesselId() { return vesselId; }
-        public void setVesselId(String vesselId) { this.vesselId = vesselId; }
+        public String getVesselName() {
+            return vesselName;
+        }
 
-        public String getCaptainName() { return captainName; }
-        public void setCaptainName(String captainName) { this.captainName = captainName; }
+        public void setVesselName(String vesselName) {
+            this.vesselName = vesselName;
+        }
 
-        public String getCaptainUid() { return captainUid; }
-        public void setCaptainUid(String captainUid) { this.captainUid = captainUid; }
+        public String getVesselId() {
+            return vesselId;
+        }
 
-        public String getImo() { return imo; }
-        public void setImo(String imo) { this.imo = imo; }
+        public void setVesselId(String vesselId) {
+            this.vesselId = vesselId;
+        }
 
-        public String getMmsi() { return mmsi; }
-        public void setMmsi(String mmsi) { this.mmsi = mmsi; }
+        public String getCaptainName() {
+            return captainName;
+        }
 
-        public String getSeverity() { return severity; }
-        public void setSeverity(String severity) { this.severity = severity; }
+        public void setCaptainName(String captainName) {
+            this.captainName = captainName;
+        }
 
-        public String getCategory() { return category; }
-        public void setCategory(String category) { this.category = category; }
+        public String getCaptainUid() {
+            return captainUid;
+        }
 
-        public String getDescription() { return description; }
-        public void setDescription(String description) { this.description = description; }
+        public void setCaptainUid(String captainUid) {
+            this.captainUid = captainUid;
+        }
 
-        public String getLocation() { return location; }
-        public void setLocation(String location) { this.location = location; }
+        public String getImo() {
+            return imo;
+        }
 
-        public String getLatitude() { return latitude; }
-        public void setLatitude(String latitude) { this.latitude = latitude; }
+        public void setImo(String imo) {
+            this.imo = imo;
+        }
 
-        public String getLongitude() { return longitude; }
-        public void setLongitude(String longitude) { this.longitude = longitude; }
+        public String getMmsi() {
+            return mmsi;
+        }
 
-        public String getSpeed() { return speed; }
-        public void setSpeed(String speed) { this.speed = speed; }
+        public void setMmsi(String mmsi) {
+            this.mmsi = mmsi;
+        }
 
-        public String getHeading() { return heading; }
-        public void setHeading(String heading) { this.heading = heading; }
+        public String getSeverity() {
+            return severity;
+        }
 
-        public String getNavigationStatus() { return navigationStatus; }
-        public void setNavigationStatus(String navigationStatus) { this.navigationStatus = navigationStatus; }
+        public void setSeverity(String severity) {
+            this.severity = severity;
+        }
 
-        public String getPort() { return port; }
-        public void setPort(String port) { this.port = port; }
+        public String getCategory() {
+            return category;
+        }
 
-        public String getDestination() { return destination; }
-        public void setDestination(String destination) { this.destination = destination; }
+        public void setCategory(String category) {
+            this.category = category;
+        }
 
-        public String getVoyage() { return voyage; }
-        public void setVoyage(String voyage) { this.voyage = voyage; }
+        public String getDescription() {
+            return description;
+        }
 
-        public String getTimestamp() { return timestamp; }
-        public void setTimestamp(String timestamp) { this.timestamp = timestamp; }
+        public void setDescription(String description) {
+            this.description = description;
+        }
 
-        public String getStatus() { return status; }
-        public void setStatus(String status) { this.status = status; }
+        public String getLocation() {
+            return location;
+        }
 
-        public String getAcknowledgedBy() { return acknowledgedBy; }
-        public void setAcknowledgedBy(String acknowledgedBy) { this.acknowledgedBy = acknowledgedBy; }
+        public void setLocation(String location) {
+            this.location = location;
+        }
 
-        public String getAcknowledgedAt() { return acknowledgedAt; }
-        public void setAcknowledgedAt(String acknowledgedAt) { this.acknowledgedAt = acknowledgedAt; }
+        public String getLatitude() {
+            return latitude;
+        }
 
-        public boolean isReadByPortAuthority() { return readByPortAuthority; }
-        public void setReadByPortAuthority(boolean readByPortAuthority) { this.readByPortAuthority = readByPortAuthority; }
+        public void setLatitude(String latitude) {
+            this.latitude = latitude;
+        }
 
-        public long getCreatedAtEpoch() { return createdAtEpoch; }
-        public void setCreatedAtEpoch(long createdAtEpoch) { this.createdAtEpoch = createdAtEpoch; }
+        public String getLongitude() {
+            return longitude;
+        }
+
+        public void setLongitude(String longitude) {
+            this.longitude = longitude;
+        }
+
+        public String getSpeed() {
+            return speed;
+        }
+
+        public void setSpeed(String speed) {
+            this.speed = speed;
+        }
+
+        public String getHeading() {
+            return heading;
+        }
+
+        public void setHeading(String heading) {
+            this.heading = heading;
+        }
+
+        public String getNavigationStatus() {
+            return navigationStatus;
+        }
+
+        public void setNavigationStatus(String navigationStatus) {
+            this.navigationStatus = navigationStatus;
+        }
+
+        public String getPort() {
+            return port;
+        }
+
+        public void setPort(String port) {
+            this.port = port;
+        }
+
+        public String getPortAssigned() {
+            return port;
+        }
+
+        public void setPortAssigned(String portAssigned) {
+            this.port = portAssigned;
+        }
+
+        public String getDestination() {
+            return destination;
+        }
+
+        public void setDestination(String destination) {
+            this.destination = destination;
+        }
+
+        public String getVoyage() {
+            return voyage;
+        }
+
+        public void setVoyage(String voyage) {
+            this.voyage = voyage;
+        }
+
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        public void setTimestamp(String timestamp) {
+            this.timestamp = timestamp;
+        }
+
+        public String getStatus() {
+            return status;
+        }
+
+        public void setStatus(String status) {
+            this.status = status;
+        }
+
+        public String getAcknowledgedBy() {
+            return acknowledgedBy;
+        }
+
+        public void setAcknowledgedBy(String acknowledgedBy) {
+            this.acknowledgedBy = acknowledgedBy;
+        }
+
+        public String getAcknowledgedAt() {
+            return acknowledgedAt;
+        }
+
+        public void setAcknowledgedAt(String acknowledgedAt) {
+            this.acknowledgedAt = acknowledgedAt;
+        }
+
+        public boolean isReadByPortAuthority() {
+            return readByPortAuthority;
+        }
+
+        public void setReadByPortAuthority(boolean readByPortAuthority) {
+            this.readByPortAuthority = readByPortAuthority;
+        }
+
+        public long getCreatedAtEpoch() {
+            return createdAtEpoch;
+        }
+
+        public void setCreatedAtEpoch(long createdAtEpoch) {
+            this.createdAtEpoch = createdAtEpoch;
+        }
 
         public Map<String, Object> toMap() {
             Map<String, Object> map = new HashMap<>();
@@ -178,7 +312,8 @@ public class SosEmergencyService extends Dao {
         }
 
         public static SosAlert fromMap(Map<String, Object> map) {
-            if (map == null) return null;
+            if (map == null)
+                return null;
             SosAlert a = new SosAlert();
             a.incidentId = str(map.get("incidentId"), "SOS-0000");
             a.vesselName = str(map.get("vesselName"), str(map.get("vessel"), "Vessel"));
@@ -199,7 +334,8 @@ public class SosEmergencyService extends Dao {
             a.port = str(map.get("port"), "Port Authority");
             a.destination = str(map.get("destination"), "Port Authority Anchorage");
             a.voyage = str(map.get("voyage"), "VOY-2026-01");
-            a.timestamp = str(map.get("timestamp"), LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm:ss")));
+            a.timestamp = str(map.get("timestamp"),
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm:ss")));
             a.status = str(map.get("status"), "TRANSMITTED");
             a.acknowledgedBy = str(map.get("acknowledgedBy"), "");
             a.acknowledgedAt = str(map.get("acknowledgedAt"), "");
@@ -248,12 +384,14 @@ public class SosEmergencyService extends Dao {
                 } else {
                     Platform.runLater(r);
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
     }
 
     public static void registerSosAlert(SosAlert alert) {
-        if (alert == null || alert.getIncidentId() == null) return;
+        if (alert == null || alert.getIncidentId() == null)
+            return;
         if (alert.getCreatedAtEpoch() == 0) {
             alert.setCreatedAtEpoch(System.currentTimeMillis());
         }
@@ -273,7 +411,8 @@ public class SosEmergencyService extends Dao {
             n.setTitle("🔴 EMERGENCY SOS RECEIVED: " + alert.getVesselName() + " [" + alert.getSeverity() + "]");
             n.setMessage("Emergency SOS received from " + alert.getVesselName() + ".\n"
                     + alert.getSeverity() + " — " + alert.getCategory() + ".\n"
-                    + "Location: " + alert.getLocation() + " (Speed: " + alert.getSpeed() + ", Heading: " + alert.getHeading() + ")\n"
+                    + "Location: " + alert.getLocation() + " (Speed: " + alert.getSpeed() + ", Heading: "
+                    + alert.getHeading() + ")\n"
                     + "Received: " + alert.getTimestamp());
             n.setType("EMERGENCY_SOS");
             n.setUserId("PORT_AUTHORITY_GLOBAL");
@@ -287,7 +426,8 @@ public class SosEmergencyService extends Dao {
             n.setCreatedAtEpoch(alert.getCreatedAtEpoch());
             n.setTimestamp(alert.getTimestamp());
             notificationDao.createNotification(n);
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         // Persist to Firestore
         java.util.concurrent.ForkJoinPool.commonPool().execute(() -> {
@@ -295,7 +435,8 @@ public class SosEmergencyService extends Dao {
                 Firestore db = getDb();
                 if (db != null) {
                     db.collection("sos_alerts").document(alert.getIncidentId()).set(alert.toMap());
-                    System.out.println("[SOS SERVICE] SOS alert persisted to Firestore: " + alert.getIncidentId() + " (" + alert.getVesselName() + ")");
+                    System.out.println("[SOS SERVICE] SOS alert persisted to Firestore: " + alert.getIncidentId() + " ("
+                            + alert.getVesselName() + ")");
                 }
             } catch (Exception ex) {
                 System.err.println("[SOS SERVICE] Firestore save error: " + ex.getMessage());
@@ -306,11 +447,13 @@ public class SosEmergencyService extends Dao {
     }
 
     public static void acknowledgeAlert(String incidentId, String portAuthorityName) {
-        if (incidentId == null) return;
+        if (incidentId == null)
+            return;
         SosAlert alert = alertsCache.get(incidentId);
         if (alert != null) {
             alert.setStatus("ACKNOWLEDGED");
-            alert.setAcknowledgedBy(portAuthorityName != null && !portAuthorityName.isBlank() ? portAuthorityName : "Port Authority Operations");
+            alert.setAcknowledgedBy(portAuthorityName != null && !portAuthorityName.isBlank() ? portAuthorityName
+                    : "Port Authority Operations");
             alert.setAcknowledgedAt(LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm:ss")));
             alert.setReadByPortAuthority(true);
 
@@ -337,7 +480,8 @@ public class SosEmergencyService extends Dao {
                         update.put("acknowledgedBy", alert.getAcknowledgedBy());
                         update.put("acknowledgedAt", alert.getAcknowledgedAt());
                         update.put("readByPortAuthority", true);
-                        db.collection("sos_alerts").document(incidentId).set(update, com.google.cloud.firestore.SetOptions.merge());
+                        db.collection("sos_alerts").document(incidentId).set(update,
+                                com.google.cloud.firestore.SetOptions.merge());
                         System.out.println("[SOS SERVICE] SOS alert acknowledged in Firestore: " + incidentId);
                     }
                 } catch (Exception ex) {
@@ -370,6 +514,196 @@ public class SosEmergencyService extends Dao {
         int count = 0;
         for (SosAlert a : alertsCache.values()) {
             if (!a.isReadByPortAuthority() || !"ACKNOWLEDGED".equalsIgnoreCase(a.getStatus())) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public static List<SosAlert> getAlertsForRoleAndUser(String role, Map<String, Object> userProfile) {
+        if (role == null || role.isBlank() || "CreateAccount".equalsIgnoreCase(role) || "Public".equalsIgnoreCase(role)) {
+            return Collections.emptyList();
+        }
+
+        String cleanRole = role.trim();
+
+        // 1. Admin sees all alerts. Port Authority and Customs Officer see alerts associated with their assigned port.
+        if ("Admin".equalsIgnoreCase(cleanRole)) {
+            return getAllAlerts();
+        }
+
+        if ("Port Authority".equalsIgnoreCase(cleanRole) || "Custom Officer".equalsIgnoreCase(cleanRole) || "Customs Officer".equalsIgnoreCase(cleanRole)) {
+            String userPort = "";
+            if (userProfile != null) {
+                if (userProfile.get("assignedPort") != null) userPort = userProfile.get("assignedPort").toString().trim();
+                if (userPort.isEmpty() && userProfile.get("port") != null) userPort = userProfile.get("port").toString().trim();
+            }
+            if (userPort.isEmpty()) {
+                return getAllAlerts();
+            }
+            String normUserPort = com.projectui.dao.UserDao.normalizePort(userPort).toLowerCase();
+            List<SosAlert> filtered = new ArrayList<>();
+            for (SosAlert a : getAllAlerts()) {
+                if (a == null) continue;
+                String alertPort = a.getPort() != null ? a.getPort().trim() : "";
+                String normAlertPort = com.projectui.dao.UserDao.normalizePort(alertPort).toLowerCase();
+                if (alertPort.isEmpty() || normAlertPort.contains(normUserPort) || normUserPort.contains(normAlertPort)) {
+                    filtered.add(a);
+                }
+            }
+            return filtered;
+        }
+
+        // 2. Ship Captain sees their own vessel's transmitted alerts
+        if ("Ship Captain".equalsIgnoreCase(cleanRole) || "Captain".equalsIgnoreCase(cleanRole)) {
+            String myShip = "";
+            String myUid = "";
+            if (userProfile != null) {
+                if (userProfile.get("assignedShip") != null) myShip = userProfile.get("assignedShip").toString().trim().toLowerCase();
+                if (userProfile.get("uid") != null) myUid = userProfile.get("uid").toString().trim().toLowerCase();
+            }
+            List<SosAlert> filtered = new ArrayList<>();
+            for (SosAlert a : getAllAlerts()) {
+                if (a == null) continue;
+                String vName = a.getVesselName() != null ? a.getVesselName().trim().toLowerCase() : "";
+                String capUid = a.getCaptainUid() != null ? a.getCaptainUid().trim().toLowerCase() : "";
+                if ((!myShip.isEmpty() && vName.contains(myShip)) || (!myUid.isEmpty() && capUid.equals(myUid))) {
+                    filtered.add(a);
+                }
+            }
+            return filtered;
+        }
+
+        // 3. Importer: Filter strictly by Importer's assigned ships / cargo / shipments
+        if ("Importer".equalsIgnoreCase(cleanRole)) {
+            if (userProfile == null || userProfile.isEmpty()) {
+                return Collections.emptyList();
+            }
+
+            java.util.Set<String> userShipNames = new java.util.HashSet<>();
+            java.util.Set<String> userCargoIds = new java.util.HashSet<>();
+
+            // Find all cargos matching this Importer
+            com.projectui.dao.CargoDao cargoDao = new com.projectui.dao.CargoDao();
+            for (Map<String, Object> c : cargoDao.getAllCargos()) {
+                if (c != null && com.projectui.dao.CargoDao.isCargoAssignedToImporter(c, userProfile)) {
+                    if (c.get("cargoId") != null) userCargoIds.add(c.get("cargoId").toString().trim().toLowerCase());
+                    if (c.get("assignedShip") != null) userShipNames.add(c.get("assignedShip").toString().trim().toLowerCase());
+                    if (c.get("vesselName") != null) userShipNames.add(c.get("vesselName").toString().trim().toLowerCase());
+                    if (c.get("ship") != null) userShipNames.add(c.get("ship").toString().trim().toLowerCase());
+                    if (c.get("shipName") != null) userShipNames.add(c.get("shipName").toString().trim().toLowerCase());
+                }
+            }
+
+            // Find all container bookings matching this Importer
+            com.projectui.dao.ContainerDao containerDao = new com.projectui.dao.ContainerDao();
+            for (Map<String, Object> b : containerDao.getAllBookings()) {
+                if (b != null) {
+                    String cargoId = b.get("cargoId") != null ? b.get("cargoId").toString().trim().toLowerCase() : "";
+                    boolean isMyCargo = !cargoId.isEmpty() && userCargoIds.contains(cargoId);
+                    boolean isMyBooking = com.projectui.dao.CargoDao.isCargoAssignedToImporter(b, userProfile);
+                    if (isMyCargo || isMyBooking) {
+                        if (b.get("assignedShip") != null) userShipNames.add(b.get("assignedShip").toString().trim().toLowerCase());
+                        if (b.get("vesselName") != null) userShipNames.add(b.get("vesselName").toString().trim().toLowerCase());
+                        if (b.get("ship") != null) userShipNames.add(b.get("ship").toString().trim().toLowerCase());
+                    }
+                }
+            }
+
+            if (userShipNames.isEmpty()) {
+                return Collections.emptyList();
+            }
+
+            List<SosAlert> filtered = new ArrayList<>();
+            for (SosAlert a : getAllAlerts()) {
+                if (a == null) continue;
+                String vName = a.getVesselName() != null ? a.getVesselName().trim().toLowerCase() : "";
+                String vId = a.getVesselId() != null ? a.getVesselId().trim().toLowerCase() : "";
+                String imo = a.getImo() != null ? a.getImo().trim().toLowerCase() : "";
+                String mmsi = a.getMmsi() != null ? a.getMmsi().trim().toLowerCase() : "";
+
+                boolean matchesShip = false;
+                for (String s : userShipNames) {
+                    if (s.isEmpty()) continue;
+                    if (vName.contains(s) || s.contains(vName) || vId.equalsIgnoreCase(s) || imo.equalsIgnoreCase(s) || mmsi.equalsIgnoreCase(s)) {
+                        matchesShip = true;
+                        break;
+                    }
+                }
+                if (matchesShip) {
+                    filtered.add(a);
+                }
+            }
+            return filtered;
+        }
+
+        // 4. Exporter: Filter strictly by Exporter's assigned ships / cargo / shipments
+        if ("Exporter".equalsIgnoreCase(cleanRole)) {
+            if (userProfile == null || userProfile.isEmpty()) {
+                return Collections.emptyList();
+            }
+
+            java.util.Set<String> userShipNames = new java.util.HashSet<>();
+            java.util.Set<String> userCargoIds = new java.util.HashSet<>();
+
+            // Find all cargos matching this Exporter
+            com.projectui.dao.CargoDao cargoDao = new com.projectui.dao.CargoDao();
+            for (Map<String, Object> c : cargoDao.getShipmentsForExporter(userProfile)) {
+                if (c != null) {
+                    if (c.get("cargoId") != null) userCargoIds.add(c.get("cargoId").toString().trim().toLowerCase());
+                    if (c.get("assignedShip") != null) userShipNames.add(c.get("assignedShip").toString().trim().toLowerCase());
+                    if (c.get("vesselName") != null) userShipNames.add(c.get("vesselName").toString().trim().toLowerCase());
+                    if (c.get("ship") != null) userShipNames.add(c.get("ship").toString().trim().toLowerCase());
+                    if (c.get("shipName") != null) userShipNames.add(c.get("shipName").toString().trim().toLowerCase());
+                }
+            }
+
+            // Find all container bookings matching this Exporter
+            com.projectui.dao.ContainerDao containerDao = new com.projectui.dao.ContainerDao();
+            for (Map<String, Object> b : containerDao.getContainersForExporter(userProfile)) {
+                if (b != null) {
+                    if (b.get("cargoId") != null) userCargoIds.add(b.get("cargoId").toString().trim().toLowerCase());
+                    if (b.get("assignedShip") != null) userShipNames.add(b.get("assignedShip").toString().trim().toLowerCase());
+                    if (b.get("vesselName") != null) userShipNames.add(b.get("vesselName").toString().trim().toLowerCase());
+                    if (b.get("ship") != null) userShipNames.add(b.get("ship").toString().trim().toLowerCase());
+                }
+            }
+
+            if (userShipNames.isEmpty()) {
+                return Collections.emptyList();
+            }
+
+            List<SosAlert> filtered = new ArrayList<>();
+            for (SosAlert a : getAllAlerts()) {
+                if (a == null) continue;
+                String vName = a.getVesselName() != null ? a.getVesselName().trim().toLowerCase() : "";
+                String vId = a.getVesselId() != null ? a.getVesselId().trim().toLowerCase() : "";
+                String imo = a.getImo() != null ? a.getImo().trim().toLowerCase() : "";
+                String mmsi = a.getMmsi() != null ? a.getMmsi().trim().toLowerCase() : "";
+
+                boolean matchesShip = false;
+                for (String s : userShipNames) {
+                    if (s.isEmpty()) continue;
+                    if (vName.contains(s) || s.contains(vName) || vId.equalsIgnoreCase(s) || imo.equalsIgnoreCase(s) || mmsi.equalsIgnoreCase(s)) {
+                        matchesShip = true;
+                        break;
+                    }
+                }
+                if (matchesShip) {
+                    filtered.add(a);
+                }
+            }
+            return filtered;
+        }
+
+        return Collections.emptyList();
+    }
+
+    public static int getUnreadEmergencyCountForUser(String role, Map<String, Object> userProfile) {
+        List<SosAlert> list = getAlertsForRoleAndUser(role, userProfile);
+        int count = 0;
+        for (SosAlert a : list) {
+            if (a != null && (!a.isReadByPortAuthority() || !"ACKNOWLEDGED".equalsIgnoreCase(a.getStatus()))) {
                 count++;
             }
         }

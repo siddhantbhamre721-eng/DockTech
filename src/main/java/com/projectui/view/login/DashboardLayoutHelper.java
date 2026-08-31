@@ -20,6 +20,8 @@ import javafx.animation.Timeline;
 import javafx.util.Duration;
 import java.time.format.DateTimeFormatter;
 import javafx.scene.Node;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -123,28 +125,19 @@ public class DashboardLayoutHelper {
 
         // Fallbacks ONLY if fields remain unpopulated when loggedInUser is absent
         if (nameVal.isBlank()) {
-            if ("Admin".equalsIgnoreCase(roleName) || "Administrator".equalsIgnoreCase(roleName) || "Port Authority".equalsIgnoreCase(roleName)) {
+            if ("Admin".equalsIgnoreCase(roleName) || "Administrator".equalsIgnoreCase(roleName)) {
                 com.projectui.view.admin.AdminDataStore store = com.projectui.view.admin.AdminDataStore.getInstance();
                 if (store.adminName != null && !store.adminName.isBlank()) nameVal = store.adminName;
                 if (store.adminEmail != null && !store.adminEmail.isBlank()) emailVal = store.adminEmail;
                 displayRole = "Administrator";
-            } else if ("Importer".equalsIgnoreCase(roleName)) {
-                nameVal = "Harsh Patel";
-                emailVal = "harsh@gmail.com";
-                displayRole = "Importer";
-                phoneVal = "9876543210";
-                companyVal = "Reliance";
             } else {
-                nameVal = "Pravin Chavan";
-                emailVal = "pravin@gmail.com";
-                phoneVal = "1234567896";
-                companyVal = "Nayara";
+                nameVal = roleName != null && !roleName.isBlank() ? roleName : "User";
             }
         }
-        if (emailVal.isBlank()) emailVal = "user@docktech.com";
-        if (phoneVal.isBlank()) phoneVal = "+91 98765 43210";
-        if (companyVal.isBlank()) companyVal = "Dock Tech Operations";
-        if (uidVal.isBlank()) uidVal = "USR-" + Math.abs(emailVal.hashCode() % 8999 + 1000);
+        if (emailVal.isBlank()) emailVal = "";
+        if (phoneVal.isBlank()) phoneVal = "";
+        if (companyVal.isBlank()) companyVal = "";
+        if (uidVal.isBlank()) uidVal = "";
         if (statusVal.isBlank()) statusVal = "Active";
 
         String initials = "DT";
@@ -388,6 +381,13 @@ public class DashboardLayoutHelper {
     }
 
     public static Node createNotificationBellNode(Stage stage, String roleName) {
+        if (roleName == null || "CreateAccount".equalsIgnoreCase(roleName) || "Public".equalsIgnoreCase(roleName)) {
+            Region empty = new Region();
+            empty.setVisible(false);
+            empty.setManaged(false);
+            return empty;
+        }
+
         Button bellBtn = new Button("🔔");
         bellBtn.setStyle("-fx-background-color:#f1f5f9; -fx-text-fill:#0f172a; -fx-font-size:14; -fx-padding:6 10; -fx-background-radius:8; -fx-cursor:hand;");
 
@@ -399,7 +399,7 @@ public class DashboardLayoutHelper {
         wrapper.setAlignment(Pos.CENTER_LEFT);
 
         Runnable updateBadge = () -> {
-            int emCount = com.projectui.service.SosEmergencyService.getUnreadEmergencyCount();
+            int emCount = com.projectui.service.SosEmergencyService.getUnreadEmergencyCountForUser(roleName, com.projectui.view.login.LoginPage.loggedInUser);
             if (emCount > 0) {
                 badge.setText("🔴 " + emCount + " SOS");
                 badge.setStyle("-fx-background-color:#fee2e2; -fx-text-fill:#dc2626; -fx-font-size:11; -fx-font-weight:bold; -fx-padding:3 7; -fx-background-radius:999; -fx-border-color:#ef4444; -fx-border-radius:999;");
@@ -450,8 +450,8 @@ public class DashboardLayoutHelper {
 
         VBox listContainer = new VBox(8);
 
-        // 1. Emergency SOS Notifications (High Priority)
-        List<com.projectui.service.SosEmergencyService.SosAlert> sosList = com.projectui.service.SosEmergencyService.getAllAlerts();
+        // 1. Emergency SOS Notifications (Filtered strictly for current role & user)
+        List<com.projectui.service.SosEmergencyService.SosAlert> sosList = com.projectui.service.SosEmergencyService.getAlertsForRoleAndUser(roleName, com.projectui.view.login.LoginPage.loggedInUser);
         for (com.projectui.service.SosEmergencyService.SosAlert a : sosList) {
             boolean isAck = "ACKNOWLEDGED".equalsIgnoreCase(a.getStatus());
             VBox sosCard = new VBox(6);
@@ -510,13 +510,22 @@ public class DashboardLayoutHelper {
 
         // 2. Standard Notifications for current user / Port Authority
         String currentUid = "";
+        String currentEmail = "";
         if (com.projectui.view.login.LoginPage.loggedInUser != null) {
             Object uIdObj = com.projectui.view.login.LoginPage.loggedInUser.get("uid");
             if (uIdObj != null) currentUid = uIdObj.toString();
+            Object emailObj = com.projectui.view.login.LoginPage.loggedInUser.get("email");
+            if (emailObj != null) currentEmail = emailObj.toString().trim().toLowerCase();
         }
 
         com.projectui.dao.NotificationDao notifDao = new com.projectui.dao.NotificationDao();
-        List<com.projectui.model.Notification> normalList = notifDao.getNotificationsForUser(currentUid.isBlank() ? "PORT_AUTHORITY_GLOBAL" : currentUid);
+        List<com.projectui.model.Notification> normalList = new ArrayList<>();
+        if (!currentUid.isBlank()) {
+            normalList.addAll(notifDao.getNotificationsForUser(currentUid));
+        }
+        if (normalList.isEmpty() && !currentEmail.isBlank()) {
+            normalList.addAll(notifDao.getNotificationsForUser(currentEmail));
+        }
         for (com.projectui.model.Notification n : normalList) {
             if ("EMERGENCY_SOS".equalsIgnoreCase(n.getType())) continue; // already rendered above
 
@@ -557,8 +566,14 @@ public class DashboardLayoutHelper {
         popup.getContent().add(contentBox);
 
         final String finalUid = currentUid;
+        final String finalEmail = currentEmail;
         markAllBtn.setOnAction(e -> {
-            notifDao.markAllAsRead(finalUid.isBlank() ? "PORT_AUTHORITY_GLOBAL" : finalUid);
+            if (!finalUid.isBlank()) {
+                notifDao.markAllAsRead(finalUid);
+            }
+            if (!finalEmail.isBlank()) {
+                notifDao.markAllAsRead(finalEmail);
+            }
             popup.hide();
             if (refreshBadgeCallback != null) refreshBadgeCallback.run();
         });

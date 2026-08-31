@@ -109,10 +109,23 @@ public class ContainerBooking {
 
         private void loadDynamicCargoData() {
                 try {
-                        List<Map<String, Object>> cargos = cargoDao.getAllCargos();
+                        List<Map<String, Object>> cargos = cargoDao.getShipmentsForExporter(LoginPage.loggedInUser);
                         if (cargos != null && !cargos.isEmpty()) {
                                 Map<String, Object> c = cargos.get(0);
                                 applyCargoMap(c);
+                        } else {
+                                currentCargoId = "—";
+                                currentCargoName = "No Registered Cargo";
+                                currentOrigin = "";
+                                currentDestination = "";
+                                currentRoute = "—";
+                                currentWeight = "0 kg";
+                                currentValue = "₹ 0";
+                                if (cargoIdLabel != null) cargoIdLabel.setText(currentCargoId);
+                                if (cargoNameLabel != null) cargoNameLabel.setText(currentCargoName);
+                                if (cargoWeightLabel != null) cargoWeightLabel.setText(currentWeight);
+                                if (cargoRouteLabel != null) cargoRouteLabel.setText(currentRoute);
+                                if (cargoValueLabel != null) cargoValueLabel.setText(currentValue);
                         }
                 } catch (Exception ex) {
                         System.err.println("[CONTAINER BOOKING] Warning loading cargo data: " + ex.getMessage());
@@ -235,7 +248,7 @@ public class ContainerBooking {
                 cargoSelector.setStyle(
                                 "-fx-background-color:white; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-font-size:13;");
 
-                List<Map<String, Object>> allCargos = cargoDao.getAllCargos();
+                List<Map<String, Object>> allCargos = cargoDao.getShipmentsForExporter(LoginPage.loggedInUser);
                 if (allCargos != null && !allCargos.isEmpty()) {
                         for (Map<String, Object> c : allCargos) {
                                 String cId = c.get("cargoId") != null ? c.get("cargoId").toString() : "CGO";

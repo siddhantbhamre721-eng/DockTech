@@ -1019,9 +1019,13 @@ public class ShipManagementPage {
     }
 
     // =====================================================
-    // 10. GET ROOT
+    // 10. GET ROOT & GET CONTENT
     // =====================================================
     public VBox getRoot() {
+        return root;
+    }
+
+    public VBox getContent() {
         return root;
     }
 }

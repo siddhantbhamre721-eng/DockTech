@@ -277,22 +277,20 @@ public class CreateAccount {
         }
 
         create.setDisable(true);
-        showInfo(message, "Creating account...");
-
         authService.createAccount(emailVal, passVal, nameVal, roleVal).whenComplete((authUser, authError) -> Platform.runLater(() -> {
-            if (authError != null && !LoginPage.isBackendUnavailable(authError)) {
-                Throwable actual = authError.getCause() == null ? authError : authError.getCause();
-                String errText = actual == null ? "Failed to create account." : actual.getMessage();
-                if (errText != null && (errText.toLowerCase().contains("email_exists") || errText.toLowerCase().contains("already exists"))) {
-                    create.setDisable(false);
+            if (authError != null || authUser == null || authUser.getUid() == null || authUser.getUid().isBlank()) {
+                create.setDisable(false);
+                Throwable actual = (authError != null && authError.getCause() != null) ? authError.getCause() : authError;
+                String errText = actual != null ? actual.getMessage() : "Failed to create account in Firebase Authentication.";
+                if (errText != null && (errText.toLowerCase().contains("email_exists") || errText.toLowerCase().contains("already exists") || errText.toLowerCase().contains("already registered"))) {
                     showError(message, "An account with this email address already exists.");
-                    return;
+                } else {
+                    showError(message, errText != null && !errText.isBlank() ? errText : "Failed to create account in Firebase Authentication.");
                 }
+                return;
             }
 
-            String uid = (authUser != null && authUser.getUid() != null && !authUser.getUid().isBlank())
-                    ? authUser.getUid()
-                    : "usr_" + Math.abs(emailVal.toLowerCase().hashCode());
+            String uid = authUser.getUid();
 
             // Prepare extra metadata fields based on selected role
             Map<String, Object> extra = new HashMap<>();

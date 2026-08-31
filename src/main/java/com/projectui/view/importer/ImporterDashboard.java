@@ -444,22 +444,20 @@ public class ImporterDashboard extends Application {
     // =========================================================
     private void refreshDataAsync() {
         java.util.concurrent.ForkJoinPool.commonPool().execute(() -> {
-            List<Map<String, Object>> rawCargos = cargoDao.getAllCargos();
             List<Map<String, Object>> rawContainers = containerDao.getAllBookings();
             List<Map<String, Object>> rawPayments = paymentDao.getAllPayments();
 
-            String loggedName = getLoggedImporterName();
-            String loggedEmail = getLoggedImporterEmail();
-
-            String loggedFilter = getLoggedImporterFilter();
-            List<Map<String, Object>> userCargos = cargoDao.getShipmentsForImporter(loggedFilter);
-            if (userCargos == null || userCargos.isEmpty()) {
-                userCargos = cargoDao.getAllCargos();
+            List<Map<String, Object>> userCargos;
+            if (LoginPage.loggedInUser != null && !LoginPage.loggedInUser.isEmpty()) {
+                userCargos = cargoDao.getShipmentsForImporter(LoginPage.loggedInUser);
+            } else {
+                String loggedFilter = getLoggedImporterFilter();
+                userCargos = cargoDao.getShipmentsForImporter(loggedFilter);
             }
 
             List<ImporterShipment> list = new ArrayList<>();
 
-            // 1. Process real registered cargos from Exporters
+            // 1. Process real registered cargos assigned to this Importer
             if (userCargos != null && !userCargos.isEmpty()) {
                 for (Map<String, Object> c : userCargos) {
                     if (c == null) continue;
@@ -472,8 +470,8 @@ public class ImporterDashboard extends Application {
                 allShipments.clear();
                 allShipments.addAll(list);
 
-                if (selectedShipment == null && !allShipments.isEmpty()) {
-                    selectedShipment = allShipments.get(0);
+                if (selectedShipment == null || !allShipments.contains(selectedShipment)) {
+                    selectedShipment = !allShipments.isEmpty() ? allShipments.get(0) : null;
                 }
 
                 updateKpiCounters();
@@ -492,25 +490,26 @@ public class ImporterDashboard extends Application {
 
     private ImporterShipment mapCargoToShipment(Map<String, Object> c, List<Map<String, Object>> containers, List<Map<String, Object>> payments) {
         ImporterShipment s = new ImporterShipment();
-        s.shipmentId = str(c.get("cargoId"), "CGO-" + Math.abs(c.hashCode() % 9000 + 1000));
-        s.cargoName = str(c.get("cargoName"), "Industrial Freight");
+        s.shipmentId = str(c.get("cargoId"), "CGO-N/A");
+        s.cargoName = str(c.get("cargoName"), "Consignment");
         s.cargoType = str(c.get("cargoType"), "General Cargo");
         s.quantity = str(c.get("quantity"), "1") + " Units";
-        s.weight = str(c.get("weight"), "1000") + " kg";
-        s.cargoValue = "₹ " + str(c.get("value"), "1,250,000");
-        s.exporterName = str(c.get("exporterName"), str(c.get("exporter"), "Nayara Energy Ltd."));
-        s.originPort = str(c.get("originPort"), "Port of Mumbai");
-        s.destinationPort = str(c.get("destinationPort"), "Cochin Port");
+        String rawWt = str(c.get("weight"), "—");
+        s.weight = rawWt.equals("—") || rawWt.contains("kg") ? rawWt : (rawWt + " kg");
+        s.cargoValue = "₹ " + str(c.get("value"), str(c.get("amount"), "0"));
+        s.exporterName = str(c.get("exporterName"), str(c.get("exporter"), str(c.get("customerName"), "—")));
+        s.originPort = str(c.get("originPort"), "—");
+        s.destinationPort = str(c.get("destinationPort"), "—");
 
-        String vName = str(c.get("assignedVessel"), str(c.get("vesselName"), "AFRAPEARL II"));
+        String vName = str(c.get("assignedVessel"), str(c.get("vesselName"), str(c.get("assignedShip"), "Not Assigned")));
         s.assignedVessel = vName;
 
         // Assigned Vessel lookup from AIS telemetry / vessel manager
         VesselData vData = vesselManager.getVesselByName(vName);
         boolean isLive = vData != null && vData.isValid();
 
-        s.vesselImo = vData != null ? vData.imo : "9234567";
-        s.vesselMmsi = vData != null ? String.valueOf(vData.mmsi) : "211280000";
+        s.vesselImo = vData != null ? vData.imo : "—";
+        s.vesselMmsi = vData != null ? String.valueOf(vData.mmsi) : "—";
         s.vesselSpeed = isLive ? String.format("%.1f Knots", vData.speed) : "Scheduled Speed";
         s.vesselHeading = isLive ? String.format("%.1f°", vData.heading) : "N/A";
         s.vesselLocation = isLive ? String.format("%.4f° N, %.4f° E", vData.latitude, vData.longitude) : "Anchorage / Berth Sector";
@@ -525,133 +524,42 @@ public class ImporterDashboard extends Application {
         s.lastUpdate = str(c.get("updatedAt"), "Recently");
         s.progressPercent = "Delivered".equalsIgnoreCase(s.status) ? 1.0 : ("Arriving Soon".equalsIgnoreCase(s.status) ? 0.85 : 0.65);
 
-        // Build sample documents
+        // Build documents
         Map<String, String> d1 = new HashMap<>(); d1.put("name", "Bill of Lading"); d1.put("status", "Verified");
         Map<String, String> d2 = new HashMap<>(); d2.put("name", "Commercial Invoice"); d2.put("status", "Verified");
         Map<String, String> d3 = new HashMap<>(); d3.put("name", "Packing List"); d3.put("status", "Verified");
         Map<String, String> d4 = new HashMap<>(); d4.put("name", "Customs Clearance Certificate"); d4.put("status", "Approved");
         s.documents.addAll(List.of(d1, d2, d3, d4));
 
-        // Build sample timeline
-        s.timeline.add(new ImporterShipment.Milestone("1. Cargo Registered by Exporter", "Manifest registered at " + s.originPort, "10 Aug 2026, 09:30", "DONE"));
-        s.timeline.add(new ImporterShipment.Milestone("2. Container Allocated & Staged", "Container yard allocation completed", "11 Aug 2026, 14:15", "DONE"));
-        s.timeline.add(new ImporterShipment.Milestone("3. Customs Inspection & Clearance", "Customs status cleared with zero hold", "12 Aug 2026, 11:00", "DONE"));
-        s.timeline.add(new ImporterShipment.Milestone("4. Vessel Loaded & In Transit", s.assignedVessel + " en route in maritime channel", "13 Aug 2026, 08:00", "ACTIVE"));
-        s.timeline.add(new ImporterShipment.Milestone("5. Port Arrival & Berthing", "Approaching " + s.destinationPort, s.eta, "PENDING"));
-        s.timeline.add(new ImporterShipment.Milestone("6. Consignment Delivered & Gate-Out", "Final delivery confirmation to consignee", "15 Aug 2026, 10:00", "PENDING"));
+        // Build dynamic timeline based on project status
+        String st = s.status;
+        boolean isDelivered = "Delivered".equalsIgnoreCase(st);
+        boolean isReady = isDelivered || "Ready for Delivery".equalsIgnoreCase(st);
+        boolean isCustomsCleared = isReady || "Customs Cleared".equalsIgnoreCase(st) || "CLEARED".equalsIgnoreCase(s.customsStatus);
+        boolean isArrived = isCustomsCleared || "Arriving Soon".equalsIgnoreCase(st) || "Arrived".equalsIgnoreCase(st);
+        boolean isInTransit = isArrived || "In Transit".equalsIgnoreCase(st);
+        boolean isDeparted = isInTransit || "Departed".equalsIgnoreCase(st);
+        boolean isVesselAssigned = isDeparted || (s.assignedVessel != null && !s.assignedVessel.isBlank() && !s.assignedVessel.equalsIgnoreCase("Not Assigned"));
+        boolean isContainerBooked = isVesselAssigned || "Container Booked".equalsIgnoreCase(st) || "Booked".equalsIgnoreCase(st);
+
+        s.timeline.add(new ImporterShipment.Milestone("1. Cargo Registered", "Registered at " + s.originPort, "Manifest Registered", "DONE"));
+        s.timeline.add(new ImporterShipment.Milestone("2. Container Booked", "Container allocation and staging", "Yard Allocation", isContainerBooked ? "DONE" : "PENDING"));
+        s.timeline.add(new ImporterShipment.Milestone("3. Vessel Assigned", "Assigned to vessel " + s.assignedVessel, "Voyage Assignment", isVesselAssigned ? "DONE" : "PENDING"));
+        s.timeline.add(new ImporterShipment.Milestone("4. Departed Origin Port", "Departed from " + s.originPort, "Port Departure", isDeparted ? "DONE" : "PENDING"));
+        s.timeline.add(new ImporterShipment.Milestone("5. In Transit", "Maritime transit to " + s.destinationPort, s.vesselLocation, isInTransit ? (isArrived ? "DONE" : "ACTIVE") : "PENDING"));
+        s.timeline.add(new ImporterShipment.Milestone("6. Arrived Destination Port", "Arrived at " + s.destinationPort + " (" + s.berth + ")", s.eta, isArrived ? (isCustomsCleared ? "DONE" : "ACTIVE") : "PENDING"));
+        s.timeline.add(new ImporterShipment.Milestone("7. Customs Clearance", "Customs inspection & clearance", s.customsStatus, isCustomsCleared ? (isReady ? "DONE" : "ACTIVE") : "PENDING"));
+        s.timeline.add(new ImporterShipment.Milestone("8. Ready for Delivery", "Staged for consignee receiving", "CFS Warehouse", isReady ? (isDelivered ? "DONE" : "ACTIVE") : "PENDING"));
+        s.timeline.add(new ImporterShipment.Milestone("9. Consignment Delivered", "Delivery confirmed and signed off", isDelivered ? s.lastUpdate : "Pending Sign-off", isDelivered ? "DONE" : "PENDING"));
 
         return s;
-    }
-
-    private List<ImporterShipment> getSeedShipments() {
-        List<ImporterShipment> list = new ArrayList<>();
-
-        ImporterShipment s1 = new ImporterShipment();
-        s1.shipmentId = "SHP-1024";
-        s1.cargoName = "Industrial Electric Motors & Spares";
-        s1.cargoType = "Heavy Machinery";
-        s1.quantity = "45 Crates";
-        s1.weight = "18,500 kg";
-        s1.cargoValue = "₹ 8,450,000";
-        s1.exporterName = "Nayara Energy Ltd.";
-        s1.originPort = "Port of Mumbai";
-        s1.destinationPort = "Cochin Port";
-        s1.assignedVessel = "AFRAPEARL II";
-        s1.vesselImo = "9234567";
-        s1.vesselMmsi = "211280000";
-        s1.vesselSpeed = "13.2 Knots";
-        s1.vesselHeading = "182.0°";
-        s1.vesselLocation = "18.9439° N, 72.8354° E";
-        s1.voyageNumber = "VOY-2026-104";
-        s1.berth = "Berth B-02";
-        s1.status = "In Transit";
-        s1.eta = "14 Aug 2026, 18:00";
-        s1.lastUpdate = "12 mins ago";
-        s1.paymentStatus = "PAID";
-        s1.customsStatus = "CLEARED";
-        s1.progressPercent = 0.68;
-
-        s1.timeline.add(new ImporterShipment.Milestone("1. Cargo Registered", "Registered by Nayara Energy Ltd.", "10 Aug 2026, 09:30", "DONE"));
-        s1.timeline.add(new ImporterShipment.Milestone("2. Container Staged", "MSKU-998822 loaded at yard", "11 Aug 2026, 14:15", "DONE"));
-        s1.timeline.add(new ImporterShipment.Milestone("3. Customs Cleared", "Cleared by Customs Officer", "12 Aug 2026, 11:00", "DONE"));
-        s1.timeline.add(new ImporterShipment.Milestone("4. In Transit", "Vessel AFRAPEARL II en route", "13 Aug 2026, 08:00", "ACTIVE"));
-        s1.timeline.add(new ImporterShipment.Milestone("5. Port Arrival", "Approaching Cochin Port", "14 Aug 2026, 18:00", "PENDING"));
-        s1.timeline.add(new ImporterShipment.Milestone("6. Delivery Confirm", "Consignment release to Importer", "15 Aug 2026, 10:00", "PENDING"));
-
-        ImporterShipment s2 = new ImporterShipment();
-        s2.shipmentId = "SHP-1088";
-        s2.cargoName = "Precision Telecommunication Modules";
-        s2.cargoType = "High-Tech Electronics";
-        s2.quantity = "120 Packages";
-        s2.weight = "6,400 kg";
-        s2.cargoValue = "₹ 14,200,000";
-        s2.exporterName = "Global Logistics Ltd.";
-        s2.originPort = "Port of Chennai";
-        s2.destinationPort = "Port of Mumbai";
-        s2.assignedVessel = "Sea Voyager";
-        s2.vesselImo = "9123890";
-        s2.vesselMmsi = "211394000";
-        s2.vesselSpeed = "10.4 Knots";
-        s2.vesselHeading = "274.0°";
-        s2.vesselLocation = "13.0827° N, 80.2707° E";
-        s2.voyageNumber = "VOY-2026-218";
-        s2.berth = "Berth A-01";
-        s2.status = "Arriving Soon";
-        s2.eta = "13 Aug 2026, 21:30";
-        s2.lastUpdate = "5 mins ago";
-        s2.paymentStatus = "PAID";
-        s2.customsStatus = "CLEARED";
-        s2.progressPercent = 0.88;
-
-        s2.timeline.add(new ImporterShipment.Milestone("1. Cargo Registered", "Registered at Chennai Port", "08 Aug 2026, 10:00", "DONE"));
-        s2.timeline.add(new ImporterShipment.Milestone("2. Container Staged", "MSKU-445566 staged at terminal", "09 Aug 2026, 12:00", "DONE"));
-        s2.timeline.add(new ImporterShipment.Milestone("3. Customs Cleared", "Cleared by Customs Officer", "10 Aug 2026, 16:30", "DONE"));
-        s2.timeline.add(new ImporterShipment.Milestone("4. In Transit", "Vessel Sea Voyager underway", "11 Aug 2026, 06:00", "DONE"));
-        s2.timeline.add(new ImporterShipment.Milestone("5. Port Arrival", "Entering outer anchorage sector", "13 Aug 2026, 21:30", "ACTIVE"));
-        s2.timeline.add(new ImporterShipment.Milestone("6. Delivery Confirm", "Consignment release to Importer", "14 Aug 2026, 11:00", "PENDING"));
-
-        ImporterShipment s3 = new ImporterShipment();
-        s3.shipmentId = "SHP-1012";
-        s3.cargoName = "Textile Yarn & Fabric Consignment";
-        s3.cargoType = "Textiles & Garments";
-        s3.quantity = "300 Bales";
-        s3.weight = "22,000 kg";
-        s3.cargoValue = "₹ 3,600,000";
-        s3.exporterName = "Vardhman Textiles Ltd.";
-        s3.originPort = "Port of Vizag";
-        s3.destinationPort = "Cochin Port";
-        s3.assignedVessel = "Oceanic Leader";
-        s3.vesselImo = "9456781";
-        s3.vesselMmsi = "211556000";
-        s3.vesselSpeed = "0.0 Knots";
-        s3.vesselHeading = "0.0°";
-        s3.vesselLocation = "09.9654° N, 76.2134° E";
-        s3.voyageNumber = "VOY-2026-092";
-        s3.berth = "Berth C-03";
-        s3.status = "Delivered";
-        s3.eta = "11 Aug 2026, 14:00";
-        s3.lastUpdate = "Yesterday";
-        s3.paymentStatus = "PAID";
-        s3.customsStatus = "CLEARED";
-        s3.progressPercent = 1.0;
-
-        s3.timeline.add(new ImporterShipment.Milestone("1. Cargo Registered", "Registered at Vizag Port", "05 Aug 2026, 09:00", "DONE"));
-        s3.timeline.add(new ImporterShipment.Milestone("2. Container Staged", "Container MSKU-112233 sealed", "06 Aug 2026, 11:00", "DONE"));
-        s3.timeline.add(new ImporterShipment.Milestone("3. Customs Cleared", "Inspected & Verified", "07 Aug 2026, 15:00", "DONE"));
-        s3.timeline.add(new ImporterShipment.Milestone("4. In Transit", "Vessel transit completed", "08 Aug 2026, 07:00", "DONE"));
-        s3.timeline.add(new ImporterShipment.Milestone("5. Port Arrival", "Berthed at Berth C-03", "11 Aug 2026, 10:00", "DONE"));
-        s3.timeline.add(new ImporterShipment.Milestone("6. Delivery Confirm", "Consignment received & verified", "11 Aug 2026, 14:00", "DONE"));
-
-        list.add(s1);
-        list.add(s2);
-        list.add(s3);
-        return list;
     }
 
     private String normalizeShipmentStatus(String raw) {
         if (raw == null || raw.isBlank()) return "In Transit";
         String r = raw.trim().toLowerCase();
         if (r.contains("deliver") || r.contains("received") || r.contains("complete")) return "Delivered";
+        if (r.contains("ready")) return "Ready for Delivery";
         if (r.contains("arriv") || r.contains("anchor") || r.contains("berth")) return "Arriving Soon";
         if (r.contains("clear") || r.contains("approv")) return "Customs Cleared";
         if (r.contains("inspect") || r.contains("pending")) return "Under Inspection";
@@ -668,7 +576,7 @@ public class ImporterDashboard extends Application {
                 active++;
                 if ("In Transit".equalsIgnoreCase(s.status) || "Customs Cleared".equalsIgnoreCase(s.status)) {
                     transit++;
-                } else if ("Arriving Soon".equalsIgnoreCase(s.status)) {
+                } else if ("Arriving Soon".equalsIgnoreCase(s.status) || "Ready for Delivery".equalsIgnoreCase(s.status)) {
                     arriving++;
                 } else if ("Delayed / At Risk".equalsIgnoreCase(s.status) || "Under Inspection".equalsIgnoreCase(s.status)) {
                     delayed++;
@@ -718,9 +626,13 @@ public class ImporterDashboard extends Application {
 
             Label empIcon = new Label("📦");
             empIcon.setStyle("-fx-font-size:32px; -fx-text-fill:#94a3b8;");
-            Label empTitle = new Label("No incoming shipments found.");
+            Label empTitle = new Label(allShipments.isEmpty()
+                    ? "No incoming shipments assigned to your account yet."
+                    : "No matching incoming shipments found.");
             empTitle.setStyle("-fx-font-size:14px; -fx-font-weight:bold; -fx-text-fill:#475569;");
-            Label empSub = new Label("Shipments dispatched by Exporters will automatically appear here.");
+            Label empSub = new Label(allShipments.isEmpty()
+                    ? "Shipments assigned to your account by Exporters will automatically appear here."
+                    : "Try adjusting your search or status filter.");
             empSub.setStyle("-fx-font-size:12px; -fx-text-fill:#94a3b8;");
 
             emptyBox.getChildren().addAll(empIcon, empTitle, empSub);
@@ -789,7 +701,7 @@ public class ImporterDashboard extends Application {
     private String statusBadgeStyle(String status) {
         if ("Delivered".equalsIgnoreCase(status)) {
             return "-fx-background-color:#dcfce7; -fx-text-fill:#16a34a; -fx-font-size:10px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:4;";
-        } else if ("Arriving Soon".equalsIgnoreCase(status)) {
+        } else if ("Arriving Soon".equalsIgnoreCase(status) || "Ready for Delivery".equalsIgnoreCase(status)) {
             return "-fx-background-color:#fef3c7; -fx-text-fill:#d97706; -fx-font-size:10px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:4;";
         } else if ("Delayed / At Risk".equalsIgnoreCase(status) || "Under Inspection".equalsIgnoreCase(status)) {
             return "-fx-background-color:#fee2e2; -fx-text-fill:#dc2626; -fx-font-size:10px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:4;";
@@ -808,7 +720,9 @@ public class ImporterDashboard extends Application {
         trackTitle.setStyle("-fx-font-size:16px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
 
         if (selectedShipment == null) {
-            Label noSel = new Label("Select a shipment from the manifest to view real-time AIS tracking.");
+            Label noSel = new Label(allShipments.isEmpty()
+                    ? "No incoming shipments assigned to your account yet.\nLive vessel telemetry will be activated upon consignment assignment."
+                    : "Select a shipment from the manifest to view real-time AIS tracking.");
             noSel.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px; -fx-padding:20 0;");
             liveTrackingCard.getChildren().addAll(trackTitle, new Separator(), noSel);
             return;
@@ -889,12 +803,24 @@ public class ImporterDashboard extends Application {
 
         List<ImporterShipment> readyList = new ArrayList<>();
         for (ImporterShipment s : allShipments) {
-            if ("Arriving Soon".equalsIgnoreCase(s.status) || "Delivered".equalsIgnoreCase(s.status) || "Customs Cleared".equalsIgnoreCase(s.status)) {
+            if ("Arriving Soon".equalsIgnoreCase(s.status) || "Delivered".equalsIgnoreCase(s.status) || "Customs Cleared".equalsIgnoreCase(s.status) || "Ready for Delivery".equalsIgnoreCase(s.status)) {
                 readyList.add(s);
             }
         }
-        if (readyList.isEmpty() && !allShipments.isEmpty()) {
-            readyList.add(allShipments.get(0));
+
+        if (readyList.isEmpty()) {
+            VBox emp = new VBox(6);
+            emp.setAlignment(Pos.CENTER);
+            emp.setPadding(new Insets(24));
+            Label empIc = new Label("📦");
+            empIc.setStyle("-fx-font-size:24px; -fx-text-fill:#94a3b8;");
+            Label empMsg = new Label(allShipments.isEmpty()
+                    ? "No incoming shipments assigned to your account yet."
+                    : "No shipments currently awaiting delivery.");
+            empMsg.setStyle("-fx-font-size:12px; -fx-font-weight:bold; -fx-text-fill:#64748b;");
+            emp.getChildren().addAll(empIc, empMsg);
+            deliveryReceivingList.getChildren().add(emp);
+            return;
         }
 
         for (ImporterShipment s : readyList) {
@@ -931,8 +857,10 @@ public class ImporterDashboard extends Application {
 
         ImporterShipment s = selectedShipment != null ? selectedShipment : (!allShipments.isEmpty() ? allShipments.get(0) : null);
         if (s == null) {
-            Label noTl = new Label("Select a shipment to track milestone progress.");
-            noTl.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px;");
+            Label noTl = new Label(allShipments.isEmpty()
+                    ? "No incoming shipments assigned to your account yet."
+                    : "Select a shipment to track milestone progress.");
+            noTl.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px; -fx-padding:10 0;");
             timelineTrackerBox.getChildren().add(noTl);
             return;
         }
@@ -969,9 +897,49 @@ public class ImporterDashboard extends Application {
         if (alertsFeedBox == null) return;
         alertsFeedBox.getChildren().clear();
 
-        alertsFeedBox.getChildren().add(alertRow("ℹ Customs Cleared", "Consignment documents verified and cleared by Customs.", "#059669", "#ecfdf5"));
-        alertsFeedBox.getChildren().add(alertRow("⏱️ Port Arrival on Schedule", "Vessel AFRAPEARL II ETA confirmed at Cochin Port.", "#0284c7", "#f0f9ff"));
-        alertsFeedBox.getChildren().add(alertRow("✓ Payment Settled", "Tariff and freight invoice settled with receipt RCT-1024.", "#16a34a", "#f0fdf4"));
+        com.projectui.dao.NotificationDao notifDao = new com.projectui.dao.NotificationDao();
+        String uId = getLoggedImporterUserId();
+        String uEmail = getLoggedImporterEmail();
+
+        List<com.projectui.model.Notification> notifs = new ArrayList<>();
+        if (!uId.isEmpty()) {
+            notifs.addAll(notifDao.getNotificationsForUser(uId));
+        }
+        if (notifs.isEmpty() && !uEmail.isEmpty()) {
+            notifs.addAll(notifDao.getNotificationsForUser(uEmail));
+        }
+
+        if (!notifs.isEmpty()) {
+            for (com.projectui.model.Notification n : notifs) {
+                if (n == null) continue;
+                String title = n.getTitle() != null ? n.getTitle() : "Notification";
+                String msg = n.getMessage() != null ? n.getMessage() : "";
+                alertsFeedBox.getChildren().add(alertRow(title, msg, "#0284c7", "#f0f9ff"));
+            }
+        } else if (!allShipments.isEmpty()) {
+            // Derived real-time status alerts for the Importer's assigned shipments
+            for (ImporterShipment s : allShipments) {
+                if ("Delivered".equalsIgnoreCase(s.status)) {
+                    alertsFeedBox.getChildren().add(alertRow("✓ Shipment Delivered", s.shipmentId + " (" + s.cargoName + ") has been successfully delivered.", "#16a34a", "#f0fdf4"));
+                } else if ("Customs Cleared".equalsIgnoreCase(s.status) || "CLEARED".equalsIgnoreCase(s.customsStatus)) {
+                    alertsFeedBox.getChildren().add(alertRow("ℹ Customs Cleared", "Consignment " + s.shipmentId + " verified and cleared by Customs.", "#059669", "#ecfdf5"));
+                } else if ("Arriving Soon".equalsIgnoreCase(s.status)) {
+                    alertsFeedBox.getChildren().add(alertRow("⏱️ Port Arrival Soon", "Vessel " + s.assignedVessel + " arriving at " + s.destinationPort + " (ETA: " + s.eta + ").", "#0284c7", "#f0f9ff"));
+                } else if ("Ready for Delivery".equalsIgnoreCase(s.status)) {
+                    alertsFeedBox.getChildren().add(alertRow("📦 Ready for Delivery", "Consignment " + s.shipmentId + " is ready for pickup/receiving at " + s.destinationPort + ".", "#0284c7", "#f0f9ff"));
+                } else {
+                    alertsFeedBox.getChildren().add(alertRow("➤ Shipment In Transit", s.shipmentId + " (" + s.assignedVessel + ") is underway from " + s.originPort + " to " + s.destinationPort + ".", "#0284c7", "#f0f9ff"));
+                }
+            }
+        } else {
+            VBox emp = new VBox(4);
+            emp.setAlignment(Pos.CENTER);
+            emp.setPadding(new Insets(16));
+            Label empMsg = new Label("No incoming shipments assigned to your account yet.");
+            empMsg.setStyle("-fx-font-size:11px; -fx-text-fill:#94a3b8;");
+            emp.getChildren().add(empMsg);
+            alertsFeedBox.getChildren().add(emp);
+        }
     }
 
     private HBox alertRow(String title, String desc, String color, String bg) {
@@ -1103,8 +1071,10 @@ public class ImporterDashboard extends Application {
             if (f != null && !f.toString().isBlank()) return f.toString().trim();
             Object d = LoginPage.loggedInUser.get("displayName");
             if (d != null && !d.toString().isBlank()) return d.toString().trim();
+            Object c = LoginPage.loggedInUser.get("company");
+            if (c != null && !c.toString().isBlank()) return c.toString().trim();
         }
-        return "Harsh Patel";
+        return "Importer";
     }
 
     private String getLoggedImporterEmail() {
@@ -1112,7 +1082,17 @@ public class ImporterDashboard extends Application {
             Object e = LoginPage.loggedInUser.get("email");
             if (e != null && !e.toString().isBlank()) return e.toString().trim().toLowerCase();
         }
-        return "harsh@gmail.com";
+        return "";
+    }
+
+    private String getLoggedImporterUserId() {
+        if (LoginPage.loggedInUser != null) {
+            Object u = LoginPage.loggedInUser.get("uid");
+            if (u != null && !u.toString().isBlank()) return u.toString().trim();
+            Object e = LoginPage.loggedInUser.get("email");
+            if (e != null && !e.toString().isBlank()) return e.toString().trim().toLowerCase();
+        }
+        return "";
     }
 
     private String getLoggedImporterFilter() {
@@ -1123,7 +1103,9 @@ public class ImporterDashboard extends Application {
             if (e != null && !e.toString().isBlank()) return e.toString().trim();
             Object n = LoginPage.loggedInUser.get("name");
             if (n != null && !n.toString().isBlank()) return n.toString().trim();
+            Object u = LoginPage.loggedInUser.get("uid");
+            if (u != null && !u.toString().isBlank()) return u.toString().trim();
         }
-        return "Harsh";
+        return "";
     }
 }

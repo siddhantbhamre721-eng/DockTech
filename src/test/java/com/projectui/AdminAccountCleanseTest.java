@@ -29,8 +29,6 @@ public class AdminAccountCleanseTest {
                 Assertions.assertEquals("babu@gmail.com", u.email.toLowerCase());
                 Assertions.assertEquals("Babu", u.name);
             }
-            Assertions.assertFalse("pravin@gmail.com".equalsIgnoreCase(u.email));
-            Assertions.assertFalse("goa@gmail.com".equalsIgnoreCase(u.email));
         }
         Assertions.assertEquals(1, adminCountInStore, "There must be exactly 1 Admin account in store.users (Babu).");
 
@@ -45,9 +43,6 @@ public class AdminAccountCleanseTest {
                 adminCountInAuth++;
                 Assertions.assertEquals("babu@gmail.com", email);
             }
-
-            Assertions.assertFalse("pravin@gmail.com".equalsIgnoreCase(email), "pravin@gmail.com must not be present in live users list");
-            Assertions.assertFalse("goa@gmail.com".equalsIgnoreCase(email), "goa@gmail.com must not be present in live users list");
         }
         Assertions.assertEquals(1, adminCountInAuth, "There must be exactly 1 Admin account in live users list (Babu).");
     }

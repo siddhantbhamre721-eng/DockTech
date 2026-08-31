@@ -66,4 +66,31 @@ public class DynamicPortTest {
         // 7. Cleanup
         dataStore.ports.remove(newPort);
     }
+
+    @Test
+    public void testPendingInspectionsDynamicCountFlow() {
+        com.projectui.dao.PortRequestDao.restoreLocalDiskStatuses();
+        int initialCount = dataStore.pendingInspectionsCount();
+
+        // 1. Add a test port request with PENDING status
+        String testReqId = "TEST-NPR-" + System.currentTimeMillis();
+        AdminDataStore.PortRequest testReq = new AdminDataStore.PortRequest(
+                testReqId, "Port of Test Verif", "IN-TST-01", "Test City", "Test Address",
+                "New terminal proposal", "Tester", "tester@test.com", "+91 9998887776",
+                "PA Tester", "pa_tester@docktech.com", "PENDING", "Today", 19.0, 72.0
+        );
+        dataStore.portRequests.add(testReq);
+
+        // 2. Count should increase by 1
+        Assertions.assertEquals(initialCount + 1, dataStore.pendingInspectionsCount(), "Pending count must increment for pending request");
+
+        // 3. Mark as APPROVED
+        com.projectui.dao.PortRequestDao.applyStatusToStores(testReqId, "APPROVED", null);
+
+        // 4. Count should return to initialCount
+        Assertions.assertEquals(initialCount, dataStore.pendingInspectionsCount(), "Pending count must decrement when request is approved");
+
+        // 5. Cleanup
+        dataStore.portRequests.remove(testReq);
+    }
 }

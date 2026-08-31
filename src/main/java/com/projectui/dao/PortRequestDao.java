@@ -1,7 +1,9 @@
 package com.projectui.dao;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,15 +23,72 @@ public class PortRequestDao extends Dao {
     private static long lastSyncTimeMs = 0;
 
     static {
-        // Seed default sample request for immediate UI display
-        seedRequest("NPR-101", "Port of Hazira", "IN-HAZ-01", "Hazira, Gujarat", "Hazira Port Complex, Surat",
-                "Industrial container & liquid cargo terminal", "Vikram Shah", "vikram@haziraport.com",
-                "+91 98765 11223",
-                "Rajesh Varma", "pa_hazira@docktech.com", "PENDING", "15 Aug 2026", "",
-                "Hazira_Proposal.pdf, EIA_Clearance.pdf");
-
         // Restore persistent statuses from disk on startup
         restoreLocalDiskStatuses();
+    }
+
+    public static boolean isFakeOrTestRequest(Map<String, Object> data, String docId) {
+        if (data == null) return false;
+        String id = docId != null ? docId : (String) data.get("requestId");
+        String portName = (String) data.get("portName");
+        String reqEmail = (String) data.get("requesterEmail");
+        String paEmail = (String) (data.get("proposedPaEmail") != null ? data.get("proposedPaEmail") : data.get("proposedPortAuthorityEmail"));
+        String reqName = (String) data.get("requesterName");
+        String paName = (String) (data.get("proposedPaName") != null ? data.get("proposedPaName") : data.get("proposedPortAuthorityName"));
+
+        // Match seed Hazira sample
+        if ("NPR-101".equalsIgnoreCase(id) || ("Port of Hazira".equalsIgnoreCase(portName) && "IN-HAZ-01".equalsIgnoreCase((String) data.get("portCode")))) {
+            return true;
+        }
+
+        // Match test / fake prefixes and patterns
+        if (id != null && (id.startsWith("TEST-") || id.startsWith("usr_test_") || id.startsWith("authTest_") || id.startsWith("test_"))) {
+            return true;
+        }
+        if (paEmail != null) {
+            String pLower = paEmail.toLowerCase().trim();
+            if (pLower.contains("test_pa_") || pLower.contains("authtest_") || pLower.contains("test_importer_") || pLower.contains("tester@") || pLower.equalsIgnoreCase("pa_hazira@docktech.com")) {
+                return true;
+            }
+        }
+        if (reqEmail != null) {
+            String rLower = reqEmail.toLowerCase().trim();
+            if (rLower.contains("test_director_") || rLower.contains("test_pa_") || rLower.contains("authtest_") || rLower.contains("test_importer_") || rLower.contains("tester@") || rLower.equalsIgnoreCase("vikram@haziraport.com")) {
+                return true;
+            }
+        }
+        if (portName != null) {
+            String pLower = portName.toLowerCase().trim();
+            if (pLower.contains("mangalore") || pLower.contains("port of test") || pLower.equals("test port") || pLower.contains("kandla deepwater") || pLower.contains("paradip coal")) {
+                return true;
+            }
+        }
+        if (paName != null) {
+            String paLower = paName.toLowerCase().trim();
+            if (paLower.contains("captain k. ramesh") || paLower.contains("pa tester")) {
+                return true;
+            }
+        }
+        if (reqName != null) {
+            String rLower = reqName.toLowerCase().trim();
+            if (rLower.contains("captain k. ramesh") || rLower.contains("vikram shah") || rLower.contains("tester")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean isFakeOrTestRequest(PortRequest req) {
+        if (req == null) return false;
+        Map<String, Object> map = new HashMap<>();
+        map.put("requestId", req.requestId);
+        map.put("portName", req.portName);
+        map.put("portCode", req.portCode);
+        map.put("requesterEmail", req.requesterEmail);
+        map.put("proposedPaEmail", req.proposedPaEmail);
+        map.put("requesterName", req.requesterName);
+        map.put("proposedPaName", req.proposedPaName);
+        return isFakeOrTestRequest(map, req.requestId);
     }
 
     public static void restoreLocalDiskStatuses() {
@@ -40,7 +99,12 @@ public class PortRequestDao extends Dao {
                 try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
                     props.load(in);
                 }
+                java.util.List<String> toRemove = new java.util.ArrayList<>();
                 for (String reqId : props.stringPropertyNames()) {
+                    if ("NPR-101".equalsIgnoreCase(reqId) || reqId.startsWith("TEST-") || reqId.startsWith("usr_test_") || reqId.toLowerCase().contains("mangalore")) {
+                        toRemove.add(reqId);
+                        continue;
+                    }
                     String status = props.getProperty(reqId);
                     if (status != null && !status.isBlank()) {
                         String norm = status.toUpperCase().trim();
@@ -48,9 +112,43 @@ public class PortRequestDao extends Dao {
                         applyStatusToStores(reqId, norm, null);
                     }
                 }
+                if (!toRemove.isEmpty()) {
+                    for (String k : toRemove) {
+                        props.remove(k);
+                        diskStatusCache.remove(k);
+                    }
+                    try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                        props.store(out, "DockTech Port Request Statuses");
+                    }
+                }
             }
         } catch (Exception ignored) {
         }
+    }
+
+    public static void removeLocalDiskStatus(String reqId) {
+        if (reqId == null) return;
+        diskStatusCache.remove(reqId);
+        try {
+            java.io.File file = new java.io.File(PERSIST_FILE);
+            if (file.exists()) {
+                java.util.Properties props = new java.util.Properties();
+                try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
+                    props.load(in);
+                }
+                if (props.containsKey(reqId)) {
+                    props.remove(reqId);
+                    try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                        props.store(out, "DockTech Port Request Statuses");
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    public static void purgeFakeRequestsLocally() {
+        localRequestStore.entrySet().removeIf(entry -> isFakeOrTestRequest(entry.getValue(), entry.getKey()));
+        AdminDataStore.getInstance().portRequests.removeIf(PortRequestDao::isFakeOrTestRequest);
     }
 
     private static void saveLocalDiskStatus(String reqId, String status) {
@@ -114,29 +212,24 @@ public class PortRequestDao extends Dao {
                 snapFuture.addListener(() -> {
                     try {
                         com.google.cloud.firestore.QuerySnapshot snap = snapFuture.get();
+                        java.util.List<PortRequest> fetchedRequests = new java.util.ArrayList<>();
                         if (snap != null && !snap.isEmpty()) {
-                            StringBuilder currentHash = new StringBuilder();
-                            for (com.google.cloud.firestore.QueryDocumentSnapshot doc : snap.getDocuments()) {
-                                currentHash.append(doc.getId()).append(":")
-                                        .append(doc.getString("status")).append(":")
-                                        .append(doc.getUpdateTime() != null ? doc.getUpdateTime().toString() : "").append(";");
-                            }
-
-                            String hashStr = currentHash.toString();
-                            if (hashStr.equals(lastSyncSnapshotHash) && (System.currentTimeMillis() - lastSyncTimeMs < 15000)) {
-                                // Data is already up to date, reuse existing in-memory state without redundant processing
-                                future.complete(AdminDataStore.getInstance().portRequests);
-                                return;
-                            }
-
-                            lastSyncSnapshotHash = hashStr;
-                            lastSyncTimeMs = System.currentTimeMillis();
-
-                            java.util.List<PortRequest> fetchedRequests = new java.util.ArrayList<>();
                             for (com.google.cloud.firestore.QueryDocumentSnapshot doc : snap.getDocuments()) {
                                 Map<String, Object> data = new HashMap<>(doc.getData());
                                 String reqId = doc.getId();
                                 data.put("requestId", reqId);
+
+                                // If this is an automatically generated or test request, purge it from database & memory
+                                if (isFakeOrTestRequest(data, reqId)) {
+                                    try {
+                                        db.collection("port_requests").document(reqId).delete();
+                                        localRequestStore.remove(reqId);
+                                        diskStatusCache.remove(reqId);
+                                        removeLocalDiskStatus(reqId);
+                                        System.out.println("[PORT REQUEST DAO] Purged fake/test request from Firestore: " + reqId + " (" + data.get("portName") + ")");
+                                    } catch (Exception ignored) {}
+                                    continue;
+                                }
 
                                 String st = doc.getString("status");
                                 String statusVal = (st != null && !st.isBlank()) ? st.toUpperCase().trim() : "PENDING";
@@ -153,20 +246,21 @@ public class PortRequestDao extends Dao {
                                 PortRequest reqObj = parsePortRequestFromMap(data);
                                 fetchedRequests.add(reqObj);
                             }
-
-                            mergeIntoAdminDataStore(fetchedRequests);
-                            future.complete(AdminDataStore.getInstance().portRequests);
-                        } else {
-                            future.complete(AdminDataStore.getInstance().portRequests);
                         }
+
+                        syncAdminDataStore(fetchedRequests);
+                        future.complete(AdminDataStore.getInstance().portRequests);
                     } catch (Exception ex) {
+                        purgeFakeRequestsLocally();
                         future.complete(AdminDataStore.getInstance().portRequests);
                     }
                 }, Runnable::run);
             } else {
+                purgeFakeRequestsLocally();
                 future.complete(AdminDataStore.getInstance().portRequests);
             }
         } catch (Exception ex) {
+            purgeFakeRequestsLocally();
             future.complete(AdminDataStore.getInstance().portRequests);
         }
         return future;
@@ -180,10 +274,11 @@ public class PortRequestDao extends Dao {
         String address = (String) data.get("address");
         String details = (String) data.get("details");
         String reqName = (String) data.get("requesterName");
-        String reqEmail = (String) data.get("requesterEmail");
-        String reqPhone = (String) data.get("requesterPhone");
+        String reqEmail = (String) (data.get("requesterEmail") != null ? data.get("requesterEmail") : data.get("email"));
+        String reqPhone = (String) (data.get("requesterPhone") != null ? data.get("requesterPhone") : data.get("phone"));
         String paName = (String) (data.get("proposedPaName") != null ? data.get("proposedPaName") : data.get("proposedPortAuthorityName"));
         String paEmail = (String) (data.get("proposedPaEmail") != null ? data.get("proposedPaEmail") : data.get("proposedPortAuthorityEmail"));
+        if (paEmail == null) paEmail = (String) data.get("paEmail");
         String status = (String) data.get("status");
         String requestDate = (String) data.get("requestDate");
         String rejectionReason = (String) data.get("rejectionReason");
@@ -214,10 +309,10 @@ public class PortRequestDao extends Dao {
                 address != null ? address : "Port Address",
                 details != null ? details : "New Port Proposal",
                 reqName != null ? reqName : "Requester",
-                reqEmail != null ? reqEmail : "requester@docktech.com",
+                reqEmail != null ? reqEmail : "",
                 reqPhone != null ? reqPhone : "+91 9800000000",
                 paName != null ? paName : "Port Authority",
-                paEmail != null ? paEmail : "pa@docktech.com",
+                paEmail != null ? paEmail : "",
                 status != null && !status.isBlank() ? status.toUpperCase().trim() : "PENDING",
                 requestDate != null ? requestDate : "Today",
                 rejectionReason != null ? rejectionReason : "",
@@ -301,9 +396,30 @@ public class PortRequestDao extends Dao {
     }
 
     public static synchronized void mergeIntoAdminDataStore(java.util.List<PortRequest> fetchedRequests) {
+        syncAdminDataStore(fetchedRequests);
+    }
+
+    public static synchronized void syncAdminDataStore(java.util.List<PortRequest> fetchedRequests) {
         java.util.List<PortRequest> currentList = AdminDataStore.getInstance().portRequests;
 
+        // Remove any fake/test requests
+        currentList.removeIf(PortRequestDao::isFakeOrTestRequest);
+
+        if (fetchedRequests == null) fetchedRequests = java.util.Collections.emptyList();
+
+        java.util.Set<String> fetchedIds = new java.util.HashSet<>();
         for (PortRequest fetched : fetchedRequests) {
+            if (fetched.requestId != null) {
+                fetchedIds.add(fetched.requestId.toLowerCase().trim());
+            }
+        }
+
+        // Remove any requests not in the fetched database list
+        currentList.removeIf(req -> req.requestId != null && !fetchedIds.contains(req.requestId.toLowerCase().trim()));
+
+        for (PortRequest fetched : fetchedRequests) {
+            if (isFakeOrTestRequest(fetched)) continue;
+
             PortRequest existing = null;
             for (PortRequest req : currentList) {
                 if (req.requestId != null && fetched.requestId != null && req.requestId.equalsIgnoreCase(fetched.requestId.trim())) {
@@ -317,6 +433,21 @@ public class PortRequestDao extends Dao {
                 if (fetched.rejectionReason != null && !fetched.rejectionReason.isBlank()) {
                     existing.rejectionReason = fetched.rejectionReason;
                 }
+                if (fetched.portName != null && !fetched.portName.isBlank()) existing.portName = fetched.portName;
+                if (fetched.portCode != null && !fetched.portCode.isBlank()) existing.portCode = fetched.portCode;
+                if (fetched.location != null && !fetched.location.isBlank()) existing.location = fetched.location;
+                if (fetched.address != null && !fetched.address.isBlank()) existing.address = fetched.address;
+                if (fetched.details != null && !fetched.details.isBlank()) existing.details = fetched.details;
+                if (fetched.requesterName != null && !fetched.requesterName.isBlank()) existing.requesterName = fetched.requesterName;
+                if (fetched.requesterEmail != null && !fetched.requesterEmail.isBlank()) existing.requesterEmail = fetched.requesterEmail;
+                if (fetched.requesterPhone != null && !fetched.requesterPhone.isBlank()) existing.requesterPhone = fetched.requesterPhone;
+                if (fetched.proposedPaName != null && !fetched.proposedPaName.isBlank()) existing.proposedPaName = fetched.proposedPaName;
+                if (fetched.proposedPaEmail != null && !fetched.proposedPaEmail.isBlank()) existing.proposedPaEmail = fetched.proposedPaEmail;
+                if (fetched.requestDate != null && !fetched.requestDate.isBlank()) existing.requestDate = fetched.requestDate;
+                if (fetched.documentRefs != null && !fetched.documentRefs.isBlank()) existing.documentRefs = fetched.documentRefs;
+                if (fetched.lat != 0.0) existing.lat = fetched.lat;
+                if (fetched.lng != 0.0) existing.lng = fetched.lng;
+
                 if (fetched.aadhaarUrl != null && !fetched.aadhaarUrl.isBlank()) {
                     existing.aadhaarUrl = fetched.aadhaarUrl;
                     existing.aadhaarFileName = fetched.aadhaarFileName;
@@ -336,32 +467,23 @@ public class PortRequestDao extends Dao {
             } else {
                 currentList.add(0, fetched);
             }
+
+            // If request is approved and not deleted, ensure port exists in AdminDataStore.ports
+            if ("APPROVED".equalsIgnoreCase(fetched.status) && !AdminDataStore.isPortDeleted(fetched.portName, fetched.portCode)) {
+                AdminDataStore store = AdminDataStore.getInstance();
+                AdminDataStore.Port p = store.getPortByIdOrName(fetched.portName);
+                if (p == null) {
+                    store.ports.add(new AdminDataStore.Port(
+                            fetched.portName, fetched.location, fetched.portCode, fetched.proposedPaName,
+                            12, 0, "Operational", "Mixed Cargo, Containers", "100%", "Clear",
+                            store.now(), fetched.lat, fetched.lng, "APPROVED"
+                    ));
+                } else {
+                    p.approvalStatus = "APPROVED";
+                    p.status = "Operational";
+                }
+            }
         }
-    }
-
-    private static void seedRequest(String reqId, String portName, String portCode, String location, String address,
-            String details, String reqName, String reqEmail, String reqPhone,
-            String paName, String paEmail, String status, String date, String reason, String docs) {
-
-        Map<String, Object> data = new HashMap<>();
-        data.put("requestId", reqId);
-        data.put("portName", portName);
-        data.put("portCode", portCode);
-        data.put("location", location);
-        data.put("address", address);
-        data.put("details", details);
-        data.put("requesterName", reqName);
-        data.put("requesterEmail", reqEmail);
-        data.put("requesterPhone", reqPhone);
-        data.put("proposedPaName", paName);
-        data.put("proposedPaEmail", paEmail);
-        data.put("status", status);
-        data.put("requestDate", date);
-        data.put("rejectionReason", reason);
-        data.put("documentRefs", docs);
-        data.put("createdAt", LocalDateTime.now().toString());
-
-        localRequestStore.put(reqId, data);
     }
 
     public synchronized String generateRequestId() {
@@ -458,10 +580,10 @@ public class PortRequestDao extends Dao {
             requestData.put("address", address != null ? address.trim() : "Port Address");
             requestData.put("details", details != null ? details.trim() : "New Port Proposal");
             requestData.put("requesterName", requesterName != null ? requesterName.trim() : "Requester");
-            requestData.put("requesterEmail", requesterEmail != null ? requesterEmail.trim() : "requester@docktech.com");
+            requestData.put("requesterEmail", requesterEmail != null ? requesterEmail.trim() : "");
             requestData.put("requesterPhone", requesterPhone != null ? requesterPhone.trim() : "+91 9800000000");
             requestData.put("proposedPaName", proposedPaName != null ? proposedPaName.trim() : "Port Authority");
-            requestData.put("proposedPaEmail", proposedPaEmail != null ? proposedPaEmail.trim() : "pa@docktech.com");
+            requestData.put("proposedPaEmail", proposedPaEmail != null ? proposedPaEmail.trim() : "");
             requestData.put("status", "PENDING");
             requestData.put("requestDate", dateStr);
             requestData.put("rejectionReason", "");
@@ -489,7 +611,7 @@ public class PortRequestDao extends Dao {
             requestData.put("supportingUploadedAt", supportingUploadedAt != null ? supportingUploadedAt : dateStr);
 
             requestData.put("proposedPortAuthorityName", proposedPaName != null ? proposedPaName.trim() : "Port Authority");
-            requestData.put("proposedPortAuthorityEmail", proposedPaEmail != null ? proposedPaEmail.trim() : "pa@docktech.com");
+            requestData.put("proposedPortAuthorityEmail", proposedPaEmail != null ? proposedPaEmail.trim() : "");
             requestData.put("portEstablishmentProposalFileName", supportingFileName != null ? supportingFileName : "Port_Establishment_Proposal.pdf");
             requestData.put("portEstablishmentProposalUrl", pUrlStr);
             requestData.put("portEstablishmentProposalPublicId", supportingPublicId != null ? supportingPublicId : "");
@@ -580,7 +702,57 @@ public class PortRequestDao extends Dao {
             System.err.println("[PORT REQUEST DAO] Status update exception: " + ex.getMessage());
             future.complete(true);
         }
-
         return future;
+    }
+
+    public CompletableFuture<Boolean> deletePortRequest(String requestId) {
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
+        final String targetReqId = (requestId != null) ? requestId.trim() : "";
+        removeLocalDiskStatus(targetReqId);
+        localRequestStore.remove(targetReqId);
+        AdminDataStore.getInstance().portRequests.removeIf(r -> targetReqId.equalsIgnoreCase(r.requestId));
+        try {
+            Firestore db = db();
+            if (db != null && !targetReqId.isBlank()) {
+                com.google.api.core.ApiFuture<com.google.cloud.firestore.WriteResult> apiFuture = db
+                        .collection("port_requests").document(targetReqId).delete();
+                apiFuture.addListener(() -> {
+                    try {
+                        apiFuture.get();
+                        future.complete(true);
+                    } catch (Exception ex) {
+                        future.complete(true);
+                    }
+                }, Runnable::run);
+            } else {
+                future.complete(true);
+            }
+        } catch (Exception ex) {
+            future.complete(true);
+        }
+        return future;
+    }
+
+    public synchronized void deletePortRequestsForPort(String portName, String portCode) {
+        if (portName == null && portCode == null) return;
+        String pLower = portName != null ? portName.trim().toLowerCase() : "";
+        String cLower = portCode != null ? portCode.trim().toLowerCase() : "";
+
+        List<String> toRemove = new ArrayList<>();
+        for (Map.Entry<String, Map<String, Object>> entry : localRequestStore.entrySet()) {
+            Map<String, Object> req = entry.getValue();
+            if (req != null) {
+                String pName = req.get("portName") != null ? req.get("portName").toString().trim().toLowerCase() : "";
+                String pCd = req.get("portCode") != null ? req.get("portCode").toString().trim().toLowerCase() : "";
+                boolean match = (!pLower.isEmpty() && (pName.equals(pLower) || pName.contains(pLower) || pLower.contains(pName)))
+                        || (!cLower.isEmpty() && (pCd.equals(cLower) || pCd.contains(cLower)));
+                if (match) {
+                    toRemove.add(entry.getKey());
+                }
+            }
+        }
+        for (String id : toRemove) {
+            deletePortRequest(id);
+        }
     }
 }

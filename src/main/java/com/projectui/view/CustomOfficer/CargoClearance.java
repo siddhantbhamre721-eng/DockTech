@@ -206,7 +206,9 @@ public class CargoClearance {
         String statusVal = statusFilterCombo != null ? statusFilterCombo.getValue() : "All Status";
         String typeVal = typeFilterCombo != null ? typeFilterCombo.getValue() : "All Types";
 
-        List<Map<String, Object>> cargos = cargoDao.getCargosByPort(activeAssignedPort);
+        String officerUid = LoginPage.loggedInUser != null && LoginPage.loggedInUser.get("uid") != null ? LoginPage.loggedInUser.get("uid").toString() : "";
+        String officerEmail = LoginPage.loggedInUser != null && LoginPage.loggedInUser.get("email") != null ? LoginPage.loggedInUser.get("email").toString() : "";
+        List<Map<String, Object>> cargos = cargoDao.getCargosForCustomsOfficer(officerUid, officerEmail, activeAssignedPort);
         int rowIndex = 1;
 
         if (cargos != null) {
@@ -216,11 +218,17 @@ public class CargoClearance {
                 String cargoId = String.valueOf(c.get("cargoId"));
                 String name = c.get("cargoName") != null ? String.valueOf(c.get("cargoName")) : "General Cargo";
                 String type = c.get("cargoType") != null ? String.valueOf(c.get("cargoType")) : "General";
-                String vessel = c.get("assignedShip") != null ? String.valueOf(c.get("assignedShip")) : (c.get("vessel") != null ? String.valueOf(c.get("vessel")) : ("MV " + activeAssignedPort.replace("Port of ", "").replace(" Port", "") + " Trader"));
+                String orig = c.get("originPort") != null ? c.get("originPort").toString() : "—";
+                String dest = c.get("destinationPort") != null ? c.get("destinationPort").toString() : "—";
+
+                String vessel = c.get("assignedShip") != null ? String.valueOf(c.get("assignedShip")) : (c.get("vessel") != null ? String.valueOf(c.get("vessel")) : "Not Assigned");
+                String capName = c.get("assignedCaptainName") != null ? c.get("assignedCaptainName").toString() : (c.get("assignedCaptain") != null ? c.get("assignedCaptain").toString() : "");
+                String vesselDisplay = vessel + (!capName.isBlank() && !capName.equalsIgnoreCase("Ship Captain") ? (" (Cap: " + capName + ")") : "");
+
                 String company = c.get("exporter") != null ? String.valueOf(c.get("exporter")) : (c.get("company") != null ? String.valueOf(c.get("company")) : "Maritime Logistics");
                 String docStatus = c.get("verificationStatus") != null ? String.valueOf(c.get("verificationStatus")) : "Pending";
                 String inspectStatus = c.get("inspectionStatus") != null ? String.valueOf(c.get("inspectionStatus")) : "Pending";
-                String customsStatus = c.get("customsStatus") != null ? String.valueOf(c.get("customsStatus")) : "Pending";
+                String customsStatus = c.get("customsClearanceStatus") != null ? String.valueOf(c.get("customsClearanceStatus")) : (c.get("customsStatus") != null ? String.valueOf(c.get("customsStatus")) : "Pending");
 
                 boolean matchQuery = query.isEmpty() ||
                         cargoId.toLowerCase().contains(query) ||
@@ -232,7 +240,7 @@ public class CargoClearance {
                 boolean matchType = "All Types".equalsIgnoreCase(typeVal) || type.equalsIgnoreCase(typeVal) || name.toLowerCase().contains(typeVal.toLowerCase());
 
                 if (matchQuery && matchStatus && matchType) {
-                    addClearanceRow(rowIndex++, cargoId, name + " (" + type + ")", vessel, company, docStatus, inspectStatus, customsStatus);
+                    addClearanceRow(rowIndex++, cargoId, name + " (" + type + ") • " + orig + " ➔ " + dest, vesselDisplay, company, docStatus, inspectStatus, customsStatus);
                 }
             }
         }

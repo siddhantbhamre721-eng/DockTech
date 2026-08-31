@@ -358,7 +358,9 @@ public class PortManagementPage extends AdminTheme {
                         "-fx-cursor:hand;");
         deletePortBtn.setOnAction(event -> {
             if (editingIndex >= 0 && editingIndex < ports.size()) {
-                deletePortAtIndex(editingIndex);
+                confirmAndDeletePort(editingIndex);
+            } else {
+                formSubtitle.setText("⚠️ Select a port from the table below to delete.");
             }
         });
 
@@ -770,6 +772,7 @@ public class PortManagementPage extends AdminTheme {
                 return;
             }
 
+            AdminDataStore.clearDeletedPort(nameValue, pCode);
             Port newPort = new Port(nameValue, locationValue, pCode, "Port Authority (" + nameValue + ")", berths, 0,
                     statusValue != null ? statusValue : "Operational", "Containers",
                     capacityValue.isEmpty() ? "85%" : capacityValue,
@@ -780,11 +783,6 @@ public class PortManagementPage extends AdminTheme {
             formSubtitle.setText(
                     "✓ Port '" + nameValue + "' created at Lat: " + String.format(java.util.Locale.US, "%.4f", lat)
                             + ", Lng: " + String.format(java.util.Locale.US, "%.4f", lng) + "!");
-
-            String paEmail = "pa_" + nameValue.toLowerCase().replaceAll("[^a-z0-9]", "") + "@docktech.com";
-            String paPhone = "+91 98" + (int) (Math.random() * 89999999 + 10000000);
-            userDao.provisionAccount("Admin", "Port Authority (" + nameValue + ")", paEmail, nameValue, paPhone,
-                    "Port Authority", "Active");
         }
 
         GeoTileMapCanvas.refreshAllMapInstances();
@@ -898,6 +896,12 @@ public class PortManagementPage extends AdminTheme {
         VBox requestsContainer = new VBox(8);
         renderPortRequests(requestsContainer);
 
+        this.portRequestDao.syncWithDatabase().whenComplete((list, err) -> {
+            javafx.application.Platform.runLater(() -> {
+                renderPortRequests(requestsContainer);
+            });
+        });
+
         refreshBtn.setOnAction(e -> {
             refreshBtn.setText("⏳ Refreshing...");
             refreshBtn.setDisable(true);
@@ -973,6 +977,7 @@ public class PortManagementPage extends AdminTheme {
                 if ("APPROVED".equalsIgnoreCase(req.status)) {
                     return;
                 }
+                System.out.println("[PORT APPROVAL] Port approval started for request ID: " + req.requestId + " | Port: " + req.portName);
                 approveBtn.setText("⏳ Approving...");
                 approveBtn.setDisable(true);
                 rejectBtn.setDisable(true);
@@ -1004,6 +1009,7 @@ public class PortManagementPage extends AdminTheme {
                             }
                         }
 
+                        AdminDataStore.clearDeletedPort(req.portName, req.portCode);
                         if (existingPort != null) {
                             existingPort.approvalStatus = "APPROVED";
                             existingPort.status = "Operational";
@@ -1029,44 +1035,79 @@ public class PortManagementPage extends AdminTheme {
                         extraFields.put("requestId", req.requestId);
                         extraFields.put("portName", req.portName);
                         extraFields.put("portCode", req.portCode);
+                        extraFields.put("portId", (req.portCode != null && !req.portCode.isBlank()) ? req.portCode : req.requestId);
                         extraFields.put("assignedPort", req.portName);
                         extraFields.put("company", req.portName);
                         extraFields.put("organization", req.portName);
-                        extraFields.put("requesterEmail", req.requesterEmail);
-                        extraFields.put("proposedPaEmail", req.proposedPaEmail);
+
+                        // 1. Resolve registered email from request without inventing/substituting fake addresses
+                        String registeredEmail = null;
+                        if (req.proposedPaEmail != null && !req.proposedPaEmail.isBlank() && com.projectui.view.login.LoginPage.isEmail(req.proposedPaEmail.trim())) {
+                            registeredEmail = req.proposedPaEmail.trim();
+                        } else if (req.requesterEmail != null && !req.requesterEmail.isBlank() && com.projectui.view.login.LoginPage.isEmail(req.requesterEmail.trim())) {
+                            registeredEmail = req.requesterEmail.trim();
+                        }
+
+                        if (registeredEmail == null || registeredEmail.isBlank()) {
+                            System.err.println("[APPROVAL] Delivery Error: Missing or invalid registered email in Port Authority request " + req.requestId);
+                            formSubtitle.setText("⚠️ Cannot send approval email: No valid registered email address found in this request.");
+                            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                                    javafx.scene.control.Alert.AlertType.ERROR,
+                                    "Approval Delivery Error: The request does not contain a valid registered recipient email address. No email was sent."
+                            );
+                            alert.showAndWait();
+                            return;
+                        }
+
+                        String paEmail = registeredEmail;
+                        String paName = (req.proposedPaName != null && !req.proposedPaName.isBlank()) ? req.proposedPaName.trim() : "Port Authority";
+
+                        extraFields.put("requesterEmail", req.requesterEmail != null && !req.requesterEmail.isBlank() ? req.requesterEmail.trim() : registeredEmail);
+                        extraFields.put("proposedPaEmail", paEmail);
                         extraFields.put("roleCode", "PORT_AUTHORITY");
                         extraFields.put("role", "Port Authority");
 
-                        userDao.provisionAccountExtended("Admin", req.proposedPaName, req.proposedPaEmail, req.portName,
+                        userDao.provisionAccountExtended("Admin", paName, paEmail, req.portName,
                                 req.requesterPhone, "Port Authority", "Active", extraFields)
                                 .whenComplete((creds, err) -> javafx.application.Platform.runLater(() -> {
-                                    String accId = (creds != null && creds.get("id") != null && !creds.get("id").isBlank()) ? creds.get("id")
-                                            : req.proposedPaEmail;
-                                    String tempPass = (creds != null && creds.get("tempPassword") != null)
-                                            ? creds.get("tempPassword")
-                                            : "Pass#9821";
+                                    if (err != null || creds == null) {
+                                        System.err.println("[APPROVAL] Port Authority provisioning error: " + (err != null ? err.getMessage() : "Unknown error"));
+                                        formSubtitle.setText("⚠️ Failed to create Port Authority authentication account: " + (err != null ? err.getMessage() : "Unknown error"));
+                                        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                                                javafx.scene.control.Alert.AlertType.ERROR, "Port Authority Account Creation Failed: "
+                                                + (err != null ? err.getMessage() : "Could not create Firebase Authentication user."));
+                                        alert.showAndWait();
+                                        return;
+                                    }
 
-                                    String databaseRequesterEmail = (req.requesterEmail != null && !req.requesterEmail.isBlank()) ? req.requesterEmail.trim() : req.proposedPaEmail;
-                                    System.out.println("[APPROVAL] requesterEmail from database: " + databaseRequesterEmail);
-                                    System.out.println("[APPROVAL] final email recipient: " + databaseRequesterEmail);
+                                    String accId = (creds.get("id") != null && !creds.get("id").isBlank()) ? creds.get("id") : paEmail;
+                                    String tempPass = (creds.get("tempPassword") != null && !creds.get("tempPassword").isBlank()) ? creds.get("tempPassword") : "Pass#9821";
 
-                                    emailService.sendApprovalNotification(
-                                            databaseRequesterEmail,
+                                    System.out.println("[APPROVAL] Verified registered email recipient: " + paEmail);
+
+                                    emailService.sendPortAuthorityCredentialWebhook(
                                             req.portName,
                                             req.portCode,
                                             req.requestId,
-                                            req.proposedPaName,
-                                            accId,
-                                            tempPass);
+                                            paName,
+                                            paEmail,
+                                            paEmail,
+                                            tempPass).whenComplete((sent, emailErr) -> javafx.application.Platform.runLater(() -> {
+                                        if (emailErr != null || sent == null || !sent) {
+                                            System.err.println("[APPROVAL] Delivery Error: Credential webhook delivery rejected for recipient: " + paEmail);
+                                            formSubtitle.setText("⚠️ Port Authority account created, but credential notification to " + paEmail + " failed.");
+                                        } else {
+                                            formSubtitle.setText("✓ Port Approved & Created! Credentials sent to: "
+                                                    + paEmail + " (ID: " + accId + ")");
+                                        }
+                                    }));
 
-                                    formSubtitle.setText("✓ Port Approved & Created! Credentials created for: "
-                                            + req.proposedPaEmail + " (ID: " + accId + ")");
-                                    String paUid = (creds != null && creds.get("uid") != null) ? creds.get("uid") : ("usr_" + Math.abs(req.proposedPaEmail.toLowerCase().hashCode()));
-                                    store.users.add(0, new AdminDataStore.UserAccount(paUid, req.proposedPaName,
-                                            req.proposedPaEmail, "Port Authority", "Active", "Today", "Just now"));
+                                    String paUid = creds.get("uid") != null ? creds.get("uid") : ("usr_" + Math.abs(paEmail.toLowerCase().hashCode()));
+                                    store.users.add(0, new AdminDataStore.UserAccount(paUid, paName,
+                                            paEmail, "Port Authority", "Active", "Today", "Just now"));
 
-                                    showPortAuthorityAccountCreatedPopup(req.portName, req.proposedPaName,
-                                            req.proposedPaEmail, accId, tempPass);
+                                    showPortAuthorityAccountCreatedPopup(req.portName, paName,
+                                            paEmail, accId, tempPass);
                                 }));
                     });
                 });
@@ -1583,7 +1624,7 @@ public class PortManagementPage extends AdminTheme {
                         "-fx-padding:4 10;" +
                         "-fx-background-radius:6;" +
                         "-fx-cursor:hand;");
-        deleteBtn.setOnAction(e -> deletePortAtIndex(index));
+        deleteBtn.setOnAction(e -> confirmAndDeletePort(index));
 
         HBox cell = new HBox(8, editBtn, deleteBtn);
         cell.setAlignment(Pos.CENTER_LEFT);
@@ -1595,19 +1636,67 @@ public class PortManagementPage extends AdminTheme {
         return cell;
     }
 
-    private void deletePortAtIndex(int index) {
+    private void confirmAndDeletePort(int index) {
         if (index < 0 || index >= ports.size()) return;
-        Port removed = ports.remove(index);
-        store.deletePort(removed);
-        formSubtitle.setText("✓ Port '" + removed.name + "' was permanently deleted.");
-        if (editingIndex == index) {
-            startAdd();
-        } else if (editingIndex > index) {
-            editingIndex--;
+        Port portToDelete = ports.get(index);
+        if (portToDelete == null) return;
+
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Delete this port?");
+        alert.setHeaderText("Delete this port?");
+        alert.setContentText("This will remove the port and its associated operational data from the system. This action cannot be undone.");
+
+        javafx.scene.control.ButtonType cancelBtnType = new javafx.scene.control.ButtonType("Cancel", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
+        javafx.scene.control.ButtonType deleteBtnType = new javafx.scene.control.ButtonType("Delete Port", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+        alert.getButtonTypes().setAll(cancelBtnType, deleteBtnType);
+
+        javafx.scene.control.DialogPane dialogPane = alert.getDialogPane();
+        dialogPane.setStyle("-fx-font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;");
+        javafx.scene.control.Button deleteButton = (javafx.scene.control.Button) dialogPane.lookupButton(deleteBtnType);
+        if (deleteButton != null) {
+            deleteButton.setStyle("-fx-background-color:#ef4444; -fx-text-fill:white; -fx-font-weight:bold; -fx-background-radius:6; -fx-padding:8 16; -fx-cursor:hand;");
         }
-        GeoTileMapCanvas.refreshAllMapInstances();
-        refreshTable();
-        refreshStats();
+        javafx.scene.control.Button cancelButton = (javafx.scene.control.Button) dialogPane.lookupButton(cancelBtnType);
+        if (cancelButton != null) {
+            cancelButton.setStyle("-fx-background-color:#f1f5f9; -fx-text-fill:#475569; -fx-font-weight:bold; -fx-background-radius:6; -fx-padding:8 16; -fx-cursor:hand;");
+        }
+
+        alert.showAndWait().ifPresent(type -> {
+            if (type == deleteBtnType) {
+                executePortDeletion(portToDelete, index);
+            }
+        });
+    }
+
+    private void executePortDeletion(Port portToDelete, int index) {
+        try {
+            boolean success = store.deletePort(portToDelete);
+            if (!success) {
+                showErrorAlert("Delete Failed", "Could not delete port '" + portToDelete.name + "' from the system.");
+                return;
+            }
+
+            formSubtitle.setText("✓ Port '" + portToDelete.name + "' was permanently deleted.");
+            if (editingIndex == index) {
+                startAdd();
+            } else if (editingIndex > index) {
+                editingIndex--;
+            }
+
+            GeoTileMapCanvas.refreshAllMapInstances();
+            refreshTable();
+            refreshStats();
+        } catch (Exception ex) {
+            showErrorAlert("Database Deletion Failed", "Failed to delete port from database: " + ex.getMessage() + "\nThe port remains visible.");
+        }
+    }
+
+    private void showErrorAlert(String title, String message) {
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR);
+        alert.setTitle(title);
+        alert.setHeaderText(title);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     private Label headerCell(String text) {

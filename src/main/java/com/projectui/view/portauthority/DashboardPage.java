@@ -31,13 +31,16 @@ import javafx.collections.transformation.SortedList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
@@ -49,7 +52,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
-@SuppressWarnings({"unchecked", "unused", "deprecation"})
+@SuppressWarnings({ "unchecked", "unused", "deprecation" })
 public class DashboardPage {
 
     private final VBox root = new VBox(16);
@@ -185,8 +188,7 @@ public class DashboardPage {
                 summaryCards,
                 centerSplit,
                 bottomSplit,
-                personnelSection
-        );
+                personnelSection);
     }
 
     // =====================================================
@@ -202,7 +204,8 @@ public class DashboardPage {
         portHeadingLabel = new Label(activeViewingPort + " — Operations Dashboard");
         portHeadingLabel.setStyle("-fx-text-fill:#0f172a; -fx-font-size:22px; -fx-font-weight:bold;");
 
-        portSubLabel = new Label("Live Vessel Traffic & Maritime Operational Control • Assigned Port: " + userAssignedPort);
+        portSubLabel = new Label(
+                "Live Vessel Traffic & Maritime Operational Control • Assigned Port: " + userAssignedPort);
         portSubLabel.setStyle("-fx-text-fill:#64748b; -fx-font-size:13px;");
         titleBox.getChildren().addAll(portHeadingLabel, portSubLabel);
 
@@ -211,13 +214,15 @@ public class DashboardPage {
 
         // Data Freshness Badge
         dataFreshnessBadge = new Label("● LIVE — AIS Active");
-        dataFreshnessBadge.setStyle("-fx-text-fill:#10b981; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-color:rgba(16,185,129,0.12); -fx-padding:6 12; -fx-background-radius:999;");
+        dataFreshnessBadge.setStyle(
+                "-fx-text-fill:#10b981; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-color:rgba(16,185,129,0.12); -fx-padding:6 12; -fx-background-radius:999;");
 
         lastSyncLabel = new Label("Synced: Just now");
         lastSyncLabel.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:12px;");
 
         Button refreshBtn = new Button("↻ Refresh");
-        refreshBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-radius:6; -fx-padding:6 14; -fx-cursor:hand;");
+        refreshBtn.setStyle(
+                "-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-radius:6; -fx-padding:6 14; -fx-cursor:hand;");
         refreshBtn.setOnAction(e -> refreshDashboardData());
 
         topRow.getChildren().addAll(titleBox, spacer, dataFreshnessBadge, lastSyncLabel, refreshBtn);
@@ -239,12 +244,16 @@ public class DashboardPage {
         departingVal = new Label("0");
         aisStatusVal = new Label("Connected");
 
-        VBox cTotal = createKpiCard("Total Ships", totalShipsVal, "Assigned to " + activeViewingPort, "🚢", "#0284c7", "#e0f2fe");
+        VBox cTotal = createKpiCard("Total Ships", totalShipsVal, "Assigned to " + activeViewingPort, "🚢", "#0284c7",
+                "#e0f2fe");
         VBox cArriving = createKpiCard("Arriving", arrivingVal, "Inbound Channel Approach", "📥", "#3b82f6", "#eff6ff");
         VBox cAnchored = createKpiCard("Anchored", anchoredVal, "Outer Roads / Waiting", "⚓", "#d97706", "#fef3c7");
-        VBox cBerthed = createKpiCard("Berthed / Moored", berthedVal, "Active Quayside Operations", "🏢", "#16a34a", "#ecfdf5");
-        VBox cDeparting = createKpiCard("Departing", departingVal, "Outbound Cleared Vessels", "📤", "#8b5cf6", "#f5f3ff");
-        VBox cAis = createKpiCard("Live AIS Status", aisStatusVal, "Admin Map Telemetry Sync", "📡", "#10b981", "#dcfce7");
+        VBox cBerthed = createKpiCard("Berthed / Moored", berthedVal, "Active Quayside Operations", "🏢", "#16a34a",
+                "#ecfdf5");
+        VBox cDeparting = createKpiCard("Departing", departingVal, "Outbound Cleared Vessels", "📤", "#8b5cf6",
+                "#f5f3ff");
+        VBox cAis = createKpiCard("Live AIS Status", aisStatusVal, "Admin Map Telemetry Sync", "📡", "#10b981",
+                "#dcfce7");
 
         row.getChildren().addAll(cTotal, cArriving, cAnchored, cBerthed, cDeparting, cAis);
 
@@ -260,13 +269,15 @@ public class DashboardPage {
     private VBox createKpiCard(String title, Label valLabel, String subtitle, String iconStr, String color, String bg) {
         VBox card = new VBox(6);
         card.setPadding(new Insets(14, 16, 14, 16));
-        card.setStyle("-fx-background-color:#ffffff; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.03), 6, 0, 0, 2);");
+        card.setStyle(
+                "-fx-background-color:#ffffff; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.03), 6, 0, 0, 2);");
 
         HBox top = new HBox(8);
         top.setAlignment(Pos.CENTER_LEFT);
 
         Label icon = new Label(iconStr);
-        icon.setStyle("-fx-text-fill:" + color + "; -fx-font-size:15px; -fx-font-weight:bold; -fx-background-color:" + bg + "; -fx-padding:4 8; -fx-background-radius:6;");
+        icon.setStyle("-fx-text-fill:" + color + "; -fx-font-size:15px; -fx-font-weight:bold; -fx-background-color:"
+                + bg + "; -fx-padding:4 8; -fx-background-radius:6;");
 
         Label t = new Label(title);
         t.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px; -fx-font-weight:bold;");
@@ -306,7 +317,8 @@ public class DashboardPage {
     private VBox buildLiveVesselTableSection() {
         VBox box = new VBox(10);
         box.setPadding(new Insets(16));
-        box.setStyle("-fx-background-color:#ffffff; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.03), 6, 0, 0, 2);");
+        box.setStyle(
+                "-fx-background-color:#ffffff; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.03), 6, 0, 0, 2);");
 
         // Controls bar: Search, Status Filter, Vessel Type Filter, Sort
         HBox controls = new HBox(10);
@@ -326,28 +338,33 @@ public class DashboardPage {
         searchField.setPromptText("🔍 Search Vessel / IMO / MMSI...");
         searchField.setPrefWidth(210);
         searchField.setPrefHeight(34);
-        searchField.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-font-size:12px; -fx-padding:5 10;");
+        searchField.setStyle(
+                "-fx-background-color:#f8fafc; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-font-size:12px; -fx-padding:5 10;");
         searchField.textProperty().addListener((obs, ov, nv) -> applyFiltersAndSort());
 
         statusFilterCombo = new ComboBox<>();
         statusFilterCombo.getItems().addAll("All Statuses", "Arriving", "Anchored", "Berthed", "Departing", "Underway");
         statusFilterCombo.setValue("All Statuses");
         statusFilterCombo.setPrefHeight(34);
-        statusFilterCombo.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-font-size:12px; -fx-pref-width:130;");
+        statusFilterCombo.setStyle(
+                "-fx-background-color:#f8fafc; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-font-size:12px; -fx-pref-width:130;");
         statusFilterCombo.setOnAction(e -> applyFiltersAndSort());
 
         typeFilterCombo = new ComboBox<>();
-        typeFilterCombo.getItems().addAll("All Types", "Container", "Tanker", "Bulk Carrier", "General Cargo", "Passenger", "Other");
+        typeFilterCombo.getItems().addAll("All Types", "Container", "Tanker", "Bulk Carrier", "General Cargo",
+                "Passenger", "Other");
         typeFilterCombo.setValue("All Types");
         typeFilterCombo.setPrefHeight(34);
-        typeFilterCombo.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-font-size:12px; -fx-pref-width:130;");
+        typeFilterCombo.setStyle(
+                "-fx-background-color:#f8fafc; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-font-size:12px; -fx-pref-width:130;");
         typeFilterCombo.setOnAction(e -> applyFiltersAndSort());
 
         sortCombo = new ComboBox<>();
         sortCombo.getItems().addAll("Sort: Name (A-Z)", "Sort: Speed (High-Low)", "Sort: Status");
         sortCombo.setValue("Sort: Name (A-Z)");
         sortCombo.setPrefHeight(34);
-        sortCombo.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-font-size:12px; -fx-pref-width:145;");
+        sortCombo.setStyle(
+                "-fx-background-color:#f8fafc; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-font-size:12px; -fx-pref-width:145;");
         sortCombo.setOnAction(e -> applyFiltersAndSort());
 
         controls.getChildren().addAll(titleBox, sp, searchField, statusFilterCombo, typeFilterCombo, sortCombo);
@@ -391,7 +408,8 @@ public class DashboardPage {
         colMmsi.setStyle("-fx-alignment:CENTER; -fx-font-size:12px; -fx-text-fill:#475569;");
 
         TableColumn<VesselData, String> colType = new TableColumn<>("Type");
-        colType.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().shipType != null ? d.getValue().shipType : "N/A"));
+        colType.setCellValueFactory(
+                d -> new SimpleStringProperty(d.getValue().shipType != null ? d.getValue().shipType : "N/A"));
         colType.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(String item, boolean empty) {
@@ -432,7 +450,8 @@ public class DashboardPage {
                         color = "#7c3aed";
                         bg = "#ede9fe";
                     }
-                    badge.setStyle("-fx-text-fill:" + color + "; -fx-background-color:" + bg + "; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:4;");
+                    badge.setStyle("-fx-text-fill:" + color + "; -fx-background-color:" + bg
+                            + "; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:4;");
                     setGraphic(badge);
                     setAlignment(Pos.CENTER);
                     setText(null);
@@ -449,7 +468,8 @@ public class DashboardPage {
         colCourse.setStyle("-fx-alignment:CENTER; -fx-font-size:12px; -fx-text-fill:#475569;");
 
         TableColumn<VesselData, String> colDest = new TableColumn<>("Destination");
-        colDest.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().destination != null ? d.getValue().destination : "N/A"));
+        colDest.setCellValueFactory(
+                d -> new SimpleStringProperty(d.getValue().destination != null ? d.getValue().destination : "N/A"));
         colDest.setStyle("-fx-font-size:12px; -fx-text-fill:#475569;");
 
         TableColumn<VesselData, String> colEta = new TableColumn<>("ETA");
@@ -457,10 +477,12 @@ public class DashboardPage {
         colEta.setStyle("-fx-alignment:CENTER; -fx-font-size:12px; -fx-text-fill:#2563eb; -fx-font-weight:bold;");
 
         TableColumn<VesselData, String> colUpdate = new TableColumn<>("Last Update");
-        colUpdate.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().timestamp != null ? d.getValue().timestamp : "N/A"));
+        colUpdate.setCellValueFactory(
+                d -> new SimpleStringProperty(d.getValue().timestamp != null ? d.getValue().timestamp : "N/A"));
         colUpdate.setStyle("-fx-alignment:CENTER; -fx-font-size:11px; -fx-text-fill:#64748b;");
 
-        vesselTable.getColumns().addAll(colVessel, colImo, colMmsi, colType, colStatus, colSpeed, colCourse, colDest, colEta, colUpdate);
+        vesselTable.getColumns().addAll(colVessel, colImo, colMmsi, colType, colStatus, colSpeed, colCourse, colDest,
+                colEta, colUpdate);
 
         filteredVesselList = new FilteredList<>(portVesselsMasterList, p -> true);
         sortedVesselList = new SortedList<>(filteredVesselList);
@@ -484,15 +506,22 @@ public class DashboardPage {
     }
 
     private void applyFiltersAndSort() {
-        if (filteredVesselList == null) return;
+        if (filteredVesselList == null)
+            return;
 
-        String query = searchField != null && searchField.getText() != null ? searchField.getText().trim().toLowerCase() : "";
-        String statusFilter = statusFilterCombo != null && statusFilterCombo.getValue() != null ? statusFilterCombo.getValue() : "All Statuses";
-        String typeFilter = typeFilterCombo != null && typeFilterCombo.getValue() != null ? typeFilterCombo.getValue() : "All Types";
-        String sortOption = sortCombo != null && sortCombo.getValue() != null ? sortCombo.getValue() : "Sort: Name (A-Z)";
+        String query = searchField != null && searchField.getText() != null ? searchField.getText().trim().toLowerCase()
+                : "";
+        String statusFilter = statusFilterCombo != null && statusFilterCombo.getValue() != null
+                ? statusFilterCombo.getValue()
+                : "All Statuses";
+        String typeFilter = typeFilterCombo != null && typeFilterCombo.getValue() != null ? typeFilterCombo.getValue()
+                : "All Types";
+        String sortOption = sortCombo != null && sortCombo.getValue() != null ? sortCombo.getValue()
+                : "Sort: Name (A-Z)";
 
         filteredVesselList.setPredicate(v -> {
-            if (v == null) return false;
+            if (v == null)
+                return false;
 
             boolean matchesSearch = query.isEmpty()
                     || (v.name != null && v.name.toLowerCase().contains(query))
@@ -501,12 +530,14 @@ public class DashboardPage {
                     || (v.shipType != null && v.shipType.toLowerCase().contains(query))
                     || (v.destination != null && v.destination.toLowerCase().contains(query));
 
-            if (!matchesSearch) return false;
+            if (!matchesSearch)
+                return false;
 
             if (!"All Statuses".equalsIgnoreCase(statusFilter)) {
                 String cat = deriveVesselCategory(v);
                 if ("Berthed".equalsIgnoreCase(statusFilter)) {
-                    if (!"Berthed".equalsIgnoreCase(cat) && !"Moored".equalsIgnoreCase(cat)) return false;
+                    if (!"Berthed".equalsIgnoreCase(cat) && !"Moored".equalsIgnoreCase(cat))
+                        return false;
                 } else if (!cat.equalsIgnoreCase(statusFilter)) {
                     return false;
                 }
@@ -515,7 +546,8 @@ public class DashboardPage {
             if (!"All Types".equalsIgnoreCase(typeFilter)) {
                 String t = v.shipType != null ? v.shipType.toLowerCase() : "";
                 String target = typeFilter.toLowerCase();
-                if (!t.contains(target)) return false;
+                if (!t.contains(target))
+                    return false;
             }
 
             return true;
@@ -538,7 +570,8 @@ public class DashboardPage {
     private VBox buildSelectedVesselDetailsSection() {
         VBox panel = new VBox(10);
         panel.setPadding(new Insets(16));
-        panel.setStyle("-fx-background-color:#ffffff; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.03), 6, 0, 0, 2);");
+        panel.setStyle(
+                "-fx-background-color:#ffffff; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.03), 6, 0, 0, 2);");
 
         renderVesselDetails(panel, currentlySelectedVessel);
         return panel;
@@ -556,7 +589,8 @@ public class DashboardPage {
         if (v == null) {
             Label title = new Label("Selected Vessel Details");
             title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:15px; -fx-font-weight:bold;");
-            Label prompt = new Label("Click any vessel in the live operations table to inspect complete AIS parameters, telemetry, and voyage particulars.");
+            Label prompt = new Label(
+                    "Click any vessel in the live operations table to inspect complete AIS parameters, telemetry, and voyage particulars.");
             prompt.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:12px; -fx-wrap-text:true;");
             panel.getChildren().addAll(title, prompt);
             return;
@@ -577,7 +611,8 @@ public class DashboardPage {
 
         String cat = deriveVesselCategory(v);
         Label statusPill = new Label(cat);
-        statusPill.setStyle("-fx-text-fill:#0284c7; -fx-background-color:#e0f2fe; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:4;");
+        statusPill.setStyle(
+                "-fx-text-fill:#0284c7; -fx-background-color:#e0f2fe; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 10; -fx-background-radius:4;");
 
         head.getChildren().addAll(titleBox, sp, statusPill);
 
@@ -590,8 +625,7 @@ public class DashboardPage {
                 detailLine("MMSI", String.valueOf(v.mmsi)),
                 detailLine("Call Sign", v.callSign),
                 detailLine("Type", v.shipType),
-                detailLine("Flag", "India 🇮🇳")
-        );
+                detailLine("Flag", "India 🇮🇳"));
 
         Label g2 = new Label("LIVE TELEMETRY");
         g2.setStyle("-fx-text-fill:#0284c7; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:5 0 2 0;");
@@ -605,24 +639,22 @@ public class DashboardPage {
                 detailLine("Longitude", String.format("%.4f° E", v.longitude)),
                 detailLine("Destination", v.destination),
                 detailLine("ETA", deriveEta(v)),
-                detailLine("Last Update", v.timestamp)
-        );
+                detailLine("Last Update", v.timestamp));
 
         Label g3 = new Label("VESSEL PARTICULARS");
         g3.setStyle("-fx-text-fill:#0284c7; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:5 0 2 0;");
 
         long seed = Math.abs(v.mmsi);
-        int len = 180 + (int)(seed % 140);
-        int beam = 25 + (int)(seed % 15);
+        int len = 180 + (int) (seed % 140);
+        int beam = 25 + (int) (seed % 15);
         double draught = 8.0 + (seed % 50) / 10.0;
-        int tonnage = 20000 + (int)(seed % 30000);
+        int tonnage = 20000 + (int) (seed % 30000);
 
         VBox g3Box = new VBox(3,
                 detailLine("Length", len + " m"),
                 detailLine("Beam", beam + " m"),
                 detailLine("Draught", String.format("%.1f m", draught)),
-                detailLine("Gross Tonnage", String.format("%,d GT", tonnage))
-        );
+                detailLine("Gross Tonnage", String.format("%,d GT", tonnage)));
 
         panel.getChildren().addAll(head, g1, g1Box, g2, g2Box, g3, g3Box);
     }
@@ -673,7 +705,8 @@ public class DashboardPage {
     private VBox buildActivitySection() {
         VBox box = new VBox(8);
         box.setPadding(new Insets(14, 16, 14, 16));
-        box.setStyle("-fx-background-color:#ffffff; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.03), 6, 0, 0, 2);");
+        box.setStyle(
+                "-fx-background-color:#ffffff; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.03), 6, 0, 0, 2);");
 
         HBox top = new HBox(8);
         top.setAlignment(Pos.CENTER_LEFT);
@@ -685,7 +718,8 @@ public class DashboardPage {
         HBox.setHgrow(sp, Priority.ALWAYS);
 
         Label badge = new Label("LIVE STREAM");
-        badge.setStyle("-fx-text-fill:#0284c7; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-color:#e0f2fe; -fx-padding:3 7; -fx-background-radius:4;");
+        badge.setStyle(
+                "-fx-text-fill:#0284c7; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-color:#e0f2fe; -fx-padding:3 7; -fx-background-radius:4;");
 
         top.getChildren().addAll(title, sp, badge);
 
@@ -699,7 +733,8 @@ public class DashboardPage {
     private VBox buildBreakdownSection() {
         VBox box = new VBox(8);
         box.setPadding(new Insets(14, 16, 14, 16));
-        box.setStyle("-fx-background-color:#ffffff; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.03), 6, 0, 0, 2);");
+        box.setStyle(
+                "-fx-background-color:#ffffff; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.03), 6, 0, 0, 2);");
 
         Label title = new Label("Port Traffic Breakdown");
         title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:14px; -fx-font-weight:bold;");
@@ -714,7 +749,8 @@ public class DashboardPage {
     private VBox buildAlertsSection() {
         VBox box = new VBox(8);
         box.setPadding(new Insets(14, 16, 14, 16));
-        box.setStyle("-fx-background-color:#ffffff; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.03), 6, 0, 0, 2);");
+        box.setStyle(
+                "-fx-background-color:#ffffff; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.03), 6, 0, 0, 2);");
 
         HBox top = new HBox(8);
         top.setAlignment(Pos.CENTER_LEFT);
@@ -726,14 +762,26 @@ public class DashboardPage {
         HBox.setHgrow(sp, Priority.ALWAYS);
 
         Label badge = new Label("OPERATIONAL");
-        badge.setStyle("-fx-text-fill:#d97706; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-color:#fef3c7; -fx-padding:3 7; -fx-background-radius:4;");
+        badge.setStyle(
+                "-fx-text-fill:#d97706; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-color:#fef3c7; -fx-padding:3 7; -fx-background-radius:4;");
 
         top.getChildren().addAll(title, sp, badge);
 
         alertsFeedBox = new VBox(6);
         alertsFeedBox.setPadding(new Insets(4, 0, 0, 0));
 
-        box.getChildren().addAll(top, alertsFeedBox);
+        ScrollPane scroller = new ScrollPane(alertsFeedBox);
+        scroller.setFitToWidth(true);
+        scroller.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroller.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroller.setPannable(true);
+        scroller.setPrefHeight(155);
+        scroller.setMinHeight(155);
+        scroller.setMaxHeight(155);
+        scroller.setStyle(
+                "-fx-background:transparent; -fx-background-color:transparent; -fx-border-color:transparent; -fx-padding:0;");
+
+        box.getChildren().addAll(top, scroller);
         return box;
     }
 
@@ -743,7 +791,8 @@ public class DashboardPage {
     private VBox buildPersonnelManagementSection() {
         VBox section = new VBox(14);
         section.setPadding(new Insets(18));
-        section.setStyle("-fx-background-color:#ffffff; -fx-background-radius:12; -fx-border-color:#e2e8f0; -fx-border-radius:12; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.04), 8, 0, 0, 2);");
+        section.setStyle(
+                "-fx-background-color:#ffffff; -fx-background-radius:12; -fx-border-color:#e2e8f0; -fx-border-radius:12; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.04), 8, 0, 0, 2);");
 
         // Section Title Bar
         HBox topBar = new HBox(12);
@@ -761,12 +810,14 @@ public class DashboardPage {
         HBox.setHgrow(topSpacer, Priority.ALWAYS);
 
         Button refreshBtn = new Button("⟳ Refresh Personnel Data");
-        refreshBtn.setStyle("-fx-background-color:#f8fafc; -fx-text-fill:#334155; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-radius:6; -fx-padding:6 12; -fx-cursor:hand;");
+        refreshBtn.setStyle(
+                "-fx-background-color:#f8fafc; -fx-text-fill:#334155; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-radius:6; -fx-padding:6 12; -fx-cursor:hand;");
         refreshBtn.setOnAction(e -> refreshDashboardData());
 
         topBar.getChildren().addAll(titleBox, topSpacer, refreshBtn);
 
-        // Two Cards Side-by-Side: Registered Ship Captains & Registered Customs Officers
+        // Two Cards Side-by-Side: Registered Ship Captains & Registered Customs
+        // Officers
         HBox split = new HBox(14);
         split.setAlignment(Pos.TOP_LEFT);
 
@@ -787,7 +838,8 @@ public class DashboardPage {
     private VBox buildCaptainsCard() {
         VBox box = new VBox(10);
         box.setPadding(new Insets(14));
-        box.setStyle("-fx-background-color:#f8fafc; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10;");
+        box.setStyle(
+                "-fx-background-color:#f8fafc; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10;");
 
         HBox h = new HBox(10);
         h.setAlignment(Pos.CENTER_LEFT);
@@ -798,11 +850,19 @@ public class DashboardPage {
         Region sp = new Region();
         HBox.setHgrow(sp, Priority.ALWAYS);
 
-        Button regCapBtn = new Button("+ Register Captain");
-        regCapBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:6; -fx-padding:5 10; -fx-cursor:hand;");
-        regCapBtn.setOnAction(e -> showRegisterPersonnelDialog("Ship Captain"));
+        Button assignCapBtn = new Button("⚓ Assign Captain");
+        assignCapBtn.setStyle(
+                "-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:6; -fx-padding:5 10; -fx-cursor:hand;");
+        assignCapBtn.setOnAction(e -> {
+            Map<String, Object> sel = captainsTable.getSelectionModel().getSelectedItem();
+            if (sel != null) {
+                showAssignCaptainShipDialog(sel);
+            } else {
+                showSelectAndAssignCaptainDialog();
+            }
+        });
 
-        h.getChildren().addAll(t, sp, regCapBtn);
+        h.getChildren().addAll(t, sp, assignCapBtn);
 
         // Summary Metric chips
         HBox kpiRow = new HBox(8);
@@ -817,8 +877,7 @@ public class DashboardPage {
                 miniKpiChip("Total", totalCaptainsVal, "#0284c7", "#e0f2fe"),
                 miniKpiChip("Active", activeCaptainsVal, "#16a34a", "#ecfdf5"),
                 miniKpiChip("Assigned", assignedCaptainsVal, "#2563eb", "#eff6ff"),
-                miniKpiChip("Available", availCaptainsVal, "#d97706", "#fef3c7")
-        );
+                miniKpiChip("Available", availCaptainsVal, "#d97706", "#fef3c7"));
 
         // Captains Table
         captainsTable = new TableView<>();
@@ -830,36 +889,36 @@ public class DashboardPage {
         TableColumn<Map<String, Object>, String> colName = new TableColumn<>("Captain Name");
         colName.setPrefWidth(135);
         colName.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().get("name") != null ? d.getValue().get("name").toString() : "Captain"
-        ));
+                d.getValue().get("name") != null ? d.getValue().get("name").toString() : "Captain"));
         colName.setStyle("-fx-font-size:12px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
 
         TableColumn<Map<String, Object>, String> colId = new TableColumn<>("User ID");
         colId.setPrefWidth(85);
         colId.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().get("id") != null ? d.getValue().get("id").toString() : (d.getValue().get("captainId") != null ? d.getValue().get("captainId").toString() : "—")
-        ));
+                d.getValue().get("uid") != null ? d.getValue().get("uid").toString()
+                        : (d.getValue().get("id") != null ? d.getValue().get("id").toString()
+                                : (d.getValue().get("captainId") != null ? d.getValue().get("captainId").toString()
+                                        : "—"))));
         colId.setStyle("-fx-font-size:11px; -fx-text-fill:#64748b;");
 
         TableColumn<Map<String, Object>, String> colEmail = new TableColumn<>("Email");
         colEmail.setPrefWidth(135);
         colEmail.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().get("email") != null ? d.getValue().get("email").toString() : "—"
-        ));
+                d.getValue().get("email") != null ? d.getValue().get("email").toString() : "—"));
         colEmail.setStyle("-fx-font-size:11px; -fx-text-fill:#334155;");
 
         TableColumn<Map<String, Object>, String> colOrg = new TableColumn<>("Company / Org");
         colOrg.setPrefWidth(120);
         colOrg.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().get("company") != null ? d.getValue().get("company").toString() : (d.getValue().get("organization") != null ? d.getValue().get("organization").toString() : "Ocean Shipping")
-        ));
+                d.getValue().get("company") != null ? d.getValue().get("company").toString()
+                        : (d.getValue().get("organization") != null ? d.getValue().get("organization").toString()
+                                : "Ocean Shipping")));
         colOrg.setStyle("-fx-font-size:11px; -fx-text-fill:#475569;");
 
         TableColumn<Map<String, Object>, String> colStatus = new TableColumn<>("Status");
         colStatus.setPrefWidth(80);
         colStatus.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().get("status") != null ? d.getValue().get("status").toString() : "Active"
-        ));
+                d.getValue().get("status") != null ? d.getValue().get("status").toString() : "Active"));
         colStatus.setCellFactory(col -> createBadgeCell("#16a34a", "#ecfdf5"));
 
         TableColumn<Map<String, Object>, String> colShip = new TableColumn<>("Assigned Ship");
@@ -867,46 +926,75 @@ public class DashboardPage {
         colShip.setCellValueFactory(d -> new SimpleStringProperty(
                 d.getValue().get("assignedShip") != null && !d.getValue().get("assignedShip").toString().isBlank()
                         ? d.getValue().get("assignedShip").toString()
-                        : "Not Assigned"
-        ));
+                        : "Not Assigned"));
         colShip.setStyle("-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#0284c7;");
 
         TableColumn<Map<String, Object>, String> colDuty = new TableColumn<>("Current Duty");
-        colDuty.setPrefWidth(140);
+        colDuty.setPrefWidth(135);
         colDuty.setCellValueFactory(d -> new SimpleStringProperty(
                 d.getValue().get("duty") != null && !d.getValue().get("duty").toString().isBlank()
                         ? d.getValue().get("duty").toString()
-                        : "Not Assigned"
-        ));
+                        : "Not Assigned"));
         colDuty.setStyle("-fx-font-size:11px; -fx-text-fill:#334155;");
+
+        TableColumn<Map<String, Object>, String> colOfficer = new TableColumn<>("Assigned Officer");
+        colOfficer.setPrefWidth(125);
+        colOfficer.setCellValueFactory(d -> {
+            Map<String, Object> map = d.getValue();
+            Object off = map.get("assignedOfficer");
+            if (off != null && !off.toString().isBlank())
+                return new SimpleStringProperty(off.toString());
+            Object ship = map.get("assignedShip");
+            if (ship != null && !ship.toString().isBlank() && !ship.toString().equalsIgnoreCase("Not Assigned")) {
+                for (Map<String, Object> o : officersList) {
+                    Object oShip = o.get("assignedShip");
+                    if (oShip != null && oShip.toString().equalsIgnoreCase(ship.toString())) {
+                        Object oName = o.get("name");
+                        if (oName != null && !oName.toString().isBlank()) {
+                            return new SimpleStringProperty(oName.toString());
+                        }
+                    }
+                }
+            }
+            return new SimpleStringProperty("—");
+        });
+        colOfficer.setStyle("-fx-font-size:11px; -fx-text-fill:#16a34a; -fx-font-weight:bold;");
 
         TableColumn<Map<String, Object>, String> colAssignStatus = new TableColumn<>("Duty Status");
         colAssignStatus.setPrefWidth(95);
         colAssignStatus.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().get("assignmentStatus") != null && !d.getValue().get("assignmentStatus").toString().isBlank()
-                        ? d.getValue().get("assignmentStatus").toString()
-                        : (d.getValue().get("duty") != null && !d.getValue().get("duty").toString().equalsIgnoreCase("Not Assigned") ? "Assigned" : "Available")
-        ));
+                d.getValue().get("assignmentStatus") != null
+                        && !d.getValue().get("assignmentStatus").toString().isBlank()
+                                ? d.getValue().get("assignmentStatus").toString()
+                                : (d.getValue().get("duty") != null
+                                        && !d.getValue().get("duty").toString().equalsIgnoreCase("Not Assigned")
+                                                ? "Assigned"
+                                                : "Available")));
         colAssignStatus.setCellFactory(col -> createAssignmentStatusBadgeCell());
 
         TableColumn<Map<String, Object>, String> colUpdated = new TableColumn<>("Last Updated");
         colUpdated.setPrefWidth(100);
         colUpdated.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().get("updatedAt") != null ? d.getValue().get("updatedAt").toString() : "—"
-        ));
+                d.getValue().get("updatedAt") != null ? d.getValue().get("updatedAt").toString() : "—"));
         colUpdated.setStyle("-fx-alignment:CENTER; -fx-font-size:11px; -fx-text-fill:#64748b;");
 
         TableColumn<Map<String, Object>, String> colAction = new TableColumn<>("Action");
-        colAction.setPrefWidth(190);
+        colAction.setPrefWidth(225);
         colAction.setCellFactory(col -> new TableCell<>() {
             private final Button assignShipBtn = new Button("Assign Ship");
             private final Button changeShipBtn = new Button("Change Ship");
             private final Button assignDutyBtn = new Button("Assign Duty");
-            private final HBox actionBox = new HBox(6);
+            private final Button deleteBtn = new Button("Delete");
+            private final HBox actionBox = new HBox(5);
             {
-                assignShipBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:4 8; -fx-cursor:hand;");
-                changeShipBtn.setStyle("-fx-background-color:#f1f5f9; -fx-text-fill:#0284c7; -fx-border-color:#cbd5e1; -fx-border-radius:4; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 7; -fx-cursor:hand;");
-                assignDutyBtn.setStyle("-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:4 8; -fx-cursor:hand;");
+                assignShipBtn.setStyle(
+                        "-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:4 8; -fx-cursor:hand;");
+                changeShipBtn.setStyle(
+                        "-fx-background-color:#f1f5f9; -fx-text-fill:#0284c7; -fx-border-color:#cbd5e1; -fx-border-radius:4; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 7; -fx-cursor:hand;");
+                assignDutyBtn.setStyle(
+                        "-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:4 8; -fx-cursor:hand;");
+                deleteBtn.setStyle(
+                        "-fx-background-color:#ef4444; -fx-text-fill:white; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:4 8; -fx-cursor:hand;");
 
                 assignShipBtn.setOnAction(e -> {
                     Map<String, Object> cap = getTableView().getItems().get(getIndex());
@@ -920,8 +1008,31 @@ public class DashboardPage {
                     Map<String, Object> cap = getTableView().getItems().get(getIndex());
                     showAssignCaptainDutyDialog(cap);
                 });
+                deleteBtn.setOnAction(e -> {
+                    Map<String, Object> cap = getTableView().getItems().get(getIndex());
+                    if (cap == null)
+                        return;
+                    String name = cap.get("name") != null ? cap.get("name").toString() : "this captain";
+                    javafx.scene.control.Alert confirm = new javafx.scene.control.Alert(
+                            javafx.scene.control.Alert.AlertType.CONFIRMATION);
+                    confirm.setTitle("Delete Captain");
+                    confirm.setHeaderText("Delete Ship Captain: " + name + "?");
+                    confirm.setContentText(
+                            "This will permanently remove the captain's account and all associated records. This action cannot be undone.");
+                    confirm.showAndWait().ifPresent(btn -> {
+                        if (btn == javafx.scene.control.ButtonType.OK) {
+                            String uid = cap.get("uid") != null ? cap.get("uid").toString() : "";
+                            String email = cap.get("email") != null ? cap.get("email").toString() : "";
+                            captainsList.remove(cap);
+                            UserDao.deletePersonnel(uid, email).whenComplete((v, err) -> {
+                                Platform.runLater(() -> loadPersonnelData());
+                            });
+                        }
+                    });
+                });
                 actionBox.setAlignment(Pos.CENTER);
             }
+
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
@@ -930,13 +1041,14 @@ public class DashboardPage {
                 } else {
                     Map<String, Object> cap = getTableView().getItems().get(getIndex());
                     Object sh = cap != null ? cap.get("assignedShip") : null;
-                    boolean hasShip = sh != null && !sh.toString().isBlank() && !sh.toString().equalsIgnoreCase("Not Assigned");
+                    boolean hasShip = sh != null && !sh.toString().isBlank()
+                            && !sh.toString().equalsIgnoreCase("Not Assigned");
 
                     actionBox.getChildren().clear();
                     if (hasShip) {
-                        actionBox.getChildren().addAll(assignDutyBtn, changeShipBtn);
+                        actionBox.getChildren().addAll(assignDutyBtn, changeShipBtn, deleteBtn);
                     } else {
-                        actionBox.getChildren().add(assignShipBtn);
+                        actionBox.getChildren().addAll(assignShipBtn, deleteBtn);
                     }
                     setGraphic(actionBox);
                 }
@@ -944,7 +1056,8 @@ public class DashboardPage {
             }
         });
 
-        captainsTable.getColumns().addAll(colName, colId, colEmail, colOrg, colStatus, colShip, colDuty, colAssignStatus, colUpdated, colAction);
+        captainsTable.getColumns().addAll(colName, colId, colEmail, colOrg, colStatus, colShip, colDuty, colOfficer,
+                colAssignStatus, colUpdated, colAction);
         captainsTable.setRowFactory(tv -> {
             TableRow<Map<String, Object>> row = new TableRow<>();
             row.setPrefHeight(38);
@@ -956,13 +1069,11 @@ public class DashboardPage {
         return box;
     }
 
-    // =====================================================
-    // CARD 2: REGISTERED CUSTOMS OFFICERS
-    // =====================================================
     private VBox buildOfficersCard() {
         VBox box = new VBox(10);
         box.setPadding(new Insets(14));
-        box.setStyle("-fx-background-color:#f8fafc; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10;");
+        box.setStyle(
+                "-fx-background-color:#f8fafc; -fx-background-radius:10; -fx-border-color:#e2e8f0; -fx-border-radius:10;");
 
         HBox h = new HBox(10);
         h.setAlignment(Pos.CENTER_LEFT);
@@ -973,13 +1084,20 @@ public class DashboardPage {
         Region sp = new Region();
         HBox.setHgrow(sp, Priority.ALWAYS);
 
-        Button regOffBtn = new Button("+ Register Officer");
-        regOffBtn.setStyle("-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:6; -fx-padding:5 10; -fx-cursor:hand;");
-        regOffBtn.setOnAction(e -> showRegisterPersonnelDialog("Custom Officer"));
+        Button assignOffBtn = new Button("🛡 Assign Duty");
+        assignOffBtn.setStyle(
+                "-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:6; -fx-padding:5 10; -fx-cursor:hand;");
+        assignOffBtn.setOnAction(e -> {
+            Map<String, Object> sel = officersTable.getSelectionModel().getSelectedItem();
+            if (sel != null) {
+                showAssignOfficerDutyDialog(sel);
+            } else {
+                showSelectAndAssignOfficerDialog();
+            }
+        });
 
-        h.getChildren().addAll(t, sp, regOffBtn);
+        h.getChildren().addAll(t, sp, assignOffBtn);
 
-        // Summary Metric chips
         HBox kpiRow = new HBox(8);
         kpiRow.setAlignment(Pos.CENTER_LEFT);
 
@@ -992,10 +1110,8 @@ public class DashboardPage {
                 miniKpiChip("Total", totalOfficersVal, "#16a34a", "#ecfdf5"),
                 miniKpiChip("Active", activeOfficersVal, "#16a34a", "#ecfdf5"),
                 miniKpiChip("Assigned", assignedOfficersVal, "#2563eb", "#eff6ff"),
-                miniKpiChip("Available", availOfficersVal, "#d97706", "#fef3c7")
-        );
+                miniKpiChip("Available", availOfficersVal, "#d97706", "#fef3c7"));
 
-        // Officers Table
         officersTable = new TableView<>();
         officersTable.setPrefHeight(230);
         officersTable.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
@@ -1005,36 +1121,36 @@ public class DashboardPage {
         TableColumn<Map<String, Object>, String> colName = new TableColumn<>("Officer Name");
         colName.setPrefWidth(135);
         colName.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().get("name") != null ? d.getValue().get("name").toString() : "Officer"
-        ));
+                d.getValue().get("name") != null ? d.getValue().get("name").toString() : "Officer"));
         colName.setStyle("-fx-font-size:12px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
 
-        TableColumn<Map<String, Object>, String> colId = new TableColumn<>("Badge ID");
+        TableColumn<Map<String, Object>, String> colId = new TableColumn<>("User ID");
         colId.setPrefWidth(85);
         colId.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().get("id") != null ? d.getValue().get("id").toString() : (d.getValue().get("officerId") != null ? d.getValue().get("officerId").toString() : "—")
-        ));
+                d.getValue().get("uid") != null ? d.getValue().get("uid").toString()
+                        : (d.getValue().get("id") != null ? d.getValue().get("id").toString()
+                                : (d.getValue().get("officerId") != null ? d.getValue().get("officerId").toString()
+                                        : "—"))));
         colId.setStyle("-fx-font-size:11px; -fx-text-fill:#64748b;");
 
         TableColumn<Map<String, Object>, String> colEmail = new TableColumn<>("Email");
         colEmail.setPrefWidth(135);
         colEmail.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().get("email") != null ? d.getValue().get("email").toString() : "—"
-        ));
+                d.getValue().get("email") != null ? d.getValue().get("email").toString() : "—"));
         colEmail.setStyle("-fx-font-size:11px; -fx-text-fill:#334155;");
 
         TableColumn<Map<String, Object>, String> colOrg = new TableColumn<>("Authority / Dept");
         colOrg.setPrefWidth(120);
         colOrg.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().get("company") != null ? d.getValue().get("company").toString() : (d.getValue().get("organization") != null ? d.getValue().get("organization").toString() : "Customs Border Control")
-        ));
+                d.getValue().get("company") != null ? d.getValue().get("company").toString()
+                        : (d.getValue().get("organization") != null ? d.getValue().get("organization").toString()
+                                : "Customs Border Control")));
         colOrg.setStyle("-fx-font-size:11px; -fx-text-fill:#475569;");
 
         TableColumn<Map<String, Object>, String> colStatus = new TableColumn<>("Status");
         colStatus.setPrefWidth(80);
         colStatus.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().get("status") != null ? d.getValue().get("status").toString() : "Active"
-        ));
+                d.getValue().get("status") != null ? d.getValue().get("status").toString() : "Active"));
         colStatus.setCellFactory(col -> createBadgeCell("#16a34a", "#ecfdf5"));
 
         TableColumn<Map<String, Object>, String> colPort = new TableColumn<>("Port / Jurisdiction");
@@ -1042,56 +1158,100 @@ public class DashboardPage {
         colPort.setCellValueFactory(d -> new SimpleStringProperty(
                 d.getValue().get("assignedPort") != null && !d.getValue().get("assignedPort").toString().isBlank()
                         ? d.getValue().get("assignedPort").toString()
-                        : activeViewingPort
-        ));
+                        : activeViewingPort));
         colPort.setStyle("-fx-font-size:11px; -fx-text-fill:#475569;");
+
+        TableColumn<Map<String, Object>, String> colShipOff = new TableColumn<>("Assigned Vessel");
+        colShipOff.setPrefWidth(130);
+        colShipOff.setCellValueFactory(d -> new SimpleStringProperty(
+                d.getValue().get("assignedShip") != null && !d.getValue().get("assignedShip").toString().isBlank()
+                        ? d.getValue().get("assignedShip").toString()
+                        : "General Port Area"));
+        colShipOff.setStyle("-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#0284c7;");
 
         TableColumn<Map<String, Object>, String> colDuty = new TableColumn<>("Current Duty");
         colDuty.setPrefWidth(140);
         colDuty.setCellValueFactory(d -> new SimpleStringProperty(
                 d.getValue().get("duty") != null && !d.getValue().get("duty").toString().isBlank()
                         ? d.getValue().get("duty").toString()
-                        : "Not Assigned"
-        ));
+                        : "Not Assigned"));
         colDuty.setStyle("-fx-font-size:11px; -fx-text-fill:#334155;");
 
         TableColumn<Map<String, Object>, String> colAssignStatus = new TableColumn<>("Duty Status");
         colAssignStatus.setPrefWidth(95);
         colAssignStatus.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().get("assignmentStatus") != null && !d.getValue().get("assignmentStatus").toString().isBlank()
-                        ? d.getValue().get("assignmentStatus").toString()
-                        : (d.getValue().get("duty") != null && !d.getValue().get("duty").toString().equalsIgnoreCase("Not Assigned") ? "Assigned" : "Available")
-        ));
+                d.getValue().get("assignmentStatus") != null
+                        && !d.getValue().get("assignmentStatus").toString().isBlank()
+                                ? d.getValue().get("assignmentStatus").toString()
+                                : (d.getValue().get("duty") != null
+                                        && !d.getValue().get("duty").toString().equalsIgnoreCase("Not Assigned")
+                                                ? "Assigned"
+                                                : "Available")));
         colAssignStatus.setCellFactory(col -> createAssignmentStatusBadgeCell());
 
         TableColumn<Map<String, Object>, String> colUpdated = new TableColumn<>("Last Updated");
         colUpdated.setPrefWidth(100);
         colUpdated.setCellValueFactory(d -> new SimpleStringProperty(
-                d.getValue().get("updatedAt") != null ? d.getValue().get("updatedAt").toString() : "—"
-        ));
+                d.getValue().get("updatedAt") != null ? d.getValue().get("updatedAt").toString() : "—"));
         colUpdated.setStyle("-fx-alignment:CENTER; -fx-font-size:11px; -fx-text-fill:#64748b;");
 
         TableColumn<Map<String, Object>, String> colAction = new TableColumn<>("Action");
-        colAction.setPrefWidth(110);
+        colAction.setPrefWidth(160);
         colAction.setCellFactory(col -> new TableCell<>() {
             private final Button btn = new Button("Assign Duty");
+            private final Button deleteBtn = new Button("Delete");
+            private final HBox actionBox = new HBox(5);
             {
-                btn.setStyle("-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:4 10; -fx-cursor:hand;");
+                btn.setStyle(
+                        "-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:4 10; -fx-cursor:hand;");
+                deleteBtn.setStyle(
+                        "-fx-background-color:#ef4444; -fx-text-fill:white; -fx-font-size:10px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:4 8; -fx-cursor:hand;");
                 btn.setOnAction(e -> {
                     Map<String, Object> off = getTableView().getItems().get(getIndex());
                     showAssignOfficerDutyDialog(off);
                 });
+                deleteBtn.setOnAction(e -> {
+                    Map<String, Object> off = getTableView().getItems().get(getIndex());
+                    if (off == null)
+                        return;
+                    String name = off.get("name") != null ? off.get("name").toString() : "this officer";
+                    javafx.scene.control.Alert confirm = new javafx.scene.control.Alert(
+                            javafx.scene.control.Alert.AlertType.CONFIRMATION);
+                    confirm.setTitle("Delete Customs Officer");
+                    confirm.setHeaderText("Delete Customs Officer: " + name + "?");
+                    confirm.setContentText(
+                            "This will permanently remove the officer's account and all associated records. This action cannot be undone.");
+                    confirm.showAndWait().ifPresent(btnType -> {
+                        if (btnType == javafx.scene.control.ButtonType.OK) {
+                            String uid = off.get("uid") != null ? off.get("uid").toString() : "";
+                            String email = off.get("email") != null ? off.get("email").toString() : "";
+                            officersList.remove(off);
+                            UserDao.deletePersonnel(uid, email).whenComplete((v, err) -> {
+                                Platform.runLater(() -> loadPersonnelData());
+                            });
+                        }
+                    });
+                });
+                actionBox.setAlignment(Pos.CENTER);
+                actionBox.getChildren().addAll(btn, deleteBtn);
             }
+
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty) setGraphic(null);
-                else setGraphic(btn);
+                if (empty) {
+                    setGraphic(null);
+                } else {
+                    actionBox.getChildren().clear();
+                    actionBox.getChildren().addAll(btn, deleteBtn);
+                    setGraphic(actionBox);
+                }
                 setAlignment(Pos.CENTER);
             }
         });
 
-        officersTable.getColumns().addAll(colName, colId, colEmail, colOrg, colStatus, colPort, colDuty, colAssignStatus, colUpdated, colAction);
+        officersTable.getColumns().addAll(colName, colId, colEmail, colOrg, colStatus, colPort, colShipOff, colDuty,
+                colAssignStatus, colUpdated, colAction);
         officersTable.setRowFactory(tv -> {
             TableRow<Map<String, Object>> row = new TableRow<>();
             row.setPrefHeight(38);
@@ -1113,7 +1273,8 @@ public class DashboardPage {
                     setText(null);
                 } else {
                     Label badge = new Label(item);
-                    badge.setStyle("-fx-text-fill:" + textHex + "; -fx-background-color:" + bgHex + "; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 7; -fx-background-radius:4;");
+                    badge.setStyle("-fx-text-fill:" + textHex + "; -fx-background-color:" + bgHex
+                            + "; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 7; -fx-background-radius:4;");
                     setGraphic(badge);
                     setAlignment(Pos.CENTER);
                     setText(null);
@@ -1146,7 +1307,8 @@ public class DashboardPage {
                         color = "#8b5cf6";
                         bg = "#f5f3ff";
                     }
-                    badge.setStyle("-fx-text-fill:" + color + "; -fx-background-color:" + bg + "; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 7; -fx-background-radius:4;");
+                    badge.setStyle("-fx-text-fill:" + color + "; -fx-background-color:" + bg
+                            + "; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 7; -fx-background-radius:4;");
                     setGraphic(badge);
                     setAlignment(Pos.CENTER);
                     setText(null);
@@ -1187,7 +1349,8 @@ public class DashboardPage {
     }
 
     private void showAssignCaptainShipDialog(Map<String, Object> captain) {
-        if (captain == null) return;
+        if (captain == null)
+            return;
 
         Dialog<Boolean> dialog = new Dialog<>();
         String name = captain.get("name") != null ? captain.get("name").toString() : "Ship Captain";
@@ -1209,9 +1372,11 @@ public class DashboardPage {
         List<AssignableVessel> vesselOptions = new ArrayList<>();
         Set<String> seenKeys = new HashSet<>();
 
-        // 1. Live vessels from current Port Authority master list (Live Vessel Operations table)
+        // 1. Live vessels from current Port Authority master list (Live Vessel
+        // Operations table)
         for (VesselData v : portVesselsMasterList) {
-            if (v == null || v.name == null || v.name.isBlank()) continue;
+            if (v == null || v.name == null || v.name.isBlank())
+                continue;
             String vId = String.valueOf(v.mmsi);
             if (seenKeys.add(v.name.toLowerCase().trim())) {
                 AssignableVessel av = new AssignableVessel();
@@ -1221,7 +1386,8 @@ public class DashboardPage {
                 av.imo = (v.imo != null && !v.imo.isBlank()) ? v.imo : String.valueOf(v.mmsi);
                 av.status = deriveVesselCategory(v);
                 av.berth = "Berth " + (Math.abs(v.mmsi % 12) + 1);
-                av.destination = (v.destination != null && !v.destination.isBlank()) ? v.destination : activeViewingPort;
+                av.destination = (v.destination != null && !v.destination.isBlank()) ? v.destination
+                        : activeViewingPort;
                 av.eta = deriveEta(v);
                 av.liveData = v;
                 vesselOptions.add(av);
@@ -1230,7 +1396,8 @@ public class DashboardPage {
 
         // 2. Live vessels from VesselManager matching this Port's jurisdiction
         for (VesselData v : vesselManager.getAllVessels()) {
-            if (v == null || v.name == null || v.name.isBlank()) continue;
+            if (v == null || v.name == null || v.name.isBlank())
+                continue;
             if (isVesselAssociatedWithPort(v, activeViewingPort)) {
                 String vId = String.valueOf(v.mmsi);
                 if (seenKeys.add(v.name.toLowerCase().trim())) {
@@ -1241,7 +1408,8 @@ public class DashboardPage {
                     av.imo = (v.imo != null && !v.imo.isBlank()) ? v.imo : String.valueOf(v.mmsi);
                     av.status = deriveVesselCategory(v);
                     av.berth = "Berth " + (Math.abs(v.mmsi % 12) + 1);
-                    av.destination = (v.destination != null && !v.destination.isBlank()) ? v.destination : activeViewingPort;
+                    av.destination = (v.destination != null && !v.destination.isBlank()) ? v.destination
+                            : activeViewingPort;
                     av.eta = deriveEta(v);
                     av.liveData = v;
                     vesselOptions.add(av);
@@ -1252,7 +1420,8 @@ public class DashboardPage {
         // 3. Fallback to general live vessels if port association yielded 0
         if (vesselOptions.isEmpty()) {
             for (VesselData v : vesselManager.getAllVessels()) {
-                if (v == null || v.name == null || v.name.isBlank()) continue;
+                if (v == null || v.name == null || v.name.isBlank())
+                    continue;
                 String vId = String.valueOf(v.mmsi);
                 if (seenKeys.add(v.name.toLowerCase().trim())) {
                     AssignableVessel av = new AssignableVessel();
@@ -1262,7 +1431,8 @@ public class DashboardPage {
                     av.imo = (v.imo != null && !v.imo.isBlank()) ? v.imo : String.valueOf(v.mmsi);
                     av.status = deriveVesselCategory(v);
                     av.berth = "Berth " + (Math.abs(v.mmsi % 12) + 1);
-                    av.destination = (v.destination != null && !v.destination.isBlank()) ? v.destination : activeViewingPort;
+                    av.destination = (v.destination != null && !v.destination.isBlank()) ? v.destination
+                            : activeViewingPort;
                     av.eta = deriveEta(v);
                     av.liveData = v;
                     vesselOptions.add(av);
@@ -1275,7 +1445,8 @@ public class DashboardPage {
             List<Ship> sList = new ShipDAO().getShips();
             if (sList != null) {
                 for (Ship s : sList) {
-                    if (s == null || s.getShipName() == null || s.getShipName().isBlank()) continue;
+                    if (s == null || s.getShipName() == null || s.getShipName().isBlank())
+                        continue;
                     String sId = s.getShipId() != null ? s.getShipId() : s.getShipName();
                     if (seenKeys.add(s.getShipName().toLowerCase().trim())) {
                         AssignableVessel av = new AssignableVessel();
@@ -1292,16 +1463,51 @@ public class DashboardPage {
                     }
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
+
+        // 5. Existing Ship accounts created through the application account/login
+        // system
+        try {
+            for (Map<String, Object> u : UserDao.getFirebaseAuthUsersWithProfiles()) {
+                if (u == null)
+                    continue;
+                String r = u.get("role") != null ? u.get("role").toString().toLowerCase() : "";
+                if (r.contains("ship") && !r.contains("captain")) {
+                    String sName = u.get("name") != null ? u.get("name").toString()
+                            : (u.get("company") != null ? u.get("company").toString() : "Ship Vessel");
+                    if (sName.isBlank())
+                        continue;
+                    String sId = u.get("uid") != null ? u.get("uid").toString() : sName;
+                    if (seenKeys.add(sName.toLowerCase().trim())) {
+                        AssignableVessel av = new AssignableVessel();
+                        av.id = sId;
+                        av.name = sName;
+                        av.type = u.get("shipType") != null ? u.get("shipType").toString() : "Merchant Vessel";
+                        av.imo = u.get("imo") != null ? u.get("imo").toString()
+                                : (u.get("imoNumber") != null ? u.get("imoNumber").toString() : "—");
+                        av.status = u.get("status") != null ? u.get("status").toString() : "Berthed";
+                        av.berth = u.get("berth") != null ? u.get("berth").toString() : "Berth Assigned";
+                        av.destination = u.get("destination") != null ? u.get("destination").toString()
+                                : activeViewingPort;
+                        av.eta = u.get("eta") != null ? u.get("eta").toString() : "Scheduled";
+                        vesselOptions.add(av);
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
 
         // Map of already assigned vessels
         Map<String, String> shipToCaptain = new HashMap<>();
         for (Map<String, Object> c : captainsList) {
-            if (c == null) continue;
+            if (c == null)
+                continue;
             Object sName = c.get("assignedShip");
             Object cName = c.get("name");
             if (sName != null && !sName.toString().isBlank() && !sName.toString().equalsIgnoreCase("Not Assigned")) {
-                shipToCaptain.put(sName.toString().toLowerCase().trim(), cName != null ? cName.toString() : "Another Captain");
+                shipToCaptain.put(sName.toString().toLowerCase().trim(),
+                        cName != null ? cName.toString() : "Another Captain");
             }
         }
 
@@ -1348,7 +1554,8 @@ public class DashboardPage {
 
         dialog.setResultConverter(dialogButton -> {
             if (dialogButton == assignBtnType) {
-                String uid = captain.get("uid") != null ? captain.get("uid").toString() : (captain.get("email") != null ? captain.get("email").toString() : null);
+                String uid = captain.get("uid") != null ? captain.get("uid").toString()
+                        : (captain.get("email") != null ? captain.get("email").toString() : null);
                 int selIdx = shipCombo.getSelectionModel().getSelectedIndex();
                 String sId = "";
                 String sName = "Not Assigned";
@@ -1367,14 +1574,15 @@ public class DashboardPage {
                                 chosen.name,
                                 chosen.type,
                                 chosen.imo,
-                                chosen.liveData != null && chosen.liveData.callSign != null ? chosen.liveData.callSign : "Indian Maritime Agency",
+                                chosen.liveData != null && chosen.liveData.callSign != null ? chosen.liveData.callSign
+                                        : "Indian Maritime Agency",
                                 chosen.eta,
                                 chosen.destination,
                                 chosen.berth,
-                                chosen.status
-                        );
+                                chosen.status);
                         new ShipDAO().saveShip(s);
-                    } catch (Exception ignored) {}
+                    } catch (Exception ignored) {
+                    }
                 }
 
                 if (uid != null) {
@@ -1387,8 +1595,7 @@ public class DashboardPage {
                             sId,
                             sName,
                             sImo,
-                            "Port Authority (" + activeViewingPort + ")"
-                    );
+                            "Port Authority (" + activeViewingPort + ")");
 
                     // Create Notification for Ship Captain
                     if (!sName.equalsIgnoreCase("Not Assigned") && !sName.isBlank()) {
@@ -1450,11 +1657,13 @@ public class DashboardPage {
     }
 
     private void showAssignCaptainDutyDialog(Map<String, Object> captain) {
-        if (captain == null) return;
+        if (captain == null)
+            return;
 
         Dialog<Boolean> dialog = new Dialog<>();
         String name = captain.get("name") != null ? captain.get("name").toString() : "Ship Captain";
-        String assignedShip = captain.get("assignedShip") != null ? captain.get("assignedShip").toString() : "Not Assigned";
+        String assignedShip = captain.get("assignedShip") != null ? captain.get("assignedShip").toString()
+                : "Not Assigned";
         dialog.setTitle("Assign Duty");
         dialog.setHeaderText("Assign Operational Duty for Captain: " + name);
 
@@ -1483,8 +1692,7 @@ public class DashboardPage {
                 "Vessel Operation",
                 "Cargo Verification & Lashing",
                 "Safety Watch",
-                "Vessel Master"
-        );
+                "Vessel Master");
         String curDuty = captain.get("duty") != null ? captain.get("duty").toString() : "";
         if (!curDuty.isBlank() && dutyCombo.getItems().contains(curDuty)) {
             dutyCombo.setValue(curDuty);
@@ -1523,7 +1731,8 @@ public class DashboardPage {
 
         dialog.setResultConverter(dialogButton -> {
             if (dialogButton == assignBtnType) {
-                String uid = captain.get("uid") != null ? captain.get("uid").toString() : (captain.get("email") != null ? captain.get("email").toString() : null);
+                String uid = captain.get("uid") != null ? captain.get("uid").toString()
+                        : (captain.get("email") != null ? captain.get("email").toString() : null);
                 String duty = dutyCombo.getValue();
                 String priority = priorityCombo.getValue();
                 String due = dueField.getText().trim();
@@ -1535,8 +1744,7 @@ public class DashboardPage {
                             duty,
                             priority,
                             due.isBlank() ? null : due,
-                            "Port Authority (" + activeViewingPort + ")"
-                    );
+                            "Port Authority (" + activeViewingPort + ")");
 
                     Notification notif = new Notification();
                     notif.setUserId(uid);
@@ -1567,7 +1775,8 @@ public class DashboardPage {
     }
 
     private void showAssignOfficerDutyDialog(Map<String, Object> officer) {
-        if (officer == null) return;
+        if (officer == null)
+            return;
 
         Dialog<Boolean> dialog = new Dialog<>();
         String name = officer.get("name") != null ? officer.get("name").toString() : "Customs Officer";
@@ -1588,6 +1797,45 @@ public class DashboardPage {
         Label pPortVal = new Label(activeViewingPort);
         pPortVal.setStyle("-fx-font-weight:bold; -fx-text-fill:#16a34a; -fx-font-size:12px;");
 
+        ComboBox<String> vesselCombo = new ComboBox<>();
+        vesselCombo.setPrefWidth(350);
+        List<String> vesselOptions = new ArrayList<>();
+        List<String> vesselIds = new ArrayList<>();
+        List<String> capUids = new ArrayList<>();
+
+        for (Map<String, Object> cap : captainsList) {
+            Object sh = cap.get("assignedShip");
+            if (sh != null && !sh.toString().isBlank() && !sh.toString().equalsIgnoreCase("Not Assigned")) {
+                String capName = cap.get("name") != null ? cap.get("name").toString() : "Captain";
+                String capUid = cap.get("uid") != null ? cap.get("uid").toString() : "";
+                String sId = cap.get("assignedShipId") != null ? cap.get("assignedShipId").toString() : "";
+                vesselOptions.add(sh.toString() + " (Captain: " + capName + ")");
+                vesselIds.add(sId);
+                capUids.add(capUid);
+            }
+        }
+        vesselOptions.add("General Port Operations (" + activeViewingPort + ")");
+        vesselIds.add("");
+        capUids.add("");
+
+        vesselCombo.getItems().addAll(vesselOptions);
+        String curShip = officer.get("assignedShip") != null ? officer.get("assignedShip").toString() : "";
+        int foundIdx = -1;
+        if (!curShip.isBlank() && !curShip.equalsIgnoreCase("General Port Area")
+                && !curShip.equalsIgnoreCase("Not Assigned")) {
+            for (int i = 0; i < vesselOptions.size(); i++) {
+                if (vesselOptions.get(i).contains(curShip)) {
+                    foundIdx = i;
+                    break;
+                }
+            }
+        }
+        if (foundIdx >= 0) {
+            vesselCombo.setValue(vesselOptions.get(foundIdx));
+        } else {
+            vesselCombo.setValue(vesselOptions.get(0));
+        }
+
         ComboBox<String> dutyCombo = new ComboBox<>();
         dutyCombo.setPrefWidth(350);
         dutyCombo.getItems().addAll(
@@ -1597,8 +1845,7 @@ public class DashboardPage {
                 "Declaration Verification",
                 "Import/Export Compliance",
                 "Cargo Examination",
-                "Customs Approval/Review"
-        );
+                "Customs Approval/Review");
 
         String curDuty = officer.get("duty") != null ? officer.get("duty").toString() : "";
         if (!curDuty.isBlank() && dutyCombo.getItems().contains(curDuty)) {
@@ -1621,36 +1868,60 @@ public class DashboardPage {
         grid.add(pNameVal, 1, 0);
         grid.add(new Label("Port / Jurisdiction:"), 0, 1);
         grid.add(pPortVal, 1, 1);
-        grid.add(new Label("Customs Duty:"), 0, 2);
-        grid.add(dutyCombo, 1, 2);
-        grid.add(new Label("Priority:"), 0, 3);
-        grid.add(priorityCombo, 1, 3);
-        grid.add(new Label("Due Date / Time:"), 0, 4);
-        grid.add(dueField, 1, 4);
+        grid.add(new Label("Operation / Vessel:"), 0, 2);
+        grid.add(vesselCombo, 1, 2);
+        grid.add(new Label("Customs Duty:"), 0, 3);
+        grid.add(dutyCombo, 1, 3);
+        grid.add(new Label("Priority:"), 0, 4);
+        grid.add(priorityCombo, 1, 4);
+        grid.add(new Label("Due Date / Time:"), 0, 5);
+        grid.add(dueField, 1, 5);
 
         dialog.getDialogPane().setContent(grid);
 
         dialog.setResultConverter(dialogButton -> {
             if (dialogButton == assignBtnType) {
-                String uid = officer.get("uid") != null ? officer.get("uid").toString() : (officer.get("email") != null ? officer.get("email").toString() : null);
+                String uid = officer.get("uid") != null ? officer.get("uid").toString()
+                        : (officer.get("email") != null ? officer.get("email").toString() : null);
                 String duty = dutyCombo.getValue();
                 String priority = priorityCombo.getValue();
                 String due = dueField.getText().trim();
 
+                int selVesselIdx = vesselCombo.getSelectionModel().getSelectedIndex();
+                String chosenShipName = "General Port Operations";
+                String chosenShipId = "";
+                String chosenCapUid = "";
+                if (selVesselIdx >= 0 && selVesselIdx < vesselOptions.size()) {
+                    String rawOpt = vesselOptions.get(selVesselIdx);
+                    if (rawOpt.contains(" (Captain:")) {
+                        chosenShipName = rawOpt.substring(0, rawOpt.indexOf(" (Captain:"));
+                    } else {
+                        chosenShipName = rawOpt;
+                    }
+                    chosenShipId = vesselIds.get(selVesselIdx);
+                    chosenCapUid = capUids.get(selVesselIdx);
+                }
+
                 if (uid != null) {
                     String timeStr = NotificationDao.generateTimestamp();
+                    String dutyId = "DUTY-" + System.currentTimeMillis();
                     UserDao.assignOfficerDuty(
                             uid,
                             duty,
-                            "Active",
+                            "Assigned",
                             activeViewingPort,
                             "Port Authority (" + activeViewingPort + ")",
                             priority,
-                            due.isBlank() ? null : due
-                    );
+                            due.isBlank() ? null : due,
+                            chosenShipId,
+                            chosenShipName,
+                            chosenCapUid,
+                            dutyId);
 
                     Notification notif = new Notification();
                     notif.setUserId(uid);
+                    notif.setVesselName(chosenShipName);
+                    notif.setVesselId(chosenShipId);
                     notif.setPort(activeViewingPort);
                     notif.setTitle("🔔 New Customs Duty");
                     notif.setType("CUSTOMS_DUTY_ASSIGNED");
@@ -1658,9 +1929,11 @@ public class DashboardPage {
                     notif.setRead(false);
                     notif.setTimestamp(timeStr);
                     notif.setMessage("A new customs duty has been assigned to you.\n\n" +
+                            "Operation / Vessel: " + chosenShipName + "\n" +
                             "Port: " + activeViewingPort + "\n" +
                             "Duty: " + duty + "\n" +
                             "Priority: " + priority + "\n" +
+                            "Due: " + (due.isBlank() ? "Standard Shift" : due) + "\n" +
                             "Assigned By: Port Authority\n" +
                             "Time: " + timeStr);
                     new NotificationDao().createNotification(notif);
@@ -1675,119 +1948,70 @@ public class DashboardPage {
         dialog.showAndWait();
     }
 
-    private void showRegisterPersonnelDialog(String role) {
-        Dialog<Boolean> dialog = new Dialog<>();
-        dialog.setTitle("Register " + role + " — " + activeViewingPort);
-        dialog.setHeaderText("Register new " + role + " authorized strictly under " + activeViewingPort);
+    private void showSelectAndAssignCaptainDialog() {
+        if (captainsList.isEmpty()) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Assign Captain");
+            alert.setHeaderText("No Registered Captains Found");
+            alert.setContentText(
+                    "No Captain accounts are registered in Firebase yet. Captains must create their accounts via the standard account registration/login system.");
+            alert.showAndWait();
+            return;
+        }
 
-        ButtonType regBtnType = new ButtonType("Register Personnel", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(regBtnType, ButtonType.CANCEL);
+        ChoiceDialog<String> choice = new ChoiceDialog<>();
+        choice.setTitle("Select Captain to Assign");
+        choice.setHeaderText("Choose a Registered Captain to Assign Vessel:");
+        for (Map<String, Object> cap : captainsList) {
+            String name = cap.get("name") != null ? cap.get("name").toString() : "Captain";
+            String email = cap.get("email") != null ? cap.get("email").toString() : "";
+            choice.getItems().add(name + " (" + email + ")");
+        }
+        choice.setSelectedItem(choice.getItems().get(0));
 
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(16));
-
-        TextField nameField = new TextField();
-        nameField.setPromptText("Enter full name");
-
-        TextField emailField = new TextField();
-        emailField.setPromptText("Enter email / login ID");
-
-        PasswordField passwordField = new PasswordField();
-        passwordField.setPromptText("Password (min 6 chars)");
-        passwordField.setText("Captain@123");
-
-        TextField phoneField = new TextField();
-        phoneField.setPromptText("+91 98000 00000");
-
-        TextField companyField = new TextField();
-        companyField.setPromptText(role.contains("Captain") ? "Shipping Line / Maritime Agency" : "Customs Border Authority");
-        companyField.setText(role.contains("Captain") ? "Ocean Shipping Lines" : "Indian Customs & Border Control");
-
-        TextField idField = new TextField();
-        idField.setText((role.contains("Captain") ? "CAP-" : "CO-") + (int)(Math.random() * 899 + 100));
-
-        TextField portField = new TextField(activeViewingPort);
-        portField.setEditable(false);
-        portField.setStyle("-fx-background-color:#f1f5f9;");
-
-        grid.add(new Label("Full Name *:"), 0, 0);
-        grid.add(nameField, 1, 0);
-        grid.add(new Label("Email (Login ID) *:"), 0, 1);
-        grid.add(emailField, 1, 1);
-        grid.add(new Label("Initial Password *:"), 0, 2);
-        grid.add(passwordField, 1, 2);
-        grid.add(new Label("Phone Number:"), 0, 3);
-        grid.add(phoneField, 1, 3);
-        grid.add(new Label("Company / Org:"), 0, 4);
-        grid.add(companyField, 1, 4);
-        grid.add(new Label("License / Badge ID:"), 0, 5);
-        grid.add(idField, 1, 5);
-        grid.add(new Label("Assigned Port:"), 0, 6);
-        grid.add(portField, 1, 6);
-
-        dialog.getDialogPane().setContent(grid);
-
-        dialog.setResultConverter(dialogButton -> {
-            if (dialogButton == regBtnType) {
-                String n = nameField.getText().trim();
-                String e = emailField.getText().trim();
-                String pwd = passwordField.getText().trim();
-                String p = phoneField.getText().trim();
-                String comp = companyField.getText().trim();
-                String id = idField.getText().trim();
-
-                if (!n.isEmpty() && !e.isEmpty()) {
-                    if (pwd.length() < 6) pwd = "Captain@" + (int)(Math.random() * 899 + 100);
-                    final String finalPwd = pwd;
-
-                    try {
-                        FirebaseAuthService authService = new FirebaseAuthService();
-                        authService.createAccount(e, finalPwd, n, role).whenComplete((authUser, authError) -> {
-                            String realUid = (authUser != null && authUser.getUid() != null) ? authUser.getUid() : null;
-                            if (realUid == null) {
-                                try {
-                                    com.google.firebase.auth.UserRecord rec = com.google.firebase.auth.FirebaseAuth.getInstance().getUserByEmail(e);
-                                    if (rec != null) realUid = rec.getUid();
-                                } catch (Throwable ignored) {}
-                            }
-                            if (realUid == null) {
-                                realUid = "usr_" + Math.abs(e.toLowerCase().hashCode());
-                            }
-
-                            Map<String, Object> extra = new HashMap<>();
-                            extra.put("uid", realUid);
-                            extra.put("email", e.toLowerCase());
-                            extra.put("name", n);
-                            extra.put("role", role);
-                            extra.put("company", comp);
-                            extra.put("organization", comp);
-                            extra.put("assignedPort", activeViewingPort);
-                            extra.put("assignedShip", "Not Assigned");
-                            extra.put("duty", "Not Assigned");
-                            extra.put("assignmentStatus", "Available");
-                            extra.put("status", "Active");
-                            extra.put("id", id);
-                            if (role.contains("Captain")) extra.put("captainId", id);
-                            else extra.put("officerId", id);
-                            extra.put("createdAt", LocalDateTime.now().toString());
-                            extra.put("updatedAt", LocalDateTime.now().toString());
-
-                            userDao.saveUserExtended(realUid, e, n, comp, p, role, "Active", extra).whenComplete((v, err) -> {
-                                Platform.runLater(() -> loadPersonnelData());
-                            });
-                        });
-                        return true;
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
-                    }
+        choice.showAndWait().ifPresent(selStr -> {
+            for (Map<String, Object> cap : captainsList) {
+                String name = cap.get("name") != null ? cap.get("name").toString() : "Captain";
+                String email = cap.get("email") != null ? cap.get("email").toString() : "";
+                if (selStr.equals(name + " (" + email + ")")) {
+                    showAssignCaptainShipDialog(cap);
+                    break;
                 }
             }
-            return false;
         });
+    }
 
-        dialog.showAndWait();
+    private void showSelectAndAssignOfficerDialog() {
+        if (officersList.isEmpty()) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Assign Customs Duty");
+            alert.setHeaderText("No Registered Customs Officers Found");
+            alert.setContentText(
+                    "No Customs Officer accounts are registered in Firebase yet. Officers must create their accounts via the standard account registration/login system.");
+            alert.showAndWait();
+            return;
+        }
+
+        ChoiceDialog<String> choice = new ChoiceDialog<>();
+        choice.setTitle("Select Customs Officer to Assign");
+        choice.setHeaderText("Choose a Registered Customs Officer to Assign Duty:");
+        for (Map<String, Object> off : officersList) {
+            String name = off.get("name") != null ? off.get("name").toString() : "Customs Officer";
+            String email = off.get("email") != null ? off.get("email").toString() : "";
+            choice.getItems().add(name + " (" + email + ")");
+        }
+        choice.setSelectedItem(choice.getItems().get(0));
+
+        choice.showAndWait().ifPresent(selStr -> {
+            for (Map<String, Object> off : officersList) {
+                String name = off.get("name") != null ? off.get("name").toString() : "Customs Officer";
+                String email = off.get("email") != null ? off.get("email").toString() : "";
+                if (selStr.equals(name + " (" + email + ")")) {
+                    showAssignOfficerDutyDialog(off);
+                    break;
+                }
+            }
+        });
     }
 
     // =====================================================
@@ -1812,25 +2036,34 @@ public class DashboardPage {
     }
 
     private void updateFreshnessBadge() {
-        if (dataFreshnessBadge == null) return;
+        if (dataFreshnessBadge == null)
+            return;
         long diffSec = (System.currentTimeMillis() - lastSuccessfulUpdateEpoch) / 1000;
 
         if (vesselFinderService.isRateLimited()) {
             dataFreshnessBadge.setText("⚠ AIS RATE LIMITED (CACHED)");
-            dataFreshnessBadge.setStyle("-fx-text-fill:#d97706; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-color:rgba(217,119,6,0.12); -fx-padding:6 12; -fx-background-radius:999;");
-            if (aisStatusVal != null) aisStatusVal.setText("Rate Limited");
+            dataFreshnessBadge.setStyle(
+                    "-fx-text-fill:#d97706; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-color:rgba(217,119,6,0.12); -fx-padding:6 12; -fx-background-radius:999;");
+            if (aisStatusVal != null)
+                aisStatusVal.setText("Rate Limited");
         } else if (!vesselFinderService.isConnected() && portVesselsMasterList.isEmpty()) {
             dataFreshnessBadge.setText("⚠ LIVE AIS UNAVAILABLE");
-            dataFreshnessBadge.setStyle("-fx-text-fill:#ef4444; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-color:rgba(239,68,68,0.12); -fx-padding:6 12; -fx-background-radius:999;");
-            if (aisStatusVal != null) aisStatusVal.setText("Offline");
+            dataFreshnessBadge.setStyle(
+                    "-fx-text-fill:#ef4444; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-color:rgba(239,68,68,0.12); -fx-padding:6 12; -fx-background-radius:999;");
+            if (aisStatusVal != null)
+                aisStatusVal.setText("Offline");
         } else if (diffSec > 180) {
             dataFreshnessBadge.setText("⚠ DATA STALE (" + (diffSec / 60) + "m ago)");
-            dataFreshnessBadge.setStyle("-fx-text-fill:#f59e0b; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-color:rgba(245,158,11,0.12); -fx-padding:6 12; -fx-background-radius:999;");
-            if (aisStatusVal != null) aisStatusVal.setText("Stale");
+            dataFreshnessBadge.setStyle(
+                    "-fx-text-fill:#f59e0b; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-color:rgba(245,158,11,0.12); -fx-padding:6 12; -fx-background-radius:999;");
+            if (aisStatusVal != null)
+                aisStatusVal.setText("Stale");
         } else {
             dataFreshnessBadge.setText("● LIVE — Updated " + Math.max(1, diffSec) + "s ago");
-            dataFreshnessBadge.setStyle("-fx-text-fill:#10b981; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-color:rgba(16,185,129,0.12); -fx-padding:6 12; -fx-background-radius:999;");
-            if (aisStatusVal != null) aisStatusVal.setText("Connected");
+            dataFreshnessBadge.setStyle(
+                    "-fx-text-fill:#10b981; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-color:rgba(16,185,129,0.12); -fx-padding:6 12; -fx-background-radius:999;");
+            if (aisStatusVal != null)
+                aisStatusVal.setText("Connected");
         }
 
         if (lastSyncLabel != null) {
@@ -1848,12 +2081,14 @@ public class DashboardPage {
             }
         }
 
-        // Also incorporate any persistent ships registered under this port from Firestore
+        // Also incorporate any persistent ships registered under this port from
+        // Firestore
         try {
             List<com.projectui.model.Ship> registeredShips = new com.projectui.dao.ShipDAO().getShips();
             if (registeredShips != null) {
                 for (com.projectui.model.Ship s : registeredShips) {
-                    if (s == null || s.getShipName() == null || s.getShipName().isBlank()) continue;
+                    if (s == null || s.getShipName() == null || s.getShipName().isBlank())
+                        continue;
                     boolean belongs = isRegisteredShipForPort(s, activeViewingPort);
                     if (belongs) {
                         long mmsi = Math.abs((s.getShipId() != null ? s.getShipId() : s.getShipName()).hashCode());
@@ -1874,20 +2109,21 @@ public class DashboardPage {
                                     "V-" + (mmsi % 9000 + 1000),
                                     coords[0],
                                     coords[1],
-                                    "Arriving".equalsIgnoreCase(s.getStatus()) ? 6.5 : ("Departing".equalsIgnoreCase(s.getStatus()) ? 11.2 : 0.0),
+                                    "Arriving".equalsIgnoreCase(s.getStatus()) ? 6.5
+                                            : ("Departing".equalsIgnoreCase(s.getStatus()) ? 11.2 : 0.0),
                                     90.0,
                                     90.0,
                                     activeViewingPort,
                                     s.getStatus() != null ? s.getStatus() : "Berthed",
                                     s.getShipType() != null ? s.getShipType() : "Container / Cargo Ship",
-                                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))
-                            );
+                                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
                             matchedPortVessels.add(regVessel);
                         }
                     }
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         for (VesselData v : matchedPortVessels) {
             Double oldSpd = lastKnownSpeeds.put(v.mmsi, v.speed);
@@ -1897,14 +2133,16 @@ public class DashboardPage {
                 String act = v.timestamp + " — " + v.name + " speed changed to " + String.format("%.1f kn", v.speed);
                 if (!recentActivityItems.contains(act)) {
                     recentActivityItems.add(0, act);
-                    if (recentActivityItems.size() > 8) recentActivityItems.remove(recentActivityItems.size() - 1);
+                    if (recentActivityItems.size() > 8)
+                        recentActivityItems.remove(recentActivityItems.size() - 1);
                 }
             }
             if (oldStat != null && !oldStat.equalsIgnoreCase(v.navigationStatus)) {
                 String act = v.timestamp + " — " + v.name + " navigation status updated to " + v.navigationStatus;
                 if (!recentActivityItems.contains(act)) {
                     recentActivityItems.add(0, act);
-                    if (recentActivityItems.size() > 8) recentActivityItems.remove(recentActivityItems.size() - 1);
+                    if (recentActivityItems.size() > 8)
+                        recentActivityItems.remove(recentActivityItems.size() - 1);
                 }
             }
         }
@@ -1930,7 +2168,8 @@ public class DashboardPage {
     }
 
     private boolean isRegisteredShipForPort(com.projectui.model.Ship s, String portName) {
-        if (s == null || portName == null) return false;
+        if (s == null || portName == null)
+            return false;
         String pName = portName.toLowerCase();
         String berth = s.getBerth() != null ? s.getBerth().toLowerCase() : "";
         String comp = s.getCompany() != null ? s.getCompany().toLowerCase() : "";
@@ -1938,22 +2177,34 @@ public class DashboardPage {
         String dep = s.getDeparture() != null ? s.getDeparture().toLowerCase() : "";
         String shipId = s.getShipId() != null ? s.getShipId().toLowerCase() : "";
 
-        if (berth.contains(pName) || comp.contains(pName) || arr.contains(pName) || dep.contains(pName) || shipId.contains(pName)) {
+        if (berth.contains(pName) || comp.contains(pName) || arr.contains(pName) || dep.contains(pName)
+                || shipId.contains(pName)) {
             return true;
         }
 
         if (pName.contains("cochin") || pName.contains("kochi")) {
-            return berth.contains("cochin") || berth.contains("kochi") || berth.contains("cok") || comp.contains("cochin") || comp.contains("kochi") || arr.contains("cochin") || dep.contains("cochin");
+            return berth.contains("cochin") || berth.contains("kochi") || berth.contains("cok")
+                    || comp.contains("cochin") || comp.contains("kochi") || arr.contains("cochin")
+                    || dep.contains("cochin");
         } else if (pName.contains("mumbai")) {
-            return berth.contains("mumbai") || berth.contains("jnpt") || berth.contains("mum") || comp.contains("mumbai") || comp.contains("jnpt") || arr.contains("mumbai") || dep.contains("mumbai");
+            return berth.contains("mumbai") || berth.contains("jnpt") || berth.contains("mum")
+                    || comp.contains("mumbai") || comp.contains("jnpt") || arr.contains("mumbai")
+                    || dep.contains("mumbai");
         } else if (pName.contains("chennai")) {
-            return berth.contains("chennai") || berth.contains("madras") || berth.contains("maa") || comp.contains("chennai") || comp.contains("madras") || arr.contains("chennai") || dep.contains("chennai");
+            return berth.contains("chennai") || berth.contains("madras") || berth.contains("maa")
+                    || comp.contains("chennai") || comp.contains("madras") || arr.contains("chennai")
+                    || dep.contains("chennai");
         } else if (pName.contains("vizag") || pName.contains("visakhapatnam")) {
-            return berth.contains("vizag") || berth.contains("visakhapatnam") || berth.contains("vtz") || comp.contains("vizag") || comp.contains("visakhapatnam") || arr.contains("vizag") || dep.contains("vizag");
+            return berth.contains("vizag") || berth.contains("visakhapatnam") || berth.contains("vtz")
+                    || comp.contains("vizag") || comp.contains("visakhapatnam") || arr.contains("vizag")
+                    || dep.contains("vizag");
         } else if (pName.contains("kolkata")) {
-            return berth.contains("kolkata") || berth.contains("calcutta") || berth.contains("ccu") || comp.contains("kolkata") || comp.contains("calcutta") || arr.contains("kolkata") || dep.contains("kolkata");
+            return berth.contains("kolkata") || berth.contains("calcutta") || berth.contains("ccu")
+                    || comp.contains("kolkata") || comp.contains("calcutta") || arr.contains("kolkata")
+                    || dep.contains("kolkata");
         } else if (pName.contains("hazira")) {
-            return berth.contains("hazira") || comp.contains("hazira") || arr.contains("hazira") || dep.contains("hazira");
+            return berth.contains("hazira") || comp.contains("hazira") || arr.contains("hazira")
+                    || dep.contains("hazira");
         }
         return berth.contains(pName) || comp.contains(pName) || arr.contains(pName) || dep.contains(pName);
     }
@@ -1961,7 +2212,8 @@ public class DashboardPage {
     private void loadPersonnelData() {
         try {
             UserDao.syncFirestoreUsers();
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         List<Map<String, Object>> caps = UserDao.getPersonnelForPort(activeViewingPort, "Captain");
         List<Map<String, Object>> offs = UserDao.getPersonnelForPort(activeViewingPort, "Officer");
@@ -1976,19 +2228,26 @@ public class DashboardPage {
             Object duty = c.get("duty");
             Object ship = c.get("assignedShip");
             Object assignStatus = c.get("assignmentStatus");
-            boolean hasDuty = duty != null && !duty.toString().isBlank() 
+            boolean hasDuty = duty != null && !duty.toString().isBlank()
                     && !duty.toString().equalsIgnoreCase("Not Assigned")
                     && !duty.toString().equalsIgnoreCase("Standby")
                     && !duty.toString().equalsIgnoreCase("Standby / Available")
                     && !duty.toString().equalsIgnoreCase("Completed")
-                    && (assignStatus == null || (!assignStatus.toString().equalsIgnoreCase("Available") && !assignStatus.toString().equalsIgnoreCase("Completed")));
-            boolean hasShip = ship != null && !ship.toString().isBlank() && !ship.toString().equalsIgnoreCase("Not Assigned");
-            if (hasDuty || hasShip) assignedC++;
+                    && (assignStatus == null || (!assignStatus.toString().equalsIgnoreCase("Available")
+                            && !assignStatus.toString().equalsIgnoreCase("Completed")));
+            boolean hasShip = ship != null && !ship.toString().isBlank()
+                    && !ship.toString().equalsIgnoreCase("Not Assigned");
+            if (hasDuty || hasShip)
+                assignedC++;
         }
-        if (totalCaptainsVal != null) totalCaptainsVal.setText(String.valueOf(totalC));
-        if (activeCaptainsVal != null) activeCaptainsVal.setText(String.valueOf(totalC));
-        if (assignedCaptainsVal != null) assignedCaptainsVal.setText(String.valueOf(assignedC));
-        if (availCaptainsVal != null) availCaptainsVal.setText(String.valueOf(Math.max(0, totalC - assignedC)));
+        if (totalCaptainsVal != null)
+            totalCaptainsVal.setText(String.valueOf(totalC));
+        if (activeCaptainsVal != null)
+            activeCaptainsVal.setText(String.valueOf(totalC));
+        if (assignedCaptainsVal != null)
+            assignedCaptainsVal.setText(String.valueOf(assignedC));
+        if (availCaptainsVal != null)
+            availCaptainsVal.setText(String.valueOf(Math.max(0, totalC - assignedC)));
 
         // Update Officers KPIs
         int totalO = offs.size();
@@ -1996,48 +2255,68 @@ public class DashboardPage {
         for (Map<String, Object> o : offs) {
             Object duty = o.get("duty");
             Object assignStatus = o.get("assignmentStatus");
-            boolean hasDuty = duty != null && !duty.toString().isBlank() 
+            boolean hasDuty = duty != null && !duty.toString().isBlank()
                     && !duty.toString().equalsIgnoreCase("Not Assigned")
                     && !duty.toString().equalsIgnoreCase("Standby")
                     && !duty.toString().equalsIgnoreCase("Standby / Available")
                     && !duty.toString().equalsIgnoreCase("Completed")
-                    && (assignStatus == null || (!assignStatus.toString().equalsIgnoreCase("Available") && !assignStatus.toString().equalsIgnoreCase("Completed")));
-            if (hasDuty) assignedO++;
+                    && (assignStatus == null || (!assignStatus.toString().equalsIgnoreCase("Available")
+                            && !assignStatus.toString().equalsIgnoreCase("Completed")));
+            if (hasDuty)
+                assignedO++;
         }
-        if (totalOfficersVal != null) totalOfficersVal.setText(String.valueOf(totalO));
-        if (activeOfficersVal != null) activeOfficersVal.setText(String.valueOf(totalO));
-        if (assignedOfficersVal != null) assignedOfficersVal.setText(String.valueOf(assignedO));
-        if (availOfficersVal != null) availOfficersVal.setText(String.valueOf(Math.max(0, totalO - assignedO)));
+        if (totalOfficersVal != null)
+            totalOfficersVal.setText(String.valueOf(totalO));
+        if (activeOfficersVal != null)
+            activeOfficersVal.setText(String.valueOf(totalO));
+        if (assignedOfficersVal != null)
+            assignedOfficersVal.setText(String.valueOf(assignedO));
+        if (availOfficersVal != null)
+            availOfficersVal.setText(String.valueOf(Math.max(0, totalO - assignedO)));
     }
 
     private boolean isVesselAssociatedWithPort(VesselData v, String portName) {
-        if (v == null || portName == null || portName.isBlank()) return false;
+        if (v == null || portName == null || portName.isBlank())
+            return false;
         String pName = portName.toLowerCase().trim();
 
         // 1. Check destination
         String dest = v.destination != null ? v.destination.toLowerCase().trim() : "";
         if (pName.contains("cochin") || pName.contains("kochi") || pName.contains("cok")) {
-            if (dest.contains("cochin") || dest.contains("kochi") || dest.contains("cok")) return true;
+            if (dest.contains("cochin") || dest.contains("kochi") || dest.contains("cok"))
+                return true;
         } else if (pName.contains("mumbai") || pName.contains("jnpt")) {
-            if (dest.contains("mumbai") || dest.contains("jnpt") || dest.contains("nhava") || dest.contains("mum") || dest.contains("bombay")) return true;
+            if (dest.contains("mumbai") || dest.contains("jnpt") || dest.contains("nhava") || dest.contains("mum")
+                    || dest.contains("bombay"))
+                return true;
         } else if (pName.contains("chennai") || pName.contains("madras")) {
-            if (dest.contains("chennai") || dest.contains("madras") || dest.contains("maa")) return true;
+            if (dest.contains("chennai") || dest.contains("madras") || dest.contains("maa"))
+                return true;
         } else if (pName.contains("vizag") || pName.contains("visakhapatnam")) {
-            if (dest.contains("vizag") || dest.contains("visakhapatnam") || dest.contains("vtz")) return true;
+            if (dest.contains("vizag") || dest.contains("visakhapatnam") || dest.contains("vtz"))
+                return true;
         } else if (pName.contains("kolkata") || pName.contains("calcutta") || pName.contains("haldia")) {
-            if (dest.contains("kolkata") || dest.contains("calcutta") || dest.contains("ccu") || dest.contains("haldia")) return true;
+            if (dest.contains("kolkata") || dest.contains("calcutta") || dest.contains("ccu")
+                    || dest.contains("haldia"))
+                return true;
         } else if (pName.contains("hazira")) {
-            if (dest.contains("hazira") || dest.contains("haz") || dest.contains("surat")) return true;
+            if (dest.contains("hazira") || dest.contains("haz") || dest.contains("surat"))
+                return true;
         } else if (pName.contains("kandla") || pName.contains("mundra")) {
-            if (dest.contains("kandla") || dest.contains("mundra") || dest.contains("kutch")) return true;
+            if (dest.contains("kandla") || dest.contains("mundra") || dest.contains("kutch"))
+                return true;
         } else if (pName.contains("paradip")) {
-            if (dest.contains("paradip")) return true;
+            if (dest.contains("paradip"))
+                return true;
         } else if (pName.contains("tuticorin")) {
-            if (dest.contains("tuticorin")) return true;
+            if (dest.contains("tuticorin"))
+                return true;
         } else if (pName.contains("mormugao") || pName.contains("goa")) {
-            if (dest.contains("mormugao") || dest.contains("goa")) return true;
+            if (dest.contains("mormugao") || dest.contains("goa"))
+                return true;
         } else if (pName.contains("mangalore")) {
-            if (dest.contains("mangalore")) return true;
+            if (dest.contains("mangalore"))
+                return true;
         }
 
         // 2. Check geographical proximity to this port
@@ -2050,24 +2329,33 @@ public class DashboardPage {
 
     private double[] getPortCoordinates(String portName) {
         try {
-            com.projectui.view.admin.AdminDataStore.Port adminPort = com.projectui.view.admin.AdminDataStore.getInstance().getPortByName(portName);
+            com.projectui.view.admin.AdminDataStore.Port adminPort = com.projectui.view.admin.AdminDataStore
+                    .getInstance().getPortByName(portName);
             if (adminPort != null && (adminPort.lat != 0.0 || adminPort.lng != 0.0)) {
-                return new double[]{adminPort.lat, adminPort.lng};
+                return new double[] { adminPort.lat, adminPort.lng };
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         String p = portName != null ? portName.toLowerCase().trim() : "";
-        if (p.contains("cochin") || p.contains("kochi") || p.contains("cok")) return new double[]{9.9600, 76.2600};
-        if (p.contains("mumbai") || p.contains("jnpt")) return new double[]{18.9439, 72.8354};
-        if (p.contains("chennai") || p.contains("madras")) return new double[]{13.0827, 80.2707};
-        if (p.contains("vizag") || p.contains("visakhapatnam")) return new double[]{17.6868, 83.2185};
-        if (p.contains("kolkata") || p.contains("haldia") || p.contains("calcutta")) return new double[]{22.5726, 88.3639};
-        if (p.contains("hazira") || p.contains("surat")) return new double[]{21.1122, 72.6411};
-        return new double[]{18.9439, 72.8354};
+        if (p.contains("cochin") || p.contains("kochi") || p.contains("cok"))
+            return new double[] { 9.9600, 76.2600 };
+        if (p.contains("mumbai") || p.contains("jnpt"))
+            return new double[] { 18.9439, 72.8354 };
+        if (p.contains("chennai") || p.contains("madras"))
+            return new double[] { 13.0827, 80.2707 };
+        if (p.contains("vizag") || p.contains("visakhapatnam"))
+            return new double[] { 17.6868, 83.2185 };
+        if (p.contains("kolkata") || p.contains("haldia") || p.contains("calcutta"))
+            return new double[] { 22.5726, 88.3639 };
+        if (p.contains("hazira") || p.contains("surat"))
+            return new double[] { 21.1122, 72.6411 };
+        return new double[] { 18.9439, 72.8354 };
     }
 
     private String deriveVesselCategory(VesselData v) {
-        if (v == null) return "Underway";
+        if (v == null)
+            return "Underway";
         String nav = v.navigationStatus != null ? v.navigationStatus.toLowerCase() : "";
         double spd = v.speed;
 
@@ -2087,12 +2375,16 @@ public class DashboardPage {
     }
 
     private String deriveEta(VesselData v) {
-        if (v == null) return "—";
+        if (v == null)
+            return "—";
         String cat = deriveVesselCategory(v);
-        if ("Berthed".equalsIgnoreCase(cat) || "Moored".equalsIgnoreCase(cat)) return "Berthed in Port";
-        if ("Anchored".equalsIgnoreCase(cat)) return "At Anchor";
-        if ("Departing".equalsIgnoreCase(cat)) return "Outbound";
-        int mins = 20 + (int)(Math.abs(v.mmsi % 95));
+        if ("Berthed".equalsIgnoreCase(cat) || "Moored".equalsIgnoreCase(cat))
+            return "Berthed in Port";
+        if ("Anchored".equalsIgnoreCase(cat))
+            return "At Anchor";
+        if ("Departing".equalsIgnoreCase(cat))
+            return "Outbound";
+        int mins = 20 + (int) (Math.abs(v.mmsi % 95));
         return LocalDateTime.now().plusMinutes(mins).format(DateTimeFormatter.ofPattern("HH:mm"));
     }
 
@@ -2105,21 +2397,32 @@ public class DashboardPage {
 
         for (VesselData v : vessels) {
             String cat = deriveVesselCategory(v);
-            if ("Arriving".equalsIgnoreCase(cat)) arriving++;
-            else if ("Anchored".equalsIgnoreCase(cat)) anchored++;
-            else if ("Berthed".equalsIgnoreCase(cat) || "Moored".equalsIgnoreCase(cat)) berthed++;
-            else if ("Departing".equalsIgnoreCase(cat)) departing++;
+            if ("Arriving".equalsIgnoreCase(cat))
+                arriving++;
+            else if ("Anchored".equalsIgnoreCase(cat))
+                anchored++;
+            else if ("Berthed".equalsIgnoreCase(cat) || "Moored".equalsIgnoreCase(cat))
+                berthed++;
+            else if ("Departing".equalsIgnoreCase(cat))
+                departing++;
             else {
-                if (v.speed > 8.0) arriving++;
-                else anchored++;
+                if (v.speed > 8.0)
+                    arriving++;
+                else
+                    anchored++;
             }
         }
 
-        if (totalShipsVal != null) totalShipsVal.setText(String.valueOf(total));
-        if (arrivingVal != null) arrivingVal.setText(String.valueOf(arriving));
-        if (anchoredVal != null) anchoredVal.setText(String.valueOf(anchored));
-        if (berthedVal != null) berthedVal.setText(String.valueOf(berthed));
-        if (departingVal != null) departingVal.setText(String.valueOf(departing));
+        if (totalShipsVal != null)
+            totalShipsVal.setText(String.valueOf(total));
+        if (arrivingVal != null)
+            arrivingVal.setText(String.valueOf(arriving));
+        if (anchoredVal != null)
+            anchoredVal.setText(String.valueOf(anchored));
+        if (berthedVal != null)
+            berthedVal.setText(String.valueOf(berthed));
+        if (departingVal != null)
+            departingVal.setText(String.valueOf(departing));
     }
 
     private void updateBreakdownWidgets(List<VesselData> vessels) {
@@ -2132,12 +2435,18 @@ public class DashboardPage {
             int arr = 0, anc = 0, ber = 0, dep = 0, und = 0, oth = 0;
             for (VesselData v : vessels) {
                 String c = deriveVesselCategory(v);
-                if ("Arriving".equalsIgnoreCase(c)) arr++;
-                else if ("Anchored".equalsIgnoreCase(c)) anc++;
-                else if ("Berthed".equalsIgnoreCase(c)) ber++;
-                else if ("Departing".equalsIgnoreCase(c)) dep++;
-                else if ("Underway".equalsIgnoreCase(c)) und++;
-                else oth++;
+                if ("Arriving".equalsIgnoreCase(c))
+                    arr++;
+                else if ("Anchored".equalsIgnoreCase(c))
+                    anc++;
+                else if ("Berthed".equalsIgnoreCase(c))
+                    ber++;
+                else if ("Departing".equalsIgnoreCase(c))
+                    dep++;
+                else if ("Underway".equalsIgnoreCase(c))
+                    und++;
+                else
+                    oth++;
             }
 
             statusBreakdownBox.getChildren().addAll(
@@ -2145,8 +2454,7 @@ public class DashboardPage {
                     miniBarRow("Anchored", anc, vessels.size(), "#d97706"),
                     miniBarRow("Berthed / Moored", ber, vessels.size(), "#16a34a"),
                     miniBarRow("Departing", dep, vessels.size(), "#7c3aed"),
-                    miniBarRow("Underway", und, vessels.size(), "#0284c7")
-            );
+                    miniBarRow("Underway", und, vessels.size(), "#0284c7"));
         }
 
         if (typeBreakdownBox != null) {
@@ -2158,20 +2466,25 @@ public class DashboardPage {
             int cont = 0, tank = 0, bulk = 0, cargo = 0, pass = 0, oth = 0;
             for (VesselData v : vessels) {
                 String t = v.shipType != null ? v.shipType.toLowerCase() : "";
-                if (t.contains("container")) cont++;
-                else if (t.contains("tanker")) tank++;
-                else if (t.contains("bulk")) bulk++;
-                else if (t.contains("cargo")) cargo++;
-                else if (t.contains("passenger")) pass++;
-                else oth++;
+                if (t.contains("container"))
+                    cont++;
+                else if (t.contains("tanker"))
+                    tank++;
+                else if (t.contains("bulk"))
+                    bulk++;
+                else if (t.contains("cargo"))
+                    cargo++;
+                else if (t.contains("passenger"))
+                    pass++;
+                else
+                    oth++;
             }
 
             typeBreakdownBox.getChildren().addAll(
                     miniBarRow("Container Ship", cont, vessels.size(), "#0284c7"),
                     miniBarRow("Tanker", tank, vessels.size(), "#0ea5e9"),
                     miniBarRow("Bulk / General Cargo", cargo + bulk, vessels.size(), "#3b82f6"),
-                    miniBarRow("Other / Tug / Passenger", oth + pass, vessels.size(), "#64748b")
-            );
+                    miniBarRow("Other / Tug / Passenger", oth + pass, vessels.size(), "#64748b"));
         }
     }
 
@@ -2193,7 +2506,8 @@ public class DashboardPage {
     }
 
     private void updateActivityStream(List<VesselData> vessels) {
-        if (activityFeedBox == null) return;
+        if (activityFeedBox == null)
+            return;
         activityFeedBox.getChildren().clear();
 
         if (vessels.isEmpty()) {
@@ -2207,14 +2521,22 @@ public class DashboardPage {
             DateTimeFormatter tf = DateTimeFormatter.ofPattern("hh:mm a");
             int i = 0;
             for (VesselData v : vessels) {
-                if (i++ >= 5) break;
+                if (i++ >= 5)
+                    break;
                 String cat = deriveVesselCategory(v);
                 String desc;
-                if ("Arriving".equalsIgnoreCase(cat)) desc = v.name + " arriving at " + activeViewingPort + " approach (Speed: " + String.format("%.1f kn", v.speed) + ")";
-                else if ("Anchored".equalsIgnoreCase(cat)) desc = v.name + " status: At Anchor";
-                else if ("Berthed".equalsIgnoreCase(cat)) desc = v.name + " moored at container terminal";
-                else if ("Departing".equalsIgnoreCase(cat)) desc = v.name + " departing for open waters";
-                else desc = v.name + " underway at " + String.format("%.1f kn", v.speed) + " (Heading " + String.format("%.0f°", v.heading) + ")";
+                if ("Arriving".equalsIgnoreCase(cat))
+                    desc = v.name + " arriving at " + activeViewingPort + " approach (Speed: "
+                            + String.format("%.1f kn", v.speed) + ")";
+                else if ("Anchored".equalsIgnoreCase(cat))
+                    desc = v.name + " status: At Anchor";
+                else if ("Berthed".equalsIgnoreCase(cat))
+                    desc = v.name + " moored at container terminal";
+                else if ("Departing".equalsIgnoreCase(cat))
+                    desc = v.name + " departing for open waters";
+                else
+                    desc = v.name + " underway at " + String.format("%.1f kn", v.speed) + " (Heading "
+                            + String.format("%.0f°", v.heading) + ")";
 
                 String time = LocalDateTime.now().minusMinutes(i * 5L + 1L).format(tf);
                 recentActivityItems.add(time + " — " + desc);
@@ -2245,11 +2567,14 @@ public class DashboardPage {
     }
 
     private void updateAlerts(List<VesselData> vessels) {
-        if (alertsFeedBox == null) return;
+        if (alertsFeedBox == null)
+            return;
         alertsFeedBox.getChildren().clear();
 
-        // 1. Live Emergency SOS Alerts from Ship Captains
-        List<com.projectui.service.SosEmergencyService.SosAlert> sosAlerts = com.projectui.service.SosEmergencyService.getAllAlerts();
+        // 1. Live Emergency SOS Alerts from Ship Captains (Scoped to Port Authority
+        // port)
+        List<com.projectui.service.SosEmergencyService.SosAlert> sosAlerts = com.projectui.service.SosEmergencyService
+                .getAlertsForRoleAndUser("Port Authority", com.projectui.view.login.LoginPage.loggedInUser);
         for (com.projectui.service.SosEmergencyService.SosAlert a : sosAlerts) {
             boolean isAck = "ACKNOWLEDGED".equalsIgnoreCase(a.getStatus());
             HBox card = new HBox(8);
@@ -2262,11 +2587,15 @@ public class DashboardPage {
             VBox box = new VBox(2);
             HBox.setHgrow(box, Priority.ALWAYS);
 
-            Label t = new Label(isAck ? "✓ SOS ACKNOWLEDGED: " + a.getVesselName().toUpperCase() : "🔴 EMERGENCY SOS: " + a.getVesselName().toUpperCase() + " [" + a.getSeverity() + "]");
-            t.setStyle("-fx-text-fill:" + (isAck ? "#16a34a" : "#dc2626") + "; -fx-font-size:12px; -fx-font-weight:bold;");
+            Label t = new Label(isAck ? "✓ SOS ACKNOWLEDGED: " + a.getVesselName().toUpperCase()
+                    : "🔴 EMERGENCY SOS: " + a.getVesselName().toUpperCase() + " [" + a.getSeverity() + "]");
+            t.setStyle(
+                    "-fx-text-fill:" + (isAck ? "#16a34a" : "#dc2626") + "; -fx-font-size:12px; -fx-font-weight:bold;");
 
-            Label m = new Label("Incident: " + a.getIncidentId() + " • " + a.getCategory() + " | Captain: " + a.getCaptainName() + "\n"
-                    + "Location: " + a.getLocation() + " (Speed: " + a.getSpeed() + ", Heading: " + a.getHeading() + ") | " + a.getTimestamp());
+            Label m = new Label("Incident: " + a.getIncidentId() + " • " + a.getCategory() + " | Captain: "
+                    + a.getCaptainName() + "\n"
+                    + "Location: " + a.getLocation() + " (Speed: " + a.getSpeed() + ", Heading: " + a.getHeading()
+                    + ") | " + a.getTimestamp());
             m.setStyle("-fx-text-fill:#334155; -fx-font-size:11px; -fx-wrap-text:true;");
 
             box.getChildren().addAll(t, m);
@@ -2280,8 +2609,7 @@ public class DashboardPage {
                         root.getScene() != null ? root.getScene().getWindow() : null,
                         a,
                         userAssignedPort + " Authority",
-                        () -> updateAlerts(filteredVesselList != null ? filteredVesselList : portVesselsMasterList)
-                );
+                        () -> updateAlerts(filteredVesselList != null ? filteredVesselList : portVesselsMasterList));
             });
 
             card.getChildren().addAll(box, viewSosBtn);
@@ -2289,7 +2617,8 @@ public class DashboardPage {
         }
 
         if (vessels.isEmpty() && sosAlerts.isEmpty()) {
-            alertsFeedBox.getChildren().add(alertCard("✓ Normal Operations", "No active vessel traffic warnings for " + activeViewingPort + ".", "#10b981", "#ecfdf5"));
+            alertsFeedBox.getChildren().add(alertCard("✓ Normal Operations",
+                    "No active vessel traffic warnings for " + activeViewingPort + ".", "#10b981", "#ecfdf5"));
             return;
         }
 
@@ -2298,9 +2627,9 @@ public class DashboardPage {
             if (v.speed > 12.0 && alerts < 2) {
                 alertsFeedBox.getChildren().add(alertCard(
                         "⚠️ Approach Speed Advisory",
-                        v.name + " speed (" + String.format("%.1f kn", v.speed) + ") exceeds 10 kn harbor approach limit.",
-                        "#ef4444", "#fef2f2"
-                ));
+                        v.name + " speed (" + String.format("%.1f kn", v.speed)
+                                + ") exceeds 10 kn harbor approach limit.",
+                        "#ef4444", "#fef2f2"));
                 alerts++;
             }
         }
@@ -2309,22 +2638,21 @@ public class DashboardPage {
             alertsFeedBox.getChildren().add(alertCard(
                     "✓ Navigational Fairway Clear",
                     "Navigational channel and harbor approaches operating smoothly.",
-                    "#10b981", "#ecfdf5"
-            ));
+                    "#10b981", "#ecfdf5"));
         }
 
         alertsFeedBox.getChildren().add(alertCard(
                 "ℹ Pilotage & AIS Telemetry",
                 vessels.size() + " vessels actively tracked via Admin Map AIS telemetry.",
-                "#0284c7", "#f0f9ff"
-        ));
+                "#0284c7", "#f0f9ff"));
     }
 
     private HBox alertCard(String title, String msg, String color, String bg) {
         HBox card = new HBox(8);
         card.setAlignment(Pos.CENTER_LEFT);
         card.setPadding(new Insets(7, 10, 7, 10));
-        card.setStyle("-fx-background-color:" + bg + "; -fx-background-radius:6; -fx-border-color:" + color + "; -fx-border-width:0 0 0 3;");
+        card.setStyle("-fx-background-color:" + bg + "; -fx-background-radius:6; -fx-border-color:" + color
+                + "; -fx-border-width:0 0 0 3;");
 
         VBox box = new VBox(2);
         Label t = new Label(title);

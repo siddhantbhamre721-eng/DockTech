@@ -116,13 +116,20 @@ public class PaymentPage {
                 port = user.get("assignedPort").toString().trim();
             } else if (user.get("company") != null && !user.get("company").toString().isBlank()) {
                 port = user.get("company").toString().trim();
+            } else if (user.get("port") != null && !user.get("port").toString().isBlank()) {
+                port = user.get("port").toString().trim();
             }
         }
 
         if (port != null && !port.isBlank()) {
             userAssignedPort = normalizePortName(port);
         } else {
-            userAssignedPort = "Cochin Port";
+            List<String> approved = com.projectui.view.admin.AdminDataStore.getInstance().getApprovedPortNames();
+            if (approved != null && !approved.isEmpty()) {
+                userAssignedPort = approved.get(0);
+            } else {
+                userAssignedPort = "Port of Mumbai";
+            }
         }
         activeViewingPort = userAssignedPort;
     }
@@ -305,7 +312,7 @@ public class PaymentPage {
         colPayId.setStyle("-fx-alignment:CENTER; -fx-font-size:12px; -fx-font-weight:bold; -fx-text-fill:#0284c7;");
 
         TableColumn<Map<String, Object>, String> colCustomer = new TableColumn<>("Customer / Entity");
-        colCustomer.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "customerName", "Global Logistics Ltd.")));
+        colCustomer.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "customerName", getString(d.getValue(), "exporterName", getString(d.getValue(), "exporter", "—")))));
         colCustomer.setStyle("-fx-font-size:12px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
 
         TableColumn<Map<String, Object>, String> colType = new TableColumn<>("Type");
@@ -332,11 +339,11 @@ public class PaymentPage {
         });
 
         TableColumn<Map<String, Object>, String> colCargoId = new TableColumn<>("Cargo ID");
-        colCargoId.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "cargoId", "CGO-N/A")));
+        colCargoId.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "cargoId", "—")));
         colCargoId.setStyle("-fx-alignment:CENTER; -fx-font-size:11px; -fx-text-fill:#475569;");
 
         TableColumn<Map<String, Object>, String> colContainer = new TableColumn<>("Container(s)");
-        colContainer.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "containerNo", getString(d.getValue(), "bookingId", "CONT-2045"))));
+        colContainer.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "containerNo", getString(d.getValue(), "bookingId", "—"))));
         colContainer.setStyle("-fx-alignment:CENTER; -fx-font-size:11px; -fx-text-fill:#0f172a; -fx-font-weight:bold;");
 
         TableColumn<Map<String, Object>, String> colAmount = new TableColumn<>("Amount");
@@ -485,6 +492,13 @@ public class PaymentPage {
     private void loadPortPaymentData() {
         List<Map<String, Object>> compiledPayments = new ArrayList<>();
 
+        if (com.projectui.view.admin.AdminDataStore.isPortDeleted(activeViewingPort, null)) {
+            masterPaymentsList.clear();
+            updateKpiCards();
+            applyFilters();
+            return;
+        }
+
         // 1. Fetch authentic payment records from PaymentDao (Single Source of Truth)
         List<Map<String, Object>> daoPayments = paymentDao.getAllPayments();
         if (daoPayments != null) {
@@ -493,6 +507,10 @@ public class PaymentPage {
                 String payId = getString(p, "paymentId", getString(p, "razorpayPaymentId", ""));
                 if (payId.isEmpty()) continue;
 
+                if (!isAssociatedWithPort(p, activeViewingPort)) {
+                    continue;
+                }
+
                 Map<String, Object> record = new HashMap<>(p);
                 record.put("paymentId", payId);
 
@@ -500,7 +518,7 @@ public class PaymentPage {
                     record.put("customerType", "Exporter");
                 }
                 if (!record.containsKey("customerName") || record.get("customerName") == null) {
-                    record.put("customerName", getString(p, "exporterName", getString(p, "importerName", "Bharat Logistics & Freight Ltd.")));
+                    record.put("customerName", getString(p, "exporterName", getString(p, "importerName", getString(p, "company", "—"))));
                 }
                 if (!record.containsKey("invoiceId") || record.get("invoiceId") == null) {
                     record.put("invoiceId", "INV-" + getString(p, "receiptNumber", String.valueOf(Math.abs(payId.hashCode()) % 89999 + 10000)));
@@ -526,7 +544,7 @@ public class PaymentPage {
         for (Map<String, Object> p : paymentStore.values()) {
             if (p == null) continue;
             String payId = getString(p, "paymentId", "");
-            if (!payId.isEmpty()) {
+            if (!payId.isEmpty() && isAssociatedWithPort(p, activeViewingPort)) {
                 boolean exists = compiledPayments.stream().anyMatch(cp -> payId.equalsIgnoreCase(getString(cp, "paymentId", "")));
                 if (!exists) {
                     compiledPayments.add(p);
@@ -641,28 +659,53 @@ public class PaymentPage {
         displayedPaymentsList.setAll(filtered);
     }
 
-    private boolean isAssociatedWithPort(Map<String, Object> record, String portName) {
-        if (record == null || portName == null) return false;
-        String p = portName.toLowerCase();
-        String dest = getString(record, "destinationPort", "").toLowerCase();
-        String orig = getString(record, "originPort", "").toLowerCase();
-        String pref = getString(record, "preferredPort", "").toLowerCase();
-        String curr = getString(record, "currentPort", "").toLowerCase();
+    public static boolean isAssociatedWithPort(Map<String, Object> record, String portName) {
+        if (record == null || portName == null || portName.isBlank()) return false;
+        if ("all".equalsIgnoreCase(portName.trim()) || "all ports".equalsIgnoreCase(portName.trim())) return true;
 
-        if (dest.contains(p) || orig.contains(p) || pref.contains(p) || curr.contains(p)) return true;
+        String pLower = portName.trim().toLowerCase();
+        String pNorm = com.projectui.dao.UserDao.normalizePort(portName).trim().toLowerCase();
 
-        if (p.contains("cochin") || p.contains("kochi")) {
-            return dest.contains("cochin") || orig.contains("cochin") || pref.contains("cochin") || curr.contains("cochin");
-        } else if (p.contains("mumbai")) {
-            return dest.contains("mumbai") || orig.contains("mumbai") || pref.contains("mumbai") || dest.contains("jnpt");
-        } else if (p.contains("chennai")) {
-            return dest.contains("chennai") || orig.contains("chennai") || pref.contains("chennai");
-        } else if (p.contains("vizag")) {
-            return dest.contains("vizag") || orig.contains("vizag");
-        } else if (p.contains("kolkata")) {
-            return dest.contains("kolkata") || orig.contains("kolkata");
+        String port = getTrimmedLower(record, "port", "originPort", "destinationPort", "preferredPort", "currentPort", "assignedPort");
+        String orig = getTrimmedLower(record, "originPort", "origin");
+        String dest = getTrimmedLower(record, "destinationPort", "destination");
+        String pref = getTrimmedLower(record, "preferredPort");
+        String curr = getTrimmedLower(record, "currentPort", "assignedPort", "port");
+
+        List<String> list = List.of(port, orig, dest, pref, curr);
+        for (String s : list) {
+            if (s.isEmpty()) continue;
+            String sNorm = com.projectui.dao.UserDao.normalizePort(s).trim().toLowerCase();
+            if (s.equals(pLower) || s.equals(pNorm) || sNorm.equals(pNorm) || sNorm.equals(pLower)) return true;
+            if (s.contains(pLower) || pLower.contains(s) || sNorm.contains(pNorm) || pNorm.contains(sNorm)) return true;
+
+            if (isCityMatch(s, pLower) || isCityMatch(s, pNorm) || isCityMatch(sNorm, pLower) || isCityMatch(sNorm, pNorm)) return true;
         }
-        return true;
+        return false;
+    }
+
+    private static boolean isCityMatch(String a, String b) {
+        if (a.isEmpty() || b.isEmpty()) return false;
+        if ((a.contains("cochin") || a.contains("kochi")) && (b.contains("cochin") || b.contains("kochi"))) return true;
+        if ((a.contains("mumbai") || a.contains("bombay") || a.contains("jnpt")) && (b.contains("mumbai") || b.contains("bombay") || b.contains("jnpt"))) return true;
+        if ((a.contains("chennai") || a.contains("madras")) && (b.contains("chennai") || b.contains("madras"))) return true;
+        if ((a.contains("vizag") || a.contains("visakhapatnam")) && (b.contains("vizag") || b.contains("visakhapatnam"))) return true;
+        if ((a.contains("kolkata") || a.contains("calcutta")) && (b.contains("kolkata") || b.contains("calcutta"))) return true;
+        if (a.contains("mundra") && b.contains("mundra")) return true;
+        if (a.contains("kandla") && b.contains("kandla")) return true;
+        if (a.contains("goa") && b.contains("goa")) return true;
+        return false;
+    }
+
+    private static String getTrimmedLower(Map<String, Object> map, String... keys) {
+        if (map == null) return "";
+        for (String k : keys) {
+            Object v = map.get(k);
+            if (v != null && !v.toString().isBlank()) {
+                return v.toString().trim().toLowerCase();
+            }
+        }
+        return "";
     }
 
     // =====================================================
@@ -905,14 +948,14 @@ public class PaymentPage {
         p.put("paymentId", paymentId);
         p.put("razorpayPaymentId", paymentId);
         p.put("invoiceId", invoiceId);
-        p.put("cargoId", cargoId != null ? cargoId : "CGO-1024");
+        p.put("cargoId", cargoId != null ? cargoId : "");
         p.put("cargoName", cargoName != null ? cargoName : "Commercial Cargo");
         p.put("cargoType", "Export Freight");
         p.put("quantity", "1 unit");
-        p.put("customerName", customerName != null ? customerName : "Bharat Logistics & Freight Ltd.");
+        p.put("customerName", customerName != null ? customerName : "—");
         p.put("customerType", customerType != null ? customerType : "Exporter");
         p.put("containerNo", containerNo != null ? containerNo : "—");
-        p.put("containerType", containerType != null ? containerType : "20 ft Standard Dry");
+        p.put("containerType", containerType != null ? containerType : "—");
         p.put("amount", amount);
         p.put("paymentMethod", paymentMethod != null ? paymentMethod : "Razorpay Gateway (UPI/Cards/NetBanking)");
         p.put("paymentStatus", paymentStatus != null ? paymentStatus : "Paid");
@@ -934,6 +977,11 @@ public class PaymentPage {
             }
         }
         return new PaymentDao().getPaymentByCargoId(cargoId);
+    }
+
+    public static void clearPortPayments(String portName, String portCode) {
+        if (portName == null && portCode == null) return;
+        paymentStore.entrySet().removeIf(e -> isAssociatedWithPort(e.getValue(), portName));
     }
 
     // =====================================================

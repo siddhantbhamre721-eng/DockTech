@@ -214,10 +214,12 @@ public class DownloadInvoice {
 
     private void refreshData() {
         Platform.runLater(() -> {
-            String loggedUser = getLoggedImporterFilter();
-            List<Map<String, Object>> payments = paymentDao.getPaymentsForImporter(loggedUser);
-            if (payments == null || payments.isEmpty()) {
-                payments = paymentDao.getAllPayments();
+            List<Map<String, Object>> payments;
+            if (LoginPage.loggedInUser != null && !LoginPage.loggedInUser.isEmpty()) {
+                payments = paymentDao.getPaymentsForImporter(LoginPage.loggedInUser);
+            } else {
+                String loggedUser = getLoggedImporterFilter();
+                payments = paymentDao.getPaymentsForImporter(loggedUser);
             }
 
             allPayments.clear();
@@ -285,7 +287,9 @@ public class DownloadInvoice {
             VBox emptyBox = new VBox(10);
             emptyBox.setAlignment(Pos.CENTER);
             emptyBox.setPadding(new Insets(40));
-            Label emptyLbl = new Label("No payment or invoice records found matching your query.");
+            Label emptyLbl = new Label(allPayments.isEmpty()
+                    ? "No invoices are available for your shipments."
+                    : "No payment or invoice records found matching your query.");
             emptyLbl.setStyle("-fx-text-fill:#94A3B8; -fx-font-size:14px; -fx-font-weight:bold;");
             emptyBox.getChildren().add(emptyLbl);
             tableContentBox.getChildren().add(emptyBox);
@@ -321,19 +325,19 @@ public class DownloadInvoice {
         row.setPadding(new Insets(12, 14, 12, 14));
         row.setStyle("-fx-background-color:white; -fx-background-radius:8px; -fx-border-color:#F1F5F9; -fx-border-radius:8px;");
 
-        String receiptNo = getString(p, "receiptNumber", "RCT-" + (Math.abs(p.hashCode() % 90000 + 10000)));
-        String cargoId = getString(p, "cargoId", "CGO-1024");
-        String cargoName = getString(p, "cargoName", "Industrial Freight");
+        String receiptNo = getString(p, "receiptNumber", getString(p, "paymentId", "RCT-N/A"));
+        String cargoId = getString(p, "cargoId", "—");
+        String cargoName = getString(p, "cargoName", "—");
         String date = getString(p, "paymentDate", getString(p, "paidAt", "Today"));
         double amt = getDouble(p, "amount", getDouble(p, "paymentAmount", 0.0));
-        String payId = getString(p, "razorpayPaymentId", getString(p, "paymentId", "pay_live_" + Math.abs(p.hashCode() % 9000 + 1000)));
+        String payId = getString(p, "razorpayPaymentId", getString(p, "paymentId", "—"));
         String status = getString(p, "paymentStatus", "PAID");
         boolean isPaid = "PAID".equalsIgnoreCase(status) || status.toUpperCase().contains("PAID") || status.toUpperCase().contains("COMPLET");
 
         Label lReceipt = createCellLabel(receiptNo, 160, false);
         lReceipt.setStyle("-fx-font-weight:bold; -fx-text-fill:#0284C7; -fx-font-size:12px;");
 
-        Label lCargo = createCellLabel(cargoId + " (" + cargoName + ")", 220, false);
+        Label lCargo = createCellLabel(cargoId.equals("—") ? "—" : (cargoId + " (" + cargoName + ")"), 220, false);
         lCargo.setStyle("-fx-text-fill:#1E293B; -fx-font-size:12px; -fx-font-weight:bold;");
 
         Label lDate = createCellLabel(date, 140, false);
@@ -393,10 +397,10 @@ public class DownloadInvoice {
         root.setPrefWidth(580);
         root.setStyle("-fx-background-color:white; -fx-background-radius:12;");
 
-        String receiptNo = getString(p, "receiptNumber", "RCT-1024");
-        String cargoId = getString(p, "cargoId", "CGO-1024");
-        String cargoName = getString(p, "cargoName", "Industrial Machinery");
-        String payId = getString(p, "razorpayPaymentId", getString(p, "paymentId", "pay_N/A"));
+        String receiptNo = getString(p, "receiptNumber", getString(p, "paymentId", "RCT-N/A"));
+        String cargoId = getString(p, "cargoId", "—");
+        String cargoName = getString(p, "cargoName", "—");
+        String payId = getString(p, "razorpayPaymentId", getString(p, "paymentId", "—"));
         double amt = getDouble(p, "amount", getDouble(p, "paymentAmount", 0.0));
         String date = getString(p, "paymentDate", getString(p, "paidAt", "Today"));
         String status = getString(p, "paymentStatus", "PAID");
@@ -542,8 +546,12 @@ public class DownloadInvoice {
             if (n != null && !n.toString().isBlank()) return n.toString().trim();
             Object f = LoginPage.loggedInUser.get("fullName");
             if (f != null && !f.toString().isBlank()) return f.toString().trim();
+            Object d = LoginPage.loggedInUser.get("displayName");
+            if (d != null && !d.toString().isBlank()) return d.toString().trim();
+            Object c = LoginPage.loggedInUser.get("company");
+            if (c != null && !c.toString().isBlank()) return c.toString().trim();
         }
-        return "Harsh Patel";
+        return "Importer";
     }
 
     private String getLoggedImporterFilter() {
@@ -554,7 +562,9 @@ public class DownloadInvoice {
             if (e != null && !e.toString().isBlank()) return e.toString().trim();
             Object n = LoginPage.loggedInUser.get("name");
             if (n != null && !n.toString().isBlank()) return n.toString().trim();
+            Object u = LoginPage.loggedInUser.get("uid");
+            if (u != null && !u.toString().isBlank()) return u.toString().trim();
         }
-        return "Harsh";
+        return "";
     }
 }

@@ -84,7 +84,7 @@ public class UploadDocument {
         // Form Fields
         CargoDao cargoDao = new CargoDao();
         ContainerDao containerDao = new ContainerDao();
-        List<Map<String, Object>> allCargos = cargoDao.getAllCargos();
+        List<Map<String, Object>> allCargos = cargoDao.getShipmentsForExporter(com.projectui.view.login.LoginPage.loggedInUser);
 
         ComboBox<String> cargoSelect = new ComboBox<>();
         if (allCargos != null && !allCargos.isEmpty()) {
@@ -195,9 +195,19 @@ public class UploadDocument {
 
         uploadButton.setOnAction(event -> {
             String selectedCargoEntry = cargoSelect.getValue();
-            String cId = "CGO-1024";
-            if (selectedCargoEntry != null) {
+            String cId = "";
+            if (selectedCargoEntry != null && !selectedCargoEntry.startsWith("No Registered") && selectedCargoEntry.contains(" — ")) {
                 cId = selectedCargoEntry.split(" — ")[0].trim();
+            } else if (selectedCargoEntry != null && !selectedCargoEntry.startsWith("No Registered")) {
+                cId = selectedCargoEntry.trim();
+            }
+            if (cId.isBlank()) {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setTitle("Select Cargo");
+                alert.setHeaderText("No Cargo Selected");
+                alert.setContentText("Please select a registered cargo consignment to associate the uploaded document with.");
+                alert.show();
+                return;
             }
             String dType = docType.getValue() != null ? docType.getValue() : "Shipping Document";
             String dRef = docRefNumber.getText() != null && !docRefNumber.getText().isBlank()
@@ -206,7 +216,17 @@ public class UploadDocument {
             String fName = selectedFileName.get().isBlank() ? (dType.replaceAll("\\s+", "_") + ".pdf")
                     : selectedFileName.get();
 
-            // Save document into Cargo record
+            // Save document into single canonical Cargo record
+            Map<String, Object> doc = new HashMap<>();
+            doc.put("docId", dRef);
+            doc.put("docType", dType);
+            doc.put("name", fName);
+            doc.put("fileName", fName);
+            doc.put("status", "Pending");
+            doc.put("uploadedAt", java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")));
+            doc.put("uploadedBy", (com.projectui.view.login.LoginPage.loggedInUser != null && com.projectui.view.login.LoginPage.loggedInUser.get("name") != null) ? com.projectui.view.login.LoginPage.loggedInUser.get("name").toString() : "Exporter");
+
+            cargoDao.addDocumentToCargo(cId, doc);
             cargoDao.updateCargoStatus(cId, "Documents Uploaded");
             log3.setText("✓  " + dType + " (" + dRef + ") — Uploaded");
             log3.setStyle("-fx-text-fill: #16A34A; -fx-font-size: 12px; -fx-font-weight: bold;");

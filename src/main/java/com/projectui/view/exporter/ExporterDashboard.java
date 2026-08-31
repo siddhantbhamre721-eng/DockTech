@@ -245,12 +245,12 @@ public class ExporterDashboard extends Application {
 
         List<Map<String, Object>> allCargos = null;
         try {
-            allCargos = cargoDao.getAllCargo();
+            allCargos = cargoDao.getShipmentsForExporter(LoginPage.loggedInUser);
         } catch (Exception ignored) {}
 
         List<Map<String, Object>> allBookings = null;
         try {
-            allBookings = containerDao.getAllContainers();
+            allBookings = containerDao.getContainersForExporter(LoginPage.loggedInUser);
         } catch (Exception ignored) {}
 
         int activeCargoCount = allCargos != null ? allCargos.size() : 0;

@@ -116,4 +116,142 @@ public class EmergencySosNotificationFlowTest {
         List<SosAlert> all = SosEmergencyService.getAllAlerts();
         Assertions.assertTrue(all.size() >= 2);
     }
+
+    @Test
+    public void testImporterSosFilteringOnlyAssignedShipCargo() {
+        String importerUid = "IMP-UID-" + System.currentTimeMillis();
+        String importerEmail = "importer." + System.currentTimeMillis() + "@test.com";
+
+        Map<String, Object> importerProfile = Map.of(
+                "uid", importerUid,
+                "email", importerEmail,
+                "role", "Importer",
+                "name", "Test Importer Corp"
+        );
+
+        // 1. Assign cargo to this Importer on ship "MV IMPORTER SHIP"
+        com.projectui.dao.CargoDao cargoDao = new com.projectui.dao.CargoDao();
+        String cargoId = "CGO-IMP-" + System.currentTimeMillis();
+        Map<String, Object> cargoData = new java.util.HashMap<>();
+        cargoData.put("cargoId", cargoId);
+        cargoData.put("importerUid", importerUid);
+        cargoData.put("importerEmail", importerEmail);
+        cargoData.put("assignedShip", "MV IMPORTER SHIP");
+        cargoData.put("status", "In Transit");
+        cargoDao.saveCargo(cargoId, "Electronics", "Container", "10", "5000", "0", "Port of Mumbai", "Port of Goa", "Normal", "In Transit");
+        // Update extra fields
+        cargoDao.getAllCargos();
+        try {
+            java.lang.reflect.Field field = com.projectui.dao.CargoDao.class.getDeclaredField("localCargoStore");
+            field.setAccessible(true);
+            ((Map<String, Map<String, Object>>) field.get(null)).put(cargoId, cargoData);
+        } catch (Exception ignored) {}
+
+        // 2. Register two SOS alerts: one for "MV IMPORTER SHIP", one for unrelated "MV UNRELATED SHIP"
+        SosAlert alert1 = new SosAlert();
+        alert1.setIncidentId("SOS-IMP-TEST-1");
+        alert1.setVesselName("MV IMPORTER SHIP");
+        alert1.setCaptainName("Captain A");
+        alert1.setSeverity("CRITICAL (MAYDAY)");
+        alert1.setStatus("TRANSMITTED");
+        alert1.setCreatedAtEpoch(System.currentTimeMillis());
+
+        SosAlert alert2 = new SosAlert();
+        alert2.setIncidentId("SOS-IMP-TEST-2");
+        alert2.setVesselName("MV UNRELATED SHIP");
+        alert2.setCaptainName("Captain B");
+        alert2.setSeverity("CRITICAL (MAYDAY)");
+        alert2.setStatus("TRANSMITTED");
+        alert2.setCreatedAtEpoch(System.currentTimeMillis() - 100);
+
+        SosEmergencyService.registerSosAlert(alert1);
+        SosEmergencyService.registerSosAlert(alert2);
+
+        // 3. Query SOS alerts for Importer A -> must see ONLY alert1
+        List<SosAlert> impAlerts = SosEmergencyService.getAlertsForRoleAndUser("Importer", importerProfile);
+        Assertions.assertEquals(1, impAlerts.size(), "Importer must see only 1 SOS alert for their assigned ship");
+        Assertions.assertEquals("SOS-IMP-TEST-1", impAlerts.get(0).getIncidentId());
+        Assertions.assertEquals("MV IMPORTER SHIP", impAlerts.get(0).getVesselName());
+
+        // 4. Query SOS alerts for an unrelated Importer -> must see 0 alerts
+        Map<String, Object> otherImporter = Map.of(
+                "uid", "OTHER-IMP-UID",
+                "email", "other@importer.com",
+                "role", "Importer"
+        );
+        List<SosAlert> otherAlerts = SosEmergencyService.getAlertsForRoleAndUser("Importer", otherImporter);
+        Assertions.assertTrue(otherAlerts.isEmpty(), "Unrelated Importer must not see any SOS alerts");
+    }
+
+    @Test
+    public void testExporterSosFilteringOnlyAssignedShipCargo() {
+        String exporterUid = "EXP-UID-" + System.currentTimeMillis();
+        String exporterEmail = "exporter." + System.currentTimeMillis() + "@test.com";
+
+        Map<String, Object> exporterProfile = Map.of(
+                "uid", exporterUid,
+                "email", exporterEmail,
+                "role", "Exporter",
+                "name", "Test Exporter Corp"
+        );
+
+        // 1. Assign cargo to this Exporter on ship "MV EXPORTER CARRIER"
+        com.projectui.dao.CargoDao cargoDao = new com.projectui.dao.CargoDao();
+        String cargoId = "CGO-EXP-" + System.currentTimeMillis();
+        Map<String, Object> cargoData = new java.util.HashMap<>();
+        cargoData.put("cargoId", cargoId);
+        cargoData.put("ownerUid", exporterUid);
+        cargoData.put("ownerEmail", exporterEmail);
+        cargoData.put("assignedShip", "MV EXPORTER CARRIER");
+        cargoData.put("status", "Loaded");
+        try {
+            java.lang.reflect.Field field = com.projectui.dao.CargoDao.class.getDeclaredField("localCargoStore");
+            field.setAccessible(true);
+            ((Map<String, Map<String, Object>>) field.get(null)).put(cargoId, cargoData);
+        } catch (Exception ignored) {}
+
+        // 2. Register SOS alerts
+        SosAlert alert1 = new SosAlert();
+        alert1.setIncidentId("SOS-EXP-TEST-1");
+        alert1.setVesselName("MV EXPORTER CARRIER");
+        alert1.setCaptainName("Captain X");
+        alert1.setSeverity("URGENT (PAN-PAN)");
+        alert1.setStatus("TRANSMITTED");
+        alert1.setCreatedAtEpoch(System.currentTimeMillis());
+
+        SosAlert alert2 = new SosAlert();
+        alert2.setIncidentId("SOS-EXP-TEST-2");
+        alert2.setVesselName("MV UNRELATED VESSEL 99");
+        alert2.setCaptainName("Captain Y");
+        alert2.setSeverity("CRITICAL (MAYDAY)");
+        alert2.setStatus("TRANSMITTED");
+        alert2.setCreatedAtEpoch(System.currentTimeMillis() - 100);
+
+        SosEmergencyService.registerSosAlert(alert1);
+        SosEmergencyService.registerSosAlert(alert2);
+
+        // 3. Query SOS alerts for Exporter -> must see ONLY alert1
+        List<SosAlert> expAlerts = SosEmergencyService.getAlertsForRoleAndUser("Exporter", exporterProfile);
+        Assertions.assertEquals(1, expAlerts.size(), "Exporter must see only 1 SOS alert for their assigned ship");
+        Assertions.assertEquals("SOS-EXP-TEST-1", expAlerts.get(0).getIncidentId());
+        Assertions.assertEquals("MV EXPORTER CARRIER", expAlerts.get(0).getVesselName());
+
+        // 4. Query SOS alerts for an unrelated Exporter -> must see 0 alerts
+        Map<String, Object> otherExporter = Map.of(
+                "uid", "OTHER-EXP-UID",
+                "email", "other@exporter.com",
+                "role", "Exporter"
+        );
+        List<SosAlert> otherAlerts = SosEmergencyService.getAlertsForRoleAndUser("Exporter", otherExporter);
+        Assertions.assertTrue(otherAlerts.isEmpty(), "Unrelated Exporter must not see any SOS alerts");
+    }
+
+    @Test
+    public void testCreateAccountAndPublicRoleNoSosAlerts() {
+        List<SosAlert> createAccAlerts = SosEmergencyService.getAlertsForRoleAndUser("CreateAccount", Map.of("role", "CreateAccount"));
+        Assertions.assertTrue(createAccAlerts.isEmpty(), "CreateAccount page must never receive SOS alerts");
+
+        List<SosAlert> publicAlerts = SosEmergencyService.getAlertsForRoleAndUser("Public", Map.of("role", "Public"));
+        Assertions.assertTrue(publicAlerts.isEmpty(), "Public role must never receive SOS alerts");
+    }
 }

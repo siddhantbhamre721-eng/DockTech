@@ -126,6 +126,10 @@ public class VesselManager {
         }
     }
 
+    public void removeVessel(long mmsi) {
+        vesselsByMmsi.remove(mmsi);
+    }
+
     public void clear() {
         vesselsByMmsi.clear();
     }

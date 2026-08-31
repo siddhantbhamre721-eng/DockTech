@@ -13,6 +13,7 @@ import java.util.Map;
 
 import com.projectui.dao.CargoDao;
 import com.projectui.dao.ContainerDao;
+import com.projectui.dao.UserDao;
 import com.projectui.service.VesselData;
 import com.projectui.service.VesselFinderService;
 import com.projectui.service.VesselManager;
@@ -316,23 +317,23 @@ public class CargoManagementPage {
         colWeight.setStyle("-fx-alignment:CENTER; -fx-font-size:12px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
 
         TableColumn<Map<String, Object>, String> colImporter = new TableColumn<>("Importer");
-        colImporter.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "importer", "Global Traders Ltd.")));
+        colImporter.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "importer", getString(d.getValue(), "importerName", "—"))));
         colImporter.setStyle("-fx-font-size:12px; -fx-text-fill:#475569;");
 
         TableColumn<Map<String, Object>, String> colExporter = new TableColumn<>("Exporter");
-        colExporter.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "exporter", "Oceanic Star Trading")));
+        colExporter.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "exporter", getString(d.getValue(), "exporterName", "—"))));
         colExporter.setStyle("-fx-font-size:12px; -fx-text-fill:#475569;");
 
         TableColumn<Map<String, Object>, String> colVessel = new TableColumn<>("Vessel");
-        colVessel.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "shipName", "Assigned Vessel")));
+        colVessel.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "shipName", getString(d.getValue(), "assignedShip", "Not Assigned"))));
         colVessel.setStyle("-fx-alignment:CENTER; -fx-font-size:12px; -fx-text-fill:#2563eb; -fx-font-weight:bold;");
 
         TableColumn<Map<String, Object>, String> colOrigin = new TableColumn<>("Origin");
-        colOrigin.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "originPort", "Singapore")));
+        colOrigin.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "originPort", "—")));
         colOrigin.setStyle("-fx-alignment:CENTER; -fx-font-size:12px; -fx-text-fill:#64748b;");
 
         TableColumn<Map<String, Object>, String> colDest = new TableColumn<>("Destination");
-        colDest.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "destinationPort", activeViewingPort)));
+        colDest.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "destinationPort", "—")));
         colDest.setStyle("-fx-alignment:CENTER; -fx-font-size:12px; -fx-text-fill:#0f172a; -fx-font-weight:bold;");
 
         TableColumn<Map<String, Object>, String> colDate = new TableColumn<>("Requested Date");
@@ -344,22 +345,36 @@ public class CargoManagementPage {
         colStatus.setCellFactory(col -> createStatusBadgeCell());
 
         TableColumn<Map<String, Object>, String> colAction = new TableColumn<>("Action");
-        colAction.setPrefWidth(190);
+        colAction.setPrefWidth(290);
         colAction.setCellFactory(col -> new TableCell<>() {
             private final Button viewBtn = new Button("View");
+            private final Button assignBtn = new Button("Assign Ship");
+            private final Button customsBtn = new Button("Customs");
             private final Button approveBtn = new Button("Approve");
             private final Button rejectBtn = new Button("Reject");
-            private final HBox actionsBox = new HBox(6, viewBtn, approveBtn, rejectBtn);
+            private final HBox actionsBox = new HBox(4, viewBtn, assignBtn, customsBtn, approveBtn, rejectBtn);
 
             {
                 actionsBox.setAlignment(Pos.CENTER);
-                viewBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 8; -fx-cursor:hand;");
-                approveBtn.setStyle("-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 8; -fx-cursor:hand;");
-                rejectBtn.setStyle("-fx-background-color:#ef4444; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 8; -fx-cursor:hand;");
+                viewBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+                assignBtn.setStyle("-fx-background-color:#2563eb; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+                customsBtn.setStyle("-fx-background-color:#7c3aed; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+                approveBtn.setStyle("-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+                rejectBtn.setStyle("-fx-background-color:#ef4444; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
 
                 viewBtn.setOnAction(e -> {
                     Map<String, Object> item = getTableView().getItems().get(getIndex());
                     showCargoDetailsDialog(item);
+                });
+
+                assignBtn.setOnAction(e -> {
+                    Map<String, Object> item = getTableView().getItems().get(getIndex());
+                    showAssignShipToCargoDialog(item);
+                });
+
+                customsBtn.setOnAction(e -> {
+                    Map<String, Object> item = getTableView().getItems().get(getIndex());
+                    showAssignCustomsOfficerDialog(item);
                 });
 
                 approveBtn.setOnAction(e -> {
@@ -512,7 +527,7 @@ public class CargoManagementPage {
         colType.setStyle("-fx-alignment:CENTER; -fx-font-size:12px; -fx-text-fill:#334155;");
 
         TableColumn<Map<String, Object>, String> colShip = new TableColumn<>("Ship / Voyage");
-        colShip.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "shipName", "Assigned Vessel")));
+        colShip.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "shipName", getString(d.getValue(), "assignedShip", "Not Assigned"))));
         colShip.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(String item, boolean empty) {
@@ -534,11 +549,11 @@ public class CargoManagementPage {
         });
 
         TableColumn<Map<String, Object>, String> colImporter = new TableColumn<>("Importer");
-        colImporter.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "importer", "Global Traders Ltd.")));
+        colImporter.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "importer", getString(d.getValue(), "importerName", "—"))));
         colImporter.setStyle("-fx-font-size:12px; -fx-text-fill:#475569;");
 
         TableColumn<Map<String, Object>, String> colExporter = new TableColumn<>("Exporter");
-        colExporter.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "exporter", "Oceanic Star Trading")));
+        colExporter.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "exporter", getString(d.getValue(), "exporterName", "—"))));
         colExporter.setStyle("-fx-font-size:12px; -fx-text-fill:#475569;");
 
         TableColumn<Map<String, Object>, String> colQtyWeight = new TableColumn<>("Quantity / Weight");
@@ -550,11 +565,11 @@ public class CargoManagementPage {
         colQtyWeight.setStyle("-fx-alignment:CENTER; -fx-font-size:12px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
 
         TableColumn<Map<String, Object>, String> colOrigin = new TableColumn<>("Origin");
-        colOrigin.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "originPort", "Port of Singapore")));
+        colOrigin.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "originPort", "—")));
         colOrigin.setStyle("-fx-alignment:CENTER; -fx-font-size:12px; -fx-text-fill:#64748b;");
 
         TableColumn<Map<String, Object>, String> colDest = new TableColumn<>("Destination");
-        colDest.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "destinationPort", activeViewingPort)));
+        colDest.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "destinationPort", "—")));
         colDest.setStyle("-fx-alignment:CENTER; -fx-font-size:12px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
 
         TableColumn<Map<String, Object>, String> colStatus = new TableColumn<>("Status");
@@ -570,20 +585,34 @@ public class CargoManagementPage {
         colUpdated.setStyle("-fx-alignment:CENTER; -fx-font-size:11px; -fx-text-fill:#64748b;");
 
         TableColumn<Map<String, Object>, String> colAction = new TableColumn<>("Action");
-        colAction.setPrefWidth(160);
+        colAction.setPrefWidth(260);
         colAction.setCellFactory(col -> new TableCell<>() {
             private final Button viewBtn = new Button("View");
+            private final Button assignBtn = new Button("Assign Ship");
+            private final Button customsBtn = new Button("Customs");
             private final Button updateBtn = new Button("Status");
-            private final HBox btnBox = new HBox(6, viewBtn, updateBtn);
+            private final HBox btnBox = new HBox(4, viewBtn, assignBtn, customsBtn, updateBtn);
 
             {
                 btnBox.setAlignment(Pos.CENTER);
-                viewBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 8; -fx-cursor:hand;");
-                updateBtn.setStyle("-fx-background-color:#475569; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 8; -fx-cursor:hand;");
+                viewBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+                assignBtn.setStyle("-fx-background-color:#2563eb; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+                customsBtn.setStyle("-fx-background-color:#7c3aed; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+                updateBtn.setStyle("-fx-background-color:#475569; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
 
                 viewBtn.setOnAction(e -> {
                     Map<String, Object> item = getTableView().getItems().get(getIndex());
                     showCargoDetailsDialog(item);
+                });
+
+                assignBtn.setOnAction(e -> {
+                    Map<String, Object> item = getTableView().getItems().get(getIndex());
+                    showAssignShipToCargoDialog(item);
+                });
+
+                customsBtn.setOnAction(e -> {
+                    Map<String, Object> item = getTableView().getItems().get(getIndex());
+                    showAssignCustomsOfficerDialog(item);
                 });
 
                 updateBtn.setOnAction(e -> {
@@ -793,10 +822,10 @@ public class CargoManagementPage {
                     synthesized.put("cargoId", b.get("bookingId"));
                     synthesized.put("cargoType", b.get("containerType"));
                     synthesized.put("quantity", b.get("quantity") + " containers");
-                    synthesized.put("weight", "Standard 24 T");
-                    synthesized.put("importer", "Global Traders Ltd.");
-                    synthesized.put("exporter", "Oceanic Star Trading");
-                    synthesized.put("shipName", "MV " + activeViewingPort.replace("Port of ", "") + " Express");
+                    synthesized.put("weight", "—");
+                    synthesized.put("importer", getString(b, "importer", getString(b, "importerName", "—")));
+                    synthesized.put("exporter", getString(b, "exporter", getString(b, "exporterName", "—")));
+                    synthesized.put("shipName", getString(b, "shipName", getString(b, "assignedShip", "Not Assigned")));
                     matchedPortCargos.add(synthesized);
                 }
             }
@@ -1042,10 +1071,7 @@ public class CargoManagementPage {
         String name = getString(item, "cargoName", "Cargo");
 
         item.put("status", "Approved");
-        cargoDao.saveCargo(id, name, getString(item, "cargoType", "General Cargo"),
-                getString(item, "quantity", "1"), getString(item, "weight", "0 kg"),
-                getString(item, "originPort", "Port"), getString(item, "destinationPort", activeViewingPort), "Approved");
-
+        cargoDao.updateCargoStatus(id, "Approved");
         refreshCargoData();
 
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
@@ -1061,10 +1087,7 @@ public class CargoManagementPage {
         String name = getString(item, "cargoName", "Cargo");
 
         item.put("status", "Rejected");
-        cargoDao.saveCargo(id, name, getString(item, "cargoType", "General Cargo"),
-                getString(item, "quantity", "1"), getString(item, "weight", "0 kg"),
-                getString(item, "originPort", "Port"), getString(item, "destinationPort", activeViewingPort), "Rejected");
-
+        cargoDao.updateCargoStatus(id, "Rejected");
         refreshCargoData();
 
         Alert alert = new Alert(Alert.AlertType.WARNING);
@@ -1075,7 +1098,7 @@ public class CargoManagementPage {
     }
 
     // =====================================================
-    // 10. MODAL DIALOGS (DETAILS, STATUS UPDATE, ADD CARGO)
+    // 10. MODAL DIALOGS (DETAILS, STATUS UPDATE, ASSIGN SHIP, ADD CARGO)
     // =====================================================
     private void showCargoDetailsDialog(Map<String, Object> c) {
         if (c == null) return;
@@ -1091,7 +1114,7 @@ public class CargoManagementPage {
 
         VBox contentBox = new VBox(12);
         contentBox.setPadding(new Insets(16));
-        contentBox.setPrefWidth(480);
+        contentBox.setPrefWidth(500);
 
         // Header Title
         HBox head = new HBox(8);
@@ -1123,29 +1146,70 @@ public class CargoManagementPage {
                 detailLine("Cargo Type", getString(c, "cargoType", "General Cargo")),
                 detailLine("Quantity", getString(c, "quantity", "1 unit")),
                 detailLine("Declared Weight", getString(c, "weight", "—")),
-                detailLine("Importer Entity", getString(c, "importer", "Global Traders Ltd.")),
-                detailLine("Exporter Entity", getString(c, "exporter", "Oceanic Star Trading")),
-                detailLine("Port of Origin", getString(c, "originPort", "Singapore")),
-                detailLine("Destination Port", getString(c, "destinationPort", activeViewingPort)),
+                detailLine("Importer Entity", getString(c, "importer", getString(c, "importerName", "—"))),
+                detailLine("Exporter Entity", getString(c, "exporter", getString(c, "exporterName", "—"))),
+                detailLine("Port of Origin", getString(c, "originPort", "—")),
+                detailLine("Destination Port", getString(c, "destinationPort", "—")),
                 detailLine("Current Status", st),
                 detailLine("Booking Timestamp", formatIsoDate(getString(c, "createdAt", "Today")))
         );
 
-        // Section 2: ASSOCIATED VESSEL & LIVE TELEMETRY
-        Label g2 = new Label("ASSOCIATED VESSEL & LIVE TELEMETRY");
+        // Section 2: ASSOCIATED REGISTERED SHIP
+        Label g2 = new Label("ASSOCIATED REGISTERED VESSEL");
         g2.setStyle("-fx-text-fill:#0284c7; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 0 2 0;");
 
-        String shipName = getString(c, "shipName", "MV " + activeViewingPort.replace("Port of ", "") + " Express");
+        String shipName = getString(c, "shipName", getString(c, "assignedShip", "Not Assigned"));
+        String shipId = getString(c, "shipId", getString(c, "assignedShipId", ""));
+        String shipImo = getString(c, "shipImo", "");
+
         VesselData matchedVessel = findMatchingVessel(shipName);
 
         VBox g2Box = new VBox(3,
                 detailLine("Assigned Vessel", shipName),
-                detailLine("Vessel IMO", matchedVessel != null ? matchedVessel.imo : "9" + (Math.abs(id.hashCode()) % 899999 + 100000)),
-                detailLine("Vessel MMSI", matchedVessel != null ? String.valueOf(matchedVessel.mmsi) : String.valueOf(Math.abs(id.hashCode()))),
-                detailLine("Live Speed", matchedVessel != null ? String.format("%.1f knots", matchedVessel.speed) : "12.4 knots"),
-                detailLine("Course / Heading", matchedVessel != null ? String.format("%.0f°", matchedVessel.course) : "185°"),
-                detailLine("Vessel Nav Status", matchedVessel != null ? matchedVessel.navigationStatus : "Underway using Engine"),
+                detailLine("Vessel IMO", !shipImo.isBlank() ? shipImo : (matchedVessel != null && matchedVessel.imo != null ? matchedVessel.imo : "—")),
+                detailLine("Vessel ID / MMSI", !shipId.isBlank() ? shipId : (matchedVessel != null ? String.valueOf(matchedVessel.mmsi) : "—")),
+                detailLine("Ship Type", matchedVessel != null && matchedVessel.shipType != null ? matchedVessel.shipType : "Container Ship"),
+                detailLine("Live Speed", matchedVessel != null ? String.format("%.1f knots", matchedVessel.speed) : "At Berth / Port"),
+                detailLine("Course / Heading", matchedVessel != null ? String.format("%.0f°", matchedVessel.course) : "0°"),
+                detailLine("Vessel Nav Status", matchedVessel != null && matchedVessel.navigationStatus != null ? matchedVessel.navigationStatus : "At Berth"),
                 detailLine("Estimated Arrival (ETA)", deriveCargoEta(c))
+        );
+
+        // Section 2B: DYNAMICALLY RESOLVED REGISTERED CAPTAIN
+        Label gCap = new Label("ASSIGNED SHIP CAPTAIN (DYNAMICALLY RESOLVED)");
+        gCap.setStyle("-fx-text-fill:#0284c7; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 0 2 0;");
+
+        Map<String, Object> capProfile = UserDao.getCaptainForShip(shipName, shipId, shipImo);
+        String capName = capProfile != null ? getString(capProfile, "name", getString(capProfile, "fullName", "Ship Captain")) : getString(c, "assignedCaptainName", getString(c, "assignedCaptain", "Not Assigned"));
+        String capEmail = capProfile != null ? getString(capProfile, "email", "—") : getString(c, "assignedCaptainEmail", "—");
+        String capUid = capProfile != null ? getString(capProfile, "uid", "—") : getString(c, "assignedCaptainUid", "—");
+        String capDuty = capProfile != null ? getString(capProfile, "duty", getString(capProfile, "assignmentStatus", "Active")) : "—";
+
+        VBox gCapBox = new VBox(3,
+                detailLine("Captain Name", capName),
+                detailLine("Captain Email", capEmail),
+                detailLine("Captain UID", capUid),
+                detailLine("Duty / Assignment Status", capDuty)
+        );
+
+        // Section 2C: ASSIGNED CUSTOMS OFFICER & CLEARANCE
+        Label gCust = new Label("CUSTOMS OFFICER & REGULATORY CLEARANCE");
+        gCust.setStyle("-fx-text-fill:#7c3aed; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 0 2 0;");
+
+        String custName = getString(c, "assignedCustomsOfficerName", getString(c, "assignedCustomsOfficer", "Not Assigned"));
+        String custEmail = getString(c, "assignedCustomsOfficerEmail", "—");
+        String custUid = getString(c, "assignedCustomsOfficerUid", "—");
+        String custStatus = getString(c, "customsClearanceStatus", getString(c, "customsStatus", "Pending Clearance"));
+        String docStatus = getString(c, "verificationStatus", "Pending");
+        String inspectStatus = getString(c, "inspectionStatus", "Pending");
+
+        VBox gCustBox = new VBox(3,
+                detailLine("Assigned Customs Officer", custName),
+                detailLine("Customs Officer Email", custEmail),
+                detailLine("Customs Officer UID", custUid),
+                detailLine("Clearance Status", custStatus),
+                detailLine("Document Verification", docStatus),
+                detailLine("Physical Inspection", inspectStatus)
         );
 
         // Section 3: PAYMENT & TRANSACTION DETAILS
@@ -1196,12 +1260,397 @@ public class CargoManagementPage {
         Label g3 = new Label("WORKFLOW & CLEARANCE TIMELINE");
         g3.setStyle("-fx-text-fill:#0284c7; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 0 2 0;");
 
-        Label timelineLbl = new Label("Request Submitted  ➔  Reviewed  ➔  Approved  ➔  Cargo Confirmed  ➔  Received  ➔  Loaded  ➔  Dispatched  ➔  Delivered");
+        Label timelineLbl = new Label("Request Submitted  ➔  Reviewed  ➔  Approved  ➔  Ship & Captain Assigned  ➔  Customs Cleared  ➔  Loaded  ➔  Dispatched");
         timelineLbl.setWrapText(true);
         timelineLbl.setStyle("-fx-text-fill:#1e293b; -fx-font-size:11px; -fx-background-color:#f8fafc; -fx-padding:8; -fx-border-color:#e2e8f0; -fx-border-radius:4; -fx-background-radius:4;");
 
-        contentBox.getChildren().addAll(head, g1, g1Box, g2, g2Box, gPay, gPayBox, g3, timelineLbl);
+        contentBox.getChildren().addAll(head, g1, g1Box, g2, g2Box, gCap, gCapBox, gCust, gCustBox, gPay, gPayBox, g3, timelineLbl);
         dialog.getDialogPane().setContent(contentBox);
+        dialog.showAndWait();
+    }
+
+    private void showAssignShipToCargoDialog(Map<String, Object> cargo) {
+        if (cargo == null) return;
+
+        Dialog<Boolean> dialog = new Dialog<>();
+        String cId = getString(cargo, "cargoId", "CGO");
+        String cName = getString(cargo, "cargoName", "Cargo");
+        String orig = getString(cargo, "originPort", "—");
+        String dest = getString(cargo, "destinationPort", "—");
+
+        dialog.setTitle("Assign Registered Ship & Captain — " + cId);
+        dialog.setHeaderText("Assign an Existing Registered Vessel and Captain to Cargo: " + cId + " (" + cName + ")");
+
+        ButtonType assignBtnType = new ButtonType("Confirm Assignment", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(assignBtnType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        grid.setPadding(new Insets(20));
+
+        Label idLbl = new Label(cId + " — " + cName);
+        idLbl.setStyle("-fx-font-weight:bold; -fx-text-fill:#0f172a; -fx-font-size:13px;");
+
+        Label routeLbl = new Label(orig + " ➔ " + dest);
+        routeLbl.setStyle("-fx-font-weight:bold; -fx-text-fill:#0284c7; -fx-font-size:13px;");
+
+        // Load existing registered ships
+        List<com.projectui.model.Ship> dbShips = new com.projectui.dao.ShipDAO().getShips();
+        Collection<VesselData> liveVessels = vesselManager.getAllVessels();
+
+        List<String> shipDisplayOptions = new ArrayList<>();
+        List<String> shipNames = new ArrayList<>();
+        List<String> shipIds = new ArrayList<>();
+        List<String> shipImos = new ArrayList<>();
+
+        java.util.Set<String> addedNames = new java.util.HashSet<>();
+
+        String normOrig = orig.trim().toLowerCase();
+        String normDest = dest.trim().toLowerCase();
+
+        // 1. Primary pass: Route-eligible ships (matching origin or destination port or active port)
+        if (dbShips != null) {
+            for (com.projectui.model.Ship s : dbShips) {
+                if (s == null || s.getShipName() == null || s.getShipName().isBlank()) continue;
+                String sName = s.getShipName().trim();
+                String arr = s.getArrival() != null ? s.getArrival().toLowerCase() : "";
+                String dep = s.getDeparture() != null ? s.getDeparture().toLowerCase() : "";
+                String berth = s.getBerth() != null ? s.getBerth().toLowerCase() : "";
+                
+                boolean routeMatch = normOrig.isEmpty() || normDest.isEmpty() 
+                        || arr.contains(normOrig) || dep.contains(normDest) || berth.contains(normOrig)
+                        || arr.contains(normDest) || dep.contains(normOrig)
+                        || arr.contains(activeViewingPort.toLowerCase()) || dep.contains(activeViewingPort.toLowerCase())
+                        || berth.contains(activeViewingPort.toLowerCase());
+
+                if (routeMatch && addedNames.add(sName.toLowerCase())) {
+                    String sId = s.getShipId() != null ? s.getShipId() : "";
+                    String imo = s.getImoNumber() != null ? s.getImoNumber() : "";
+                    String sType = s.getShipType() != null ? s.getShipType() : "Container Ship";
+                    
+                    shipDisplayOptions.add(sName + " (" + sType + " | IMO: " + (imo.isEmpty() ? "N/A" : imo) + ")");
+                    shipNames.add(sName);
+                    shipIds.add(sId);
+                    shipImos.add(imo);
+                }
+            }
+        }
+
+        if (liveVessels != null) {
+            for (VesselData v : liveVessels) {
+                if (v == null || v.name == null || v.name.isBlank()) continue;
+                String sName = v.name.trim();
+                String destV = v.destination != null ? v.destination.toLowerCase() : "";
+
+                boolean routeMatch = normOrig.isEmpty() || normDest.isEmpty() 
+                        || destV.contains(normDest) || destV.contains(normOrig) || destV.contains(activeViewingPort.toLowerCase());
+
+                if (routeMatch && addedNames.add(sName.toLowerCase())) {
+                    String sId = String.valueOf(v.mmsi);
+                    String imo = v.imo != null ? v.imo : "";
+                    String sType = v.shipType != null ? v.shipType : "Cargo Vessel";
+
+                    shipDisplayOptions.add(sName + " (" + sType + " | IMO: " + (imo.isEmpty() ? "N/A" : imo) + ")");
+                    shipNames.add(sName);
+                    shipIds.add(sId);
+                    shipImos.add(imo);
+                }
+            }
+        }
+
+        // Fallback: If no route-specific ships found, include all registered ships
+        if (dbShips != null) {
+            for (com.projectui.model.Ship s : dbShips) {
+                if (s == null || s.getShipName() == null || s.getShipName().isBlank()) continue;
+                String sName = s.getShipName().trim();
+                if (addedNames.add(sName.toLowerCase())) {
+                    String sId = s.getShipId() != null ? s.getShipId() : "";
+                    String imo = s.getImoNumber() != null ? s.getImoNumber() : "";
+                    String sType = s.getShipType() != null ? s.getShipType() : "Container Ship";
+
+                    shipDisplayOptions.add(sName + " (" + sType + " | IMO: " + (imo.isEmpty() ? "N/A" : imo) + ")");
+                    shipNames.add(sName);
+                    shipIds.add(sId);
+                    shipImos.add(imo);
+                }
+            }
+        }
+
+        if (shipDisplayOptions.isEmpty()) {
+            shipDisplayOptions.add("MV " + activeViewingPort.replace("Port of ", "") + " Star (Container Vessel | IMO: 9234567)");
+            shipNames.add("MV " + activeViewingPort.replace("Port of ", "") + " Star");
+            shipIds.add("SHIP-101");
+            shipImos.add("9234567");
+        }
+
+        ComboBox<String> shipCombo = new ComboBox<>();
+        shipCombo.setPrefWidth(440);
+        shipCombo.getItems().addAll(shipDisplayOptions);
+
+        String curShip = getString(cargo, "assignedShip", getString(cargo, "shipName", ""));
+        int selIdx = 0;
+        if (!curShip.isBlank() && !curShip.equalsIgnoreCase("Not Assigned")) {
+            for (int i = 0; i < shipNames.size(); i++) {
+                if (shipNames.get(i).equalsIgnoreCase(curShip)) {
+                    selIdx = i;
+                    break;
+                }
+            }
+        }
+        shipCombo.getSelectionModel().select(selIdx);
+
+        // Load eligible Captains
+        List<Map<String, Object>> eligibleCaptains = UserDao.getEligibleCaptainsForRoute(orig, dest, shipNames.get(selIdx));
+        List<String> capDisplayOptions = new ArrayList<>();
+        List<String> capUids = new ArrayList<>();
+        List<String> capNames = new ArrayList<>();
+        List<String> capEmails = new ArrayList<>();
+
+        ComboBox<String> captainCombo = new ComboBox<>();
+        captainCombo.setPrefWidth(440);
+
+        Label captainDetailsLbl = new Label();
+        captainDetailsLbl.setStyle("-fx-text-fill:#16a34a; -fx-font-size:12px; -fx-font-weight:bold;");
+
+        // Helper to populate captainCombo dynamically based on selected ship
+        Runnable reloadCaptainsForSelectedShip = () -> {
+            int shipIdx = shipCombo.getSelectionModel().getSelectedIndex();
+            String chosenShipName = (shipIdx >= 0 && shipIdx < shipNames.size()) ? shipNames.get(shipIdx) : "";
+            String chosenShipId = (shipIdx >= 0 && shipIdx < shipIds.size()) ? shipIds.get(shipIdx) : "";
+            String chosenShipImo = (shipIdx >= 0 && shipIdx < shipImos.size()) ? shipImos.get(shipIdx) : "";
+
+            List<Map<String, Object>> caps = UserDao.getEligibleCaptainsForRoute(orig, dest, chosenShipName);
+            capDisplayOptions.clear();
+            capUids.clear();
+            capNames.clear();
+            capEmails.clear();
+
+            int preselectCapIdx = 0;
+            Map<String, Object> shipCaptain = UserDao.getCaptainForShip(chosenShipName, chosenShipId, chosenShipImo);
+            String shipCapUid = shipCaptain != null && shipCaptain.get("uid") != null ? shipCaptain.get("uid").toString() : "";
+
+            for (int i = 0; i < caps.size(); i++) {
+                Map<String, Object> cap = caps.get(i);
+                String cUid = cap.get("uid") != null ? cap.get("uid").toString() : "";
+                String personName = cap.get("name") != null ? cap.get("name").toString() : (cap.get("fullName") != null ? cap.get("fullName").toString() : "Captain");
+                String cEmail = cap.get("email") != null ? cap.get("email").toString() : "";
+                String cPort = cap.get("assignedPort") != null ? cap.get("assignedPort").toString() : "All Ports";
+                String cShip = cap.get("assignedShip") != null ? cap.get("assignedShip").toString() : "Available";
+
+                String isCurrent = (!shipCapUid.isEmpty() && shipCapUid.equals(cUid)) ? " [Currently Assigned to Ship]" : "";
+                capDisplayOptions.add("👨‍✈️ " + personName + " (" + cEmail + ") • " + cPort + isCurrent);
+                capUids.add(cUid);
+                capNames.add(personName);
+                capEmails.add(cEmail);
+
+                if (!shipCapUid.isEmpty() && shipCapUid.equals(cUid)) {
+                    preselectCapIdx = i;
+                }
+            }
+
+            if (capDisplayOptions.isEmpty()) {
+                capDisplayOptions.add("👨‍✈️ Registered Ship Captain (captain@docktech.com)");
+                capUids.add("CAP-001");
+                capNames.add("Ship Captain");
+                capEmails.add("captain@docktech.com");
+            }
+
+            captainCombo.getItems().setAll(capDisplayOptions);
+            captainCombo.getSelectionModel().select(preselectCapIdx);
+        };
+
+        Runnable updateCaptainDetailText = () -> {
+            int cIdx = captainCombo.getSelectionModel().getSelectedIndex();
+            if (cIdx >= 0 && cIdx < capUids.size()) {
+                String uId = capUids.get(cIdx);
+                String uEmail = capEmails.get(cIdx);
+                String uName = capNames.get(cIdx);
+                captainDetailsLbl.setText("Selected Captain: " + uName + " | Email: " + uEmail + " | UID: " + (!uId.isEmpty() ? uId.substring(0, Math.min(10, uId.length())) + "..." : "N/A"));
+            }
+        };
+
+        shipCombo.setOnAction(e -> {
+            reloadCaptainsForSelectedShip.run();
+            updateCaptainDetailText.run();
+        });
+
+        captainCombo.setOnAction(e -> updateCaptainDetailText.run());
+
+        reloadCaptainsForSelectedShip.run();
+        updateCaptainDetailText.run();
+
+        grid.add(new Label("Cargo Manifest:"), 0, 0);
+        grid.add(idLbl, 1, 0);
+        grid.add(new Label("Original Route:"), 0, 1);
+        grid.add(routeLbl, 1, 1);
+        grid.add(new Label("Select Route-Eligible Ship:"), 0, 2);
+        grid.add(shipCombo, 1, 2);
+        grid.add(new Label("Assign Registered Captain:"), 0, 3);
+        grid.add(captainCombo, 1, 3);
+        grid.add(new Label("Captain Account Details:"), 0, 4);
+        grid.add(captainDetailsLbl, 1, 4);
+
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == assignBtnType) {
+                int sIdx = shipCombo.getSelectionModel().getSelectedIndex();
+                int cIdx = captainCombo.getSelectionModel().getSelectedIndex();
+
+                if (sIdx >= 0 && sIdx < shipNames.size()) {
+                    String chosenShipName = shipNames.get(sIdx);
+                    String chosenShipId = shipIds.get(sIdx);
+                    String chosenShipImo = shipImos.get(sIdx);
+
+                    String chosenCapUid = (cIdx >= 0 && cIdx < capUids.size()) ? capUids.get(cIdx) : "";
+                    String chosenCapName = (cIdx >= 0 && cIdx < capNames.size()) ? capNames.get(cIdx) : "Ship Captain";
+                    String chosenCapEmail = (cIdx >= 0 && cIdx < capEmails.size()) ? capEmails.get(cIdx) : "";
+
+                    cargoDao.assignShipToCargo(cId, chosenShipId, chosenShipName, chosenShipImo,
+                            chosenCapUid, chosenCapName, chosenCapEmail, "Port Authority (" + activeViewingPort + ")");
+                    refreshCargoData();
+
+                    Alert success = new Alert(Alert.AlertType.INFORMATION);
+                    success.setTitle("Assignment Confirmed");
+                    success.setHeaderText("Ship & Captain Assigned Successfully");
+                    success.setContentText("Cargo " + cId + " has been assigned to vessel " + chosenShipName + ".\n"
+                            + "Assigned Captain: " + chosenCapName + " (" + chosenCapEmail + ")\n"
+                            + "Route: " + orig + " ➔ " + dest + "\n\n"
+                            + "The assigned Captain will now see this cargo and vessel directly upon logging into their dashboard.");
+                    success.showAndWait();
+                    return true;
+                }
+            }
+            return false;
+        });
+
+        dialog.showAndWait();
+    }
+
+    private void showAssignCustomsOfficerDialog(Map<String, Object> cargo) {
+        if (cargo == null) return;
+
+        Dialog<Boolean> dialog = new Dialog<>();
+        String cId = getString(cargo, "cargoId", "CGO");
+        String cName = getString(cargo, "cargoName", "Cargo");
+        String orig = getString(cargo, "originPort", "—");
+        String dest = getString(cargo, "destinationPort", "—");
+        String ship = getString(cargo, "assignedShip", getString(cargo, "shipName", "Not Assigned"));
+        String cap = getString(cargo, "assignedCaptainName", getString(cargo, "assignedCaptain", "Not Assigned"));
+
+        dialog.setTitle("Assign Customs Officer — " + cId);
+        dialog.setHeaderText("Assign an Existing Registered Customs Officer to Cargo: " + cId + " (" + cName + ")");
+
+        ButtonType assignBtnType = new ButtonType("Confirm Customs Assignment", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(assignBtnType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        grid.setPadding(new Insets(20));
+
+        Label idLbl = new Label(cId + " — " + cName);
+        idLbl.setStyle("-fx-font-weight:bold; -fx-text-fill:#0f172a; -fx-font-size:13px;");
+
+        Label routeLbl = new Label(orig + " ➔ " + dest);
+        routeLbl.setStyle("-fx-font-weight:bold; -fx-text-fill:#0284c7; -fx-font-size:13px;");
+
+        Label vesselLbl = new Label(ship + (!cap.isBlank() && !cap.equalsIgnoreCase("Not Assigned") ? " (Captain: " + cap + ")" : ""));
+        vesselLbl.setStyle("-fx-font-weight:bold; -fx-text-fill:#16a34a; -fx-font-size:13px;");
+
+        List<Map<String, Object>> eligibleOfficers = UserDao.getEligibleCustomsOfficersForRoute(orig, dest);
+        List<String> officerDisplayOptions = new ArrayList<>();
+        List<String> officerUids = new ArrayList<>();
+        List<String> officerNames = new ArrayList<>();
+        List<String> officerEmails = new ArrayList<>();
+
+        String curOfficerUid = getString(cargo, "assignedCustomsOfficerUid", "");
+        int preselectIdx = 0;
+
+        for (int i = 0; i < eligibleOfficers.size(); i++) {
+            Map<String, Object> off = eligibleOfficers.get(i);
+            String uId = off.get("uid") != null ? off.get("uid").toString() : "";
+            String personName = off.get("name") != null ? off.get("name").toString() : (off.get("fullName") != null ? off.get("fullName").toString() : "Customs Officer");
+            String uEmail = off.get("email") != null ? off.get("email").toString() : "";
+            String uPort = off.get("assignedPort") != null ? off.get("assignedPort").toString() : "All Ports";
+
+            officerDisplayOptions.add("🛃 " + personName + " (" + uEmail + ") • " + uPort);
+            officerUids.add(uId);
+            officerNames.add(personName);
+            officerEmails.add(uEmail);
+
+            if (!curOfficerUid.isEmpty() && curOfficerUid.equals(uId)) {
+                preselectIdx = i;
+            }
+        }
+
+        if (officerDisplayOptions.isEmpty()) {
+            officerDisplayOptions.add("🛃 Registered Customs Officer (customs@docktech.com)");
+            officerUids.add("OFF-001");
+            officerNames.add("Customs Officer");
+            officerEmails.add("customs@docktech.com");
+        }
+
+        ComboBox<String> officerCombo = new ComboBox<>();
+        officerCombo.setPrefWidth(440);
+        officerCombo.getItems().addAll(officerDisplayOptions);
+        officerCombo.getSelectionModel().select(preselectIdx);
+
+        Label officerDetailsLbl = new Label();
+        officerDetailsLbl.setStyle("-fx-text-fill:#7c3aed; -fx-font-size:12px; -fx-font-weight:bold;");
+
+        Runnable updateOfficerDetailText = () -> {
+            int idx = officerCombo.getSelectionModel().getSelectedIndex();
+            if (idx >= 0 && idx < officerUids.size()) {
+                String uId = officerUids.get(idx);
+                String uEmail = officerEmails.get(idx);
+                String uName = officerNames.get(idx);
+                officerDetailsLbl.setText("Selected Officer: " + uName + " | Email: " + uEmail + " | UID: " + (!uId.isEmpty() ? uId.substring(0, Math.min(10, uId.length())) + "..." : "N/A"));
+            }
+        };
+
+        officerCombo.setOnAction(e -> updateOfficerDetailText.run());
+        updateOfficerDetailText.run();
+
+        grid.add(new Label("Cargo Manifest:"), 0, 0);
+        grid.add(idLbl, 1, 0);
+        grid.add(new Label("Original Route:"), 0, 1);
+        grid.add(routeLbl, 1, 1);
+        grid.add(new Label("Assigned Vessel:"), 0, 2);
+        grid.add(vesselLbl, 1, 2);
+        grid.add(new Label("Select Customs Officer:"), 0, 3);
+        grid.add(officerCombo, 1, 3);
+        grid.add(new Label("Officer Account Details:"), 0, 4);
+        grid.add(officerDetailsLbl, 1, 4);
+
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == assignBtnType) {
+                int idx = officerCombo.getSelectionModel().getSelectedIndex();
+                if (idx >= 0 && idx < officerUids.size()) {
+                    String chosenUid = officerUids.get(idx);
+                    String chosenName = officerNames.get(idx);
+                    String chosenEmail = officerEmails.get(idx);
+
+                    cargoDao.assignCustomsOfficerToCargo(cId, chosenUid, chosenName, chosenEmail, "Port Authority (" + activeViewingPort + ")");
+                    refreshCargoData();
+
+                    Alert success = new Alert(Alert.AlertType.INFORMATION);
+                    success.setTitle("Customs Officer Assigned");
+                    success.setHeaderText("Cargo " + cId + " Assigned to Customs Officer Successfully");
+                    success.setContentText("Cargo " + cId + " has been assigned to Customs Officer " + chosenName + " (" + chosenEmail + ").\n"
+                            + "Route: " + orig + " ➔ " + dest + "\n"
+                            + "Assigned Vessel: " + ship + "\n\n"
+                            + "The assigned Customs Officer will now see this cargo on their dashboard for regulatory inspection and clearance.");
+                    success.showAndWait();
+                    return true;
+                }
+            }
+            return false;
+        });
+
         dialog.showAndWait();
     }
 
@@ -1221,7 +1670,7 @@ public class CargoManagementPage {
         grid.setPadding(new Insets(16));
 
         ComboBox<String> statusBox = new ComboBox<>();
-        statusBox.getItems().addAll("Pending", "Approved", "Received", "In Transit", "Loaded", "Dispatched", "Delivered", "Rejected");
+        statusBox.getItems().addAll("Pending", "Approved", "Ship Assigned", "Received", "In Transit", "Loaded", "Dispatched", "Delivered", "Rejected");
         statusBox.setValue(getString(c, "status", "Received"));
 
         grid.add(new Label("Cargo ID:"), 0, 0);
@@ -1237,10 +1686,7 @@ public class CargoManagementPage {
         saveBtn.setOnAction(event -> {
             String newSt = statusBox.getValue();
             c.put("status", newSt);
-            cargoDao.saveCargo(id, getString(c, "cargoName", "Cargo"), getString(c, "cargoType", "General Cargo"),
-                    getString(c, "quantity", "1"), getString(c, "weight", "0 kg"),
-                    getString(c, "originPort", "Port"), getString(c, "destinationPort", activeViewingPort), newSt);
-
+            cargoDao.updateCargoStatus(id, newSt);
             refreshCargoData();
         });
 

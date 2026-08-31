@@ -28,6 +28,8 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
@@ -956,9 +958,23 @@ public class DashBoard extends Application {
         liveNotificationList.clear();
 
         // 1. Fetch Assigned Duties from User Profile (Live Sync with Port Authority)
-        Map<String, Object> activeProfile = LoginPage.loggedInUser != null ? LoginPage.loggedInUser : userDao.getCachedUserProfile(officerUid, officerEmail);
-        if (activeProfile == null) activeProfile = new java.util.HashMap<>();
+        Map<String, Object> cachedProf = userDao.getCachedUserProfile(officerUid, officerEmail);
+        Map<String, Object> activeProfile = cachedProf != null ? cachedProf : (LoginPage.loggedInUser != null ? LoginPage.loggedInUser : new java.util.HashMap<>());
+        if (LoginPage.loggedInUser != null && cachedProf != null) {
+            LoginPage.loggedInUser.putAll(cachedProf);
+        }
         renderAssignedDutyContent(activeProfile);
+
+        if (!officerUid.isBlank() || !officerEmail.isBlank()) {
+            userDao.getUserProfile(officerUid, officerEmail).thenAccept(remoteProfile -> {
+                if (remoteProfile != null) {
+                    Platform.runLater(() -> {
+                        if (LoginPage.loggedInUser != null) LoginPage.loggedInUser.putAll(remoteProfile);
+                        renderAssignedDutyContent(remoteProfile);
+                    });
+                }
+            });
+        }
 
         String duty = activeProfile.get("duty") != null ? activeProfile.get("duty").toString() : "";
         String aStatus = activeProfile.get("assignmentStatus") != null ? activeProfile.get("assignmentStatus").toString() : "";
@@ -976,7 +992,7 @@ public class DashBoard extends Application {
 
         String normPort = UserDao.normalizePort(activeAssignedPort).toLowerCase();
 
-        List<Map<String, Object>> allCargos = cargoDao.getAllCargos();
+        List<Map<String, Object>> allCargos = cargoDao.getCargosForCustomsOfficer(officerUid, officerEmail, activeAssignedPort);
         if (allCargos != null) {
             for (Map<String, Object> c : allCargos) {
                 if (c == null) continue;
@@ -986,43 +1002,43 @@ public class DashBoard extends Application {
                 String originNorm = UserDao.normalizePort(origin).toLowerCase();
                 String destNorm = UserDao.normalizePort(dest).toLowerCase();
 
-                // Check port match
-                if (originNorm.contains(normPort) || destNorm.contains(normPort) || (origin.isBlank() && dest.isBlank())) {
-                    String id = c.get("cargoId") != null ? c.get("cargoId").toString() : "CGO-1000";
-                    String name = c.get("cargoName") != null ? c.get("cargoName").toString() : "General Cargo";
-                    String type = c.get("cargoType") != null ? c.get("cargoType").toString() : "Containerized";
-                    String status = c.get("status") != null ? c.get("status").toString() : "Pending";
+                String id = c.get("cargoId") != null ? c.get("cargoId").toString() : "CGO-1000";
+                String name = c.get("cargoName") != null ? c.get("cargoName").toString() : "General Cargo";
+                String type = c.get("cargoType") != null ? c.get("cargoType").toString() : "Containerized";
+                String status = c.get("status") != null ? c.get("status").toString() : "Pending";
+                String cClearance = c.get("customsClearanceStatus") != null ? c.get("customsClearanceStatus").toString() : (c.get("customsStatus") != null ? c.get("customsStatus").toString() : "Pending");
 
-                    String verifStatus = "Pending";
-                    String inspectStatus = "Pending";
+                String verifStatus = "Pending";
+                String inspectStatus = "Pending";
 
-                    if ("Cleared".equalsIgnoreCase(status) || "Approved".equalsIgnoreCase(status) || "Registered".equalsIgnoreCase(status)) {
-                        verifStatus = "Verified";
-                        inspectStatus = "Cleared";
-                        approvedCargoCount++;
-                        verifiedDocsCount++;
-                    } else if ("In Transit".equalsIgnoreCase(status) || "Under Inspection".equalsIgnoreCase(status)) {
-                        verifStatus = "Verified";
-                        inspectStatus = "Under Inspection";
-                        pendingCargoCount++;
-                    } else if ("Rejected".equalsIgnoreCase(status) || "Held".equalsIgnoreCase(status)) {
-                        verifStatus = "Flagged";
-                        inspectStatus = "Held";
-                        rejectedCargoCount++;
-                        liveNotificationList.add("Cargo Quarantined/Held: " + id + " (" + name + ")");
-                    } else {
-                        verifStatus = "Pending";
-                        inspectStatus = "Pending";
-                        pendingVerifCount++;
-                    }
-
-                    String vesselName = c.get("assignedShip") != null ? c.get("assignedShip").toString() : (c.get("vessel") != null ? c.get("vessel").toString() : ("MV " + activeAssignedPort.replace("Port of ", "").replace(" Port", "") + " Trader"));
-                    String company = c.get("company") != null ? c.get("company").toString() : "Maritime Logistics Ltd.";
-
-                    tableMasterList.add(new CustomsCargoItem(
-                            id, type + " (" + name + ")", vesselName, company, verifStatus, inspectStatus, "Today, " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
-                    ));
+                if ("Cleared".equalsIgnoreCase(cClearance) || "Cleared".equalsIgnoreCase(status) || "Approved".equalsIgnoreCase(status) || "Customs Cleared".equalsIgnoreCase(status)) {
+                    verifStatus = "Verified";
+                    inspectStatus = "Cleared";
+                    approvedCargoCount++;
+                    verifiedDocsCount++;
+                } else if ("In Transit".equalsIgnoreCase(status) || "Under Inspection".equalsIgnoreCase(status) || "Under Inspection".equalsIgnoreCase(cClearance)) {
+                    verifStatus = "Verified";
+                    inspectStatus = "Under Inspection";
+                    pendingCargoCount++;
+                } else if ("Rejected".equalsIgnoreCase(status) || "Held".equalsIgnoreCase(status) || "Held".equalsIgnoreCase(cClearance) || "Customs Held".equalsIgnoreCase(status)) {
+                    verifStatus = "Flagged";
+                    inspectStatus = "Held";
+                    rejectedCargoCount++;
+                    liveNotificationList.add("Cargo Quarantined/Held: " + id + " (" + name + ")");
+                } else {
+                    verifStatus = "Pending";
+                    inspectStatus = "Pending";
+                    pendingVerifCount++;
                 }
+
+                String vesselName = c.get("assignedShip") != null ? c.get("assignedShip").toString() : (c.get("vessel") != null ? c.get("vessel").toString() : (c.get("shipName") != null ? c.get("shipName").toString() : "Not Assigned"));
+                String capName = c.get("assignedCaptainName") != null ? c.get("assignedCaptainName").toString() : (c.get("assignedCaptain") != null ? c.get("assignedCaptain").toString() : "");
+                String shipDisplay = vesselName + (!capName.isBlank() && !capName.equalsIgnoreCase("Ship Captain") ? (" (Cap: " + capName + ")") : "");
+                String company = c.get("company") != null ? c.get("company").toString() : (c.get("exporter") != null ? c.get("exporter").toString() : "—");
+
+                tableMasterList.add(new CustomsCargoItem(
+                        id, type + " (" + name + ") • " + origin + " ➔ " + dest, shipDisplay, company, verifStatus, inspectStatus, "Today, " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
+                ));
             }
         }
 
@@ -1142,9 +1158,19 @@ public class DashBoard extends Application {
                 dao.markAsRead(n.getId());
             }
         }
-        updateNotificationBadge();
+        ButtonType verifyBtn = new ButtonType("Open Document Verification", ButtonBar.ButtonData.OK_DONE);
+        ButtonType inspectBtn = new ButtonType("Open Cargo Inspection", ButtonBar.ButtonData.OTHER);
+        ButtonType closeBtn = new ButtonType("Close", ButtonBar.ButtonData.CANCEL_CLOSE);
+        alert.getButtonTypes().setAll(verifyBtn, inspectBtn, closeBtn);
 
-        alert.showAndWait();
+        java.util.Optional<ButtonType> res = alert.showAndWait();
+        if (res.isPresent()) {
+            if (res.get() == verifyBtn) {
+                navigateTo("Document Verification", new DocumentVerification().getContent(), "Dock Tech / Custom Officer / Document Verification");
+            } else if (res.get() == inspectBtn) {
+                navigateTo("Cargo Inspection", new CargoInspection().getContent(), "Dock Tech / Custom Officer / Cargo Inspection");
+            }
+        }
     }
 
     private void startAutoSyncTimeline() {
@@ -1183,16 +1209,11 @@ public class DashBoard extends Application {
     }
 
     private void updateCargoClearance(String cargoId, String newInspectionStatus, String newVerifStatus) {
-        cargoDao.saveCargo(cargoId, null, null, null, null, activeAssignedPort, null, newInspectionStatus);
-
-        for (CustomsCargoItem item : tableMasterList) {
-            if (item.cargoId.equalsIgnoreCase(cargoId)) {
-                item.inspectionStatus = newInspectionStatus;
-                item.verificationStatus = newVerifStatus;
-                item.lastUpdated = "Just now";
-                break;
-            }
+        cargoDao.updateInspectionStatus(cargoId, newInspectionStatus, officerName, "Updated from Customs Dashboard", null);
+        if ("Cleared".equalsIgnoreCase(newInspectionStatus) || "Passed".equalsIgnoreCase(newInspectionStatus) || "Approved".equalsIgnoreCase(newInspectionStatus)) {
+            cargoDao.updateCustomsClearance(cargoId, "Cleared", officerName, "Cleared from Customs Dashboard");
         }
+
         refreshDashboardData();
 
         Alert alert = new Alert(Alert.AlertType.INFORMATION);

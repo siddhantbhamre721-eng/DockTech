@@ -87,13 +87,9 @@ public class UserManagementPage extends AdminTheme {
 
                             if (key.isBlank() || seenKeys.contains(key)) continue;
 
-                            if (email.equalsIgnoreCase("pravin@gmail.com") || email.equalsIgnoreCase("goa@gmail.com")) {
-                                continue;
-                            }
-
-                            String role = u.get("role") != null ? u.get("role").toString() : "Port Authority";
+                            String role = u.get("role") != null ? u.get("role").toString() : "Exporter";
                             if ("Admin".equalsIgnoreCase(role) && !email.equalsIgnoreCase("babu@gmail.com") && !email.contains("admin")) {
-                                continue;
+                                role = "Exporter";
                             }
 
                             seenKeys.add(key);
@@ -117,13 +113,13 @@ public class UserManagementPage extends AdminTheme {
                         }
                     }
                     if (!hasBabu) {
-                        users.add(0, new AdminDataStore.UserAccount("usr_" + Math.abs("babu@gmail.com".hashCode()), "Babu", "babu@gmail.com", "Admin", "Active", "01 Jan 2026, 09:00", "Just now"));
+                        users.add(0, new AdminDataStore.UserAccount(com.projectui.dao.UserDao.BABU_UID, "Babu", "babu@gmail.com", "Admin", "Active", "01 Jan 2026, 09:00", "Just now"));
                     }
 
                     refreshTable();
                     refreshStats();
                     if (toastMessage != null) {
-                        showToast("Live directory loaded (" + users.size() + " accounts from Firebase Auth).", true);
+                        showToast("Enterprise access directory loaded (" + users.size() + " accounts).", true);
                     }
                 });
             } catch (Exception ex) {

@@ -40,13 +40,33 @@ public class AdminDataStore {
         } catch (Exception ignored) {}
     }
 
-    private static void saveDeletedPort(String portName, String portCode) {
+    public static void saveDeletedPort(String portName, String portCode) {
         if (deletedPortKeys == null) return;
         if (portName != null && !portName.isBlank()) {
             deletedPortKeys.add(portName.trim().toLowerCase());
         }
         if (portCode != null && !portCode.isBlank()) {
             deletedPortKeys.add(portCode.trim().toLowerCase());
+        }
+        try {
+            java.util.Properties props = new java.util.Properties();
+            for (String key : deletedPortKeys) {
+                props.setProperty(key, "DELETED");
+            }
+            java.io.File file = new java.io.File(PERSIST_DELETED_PORTS);
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                props.store(out, "DockTech Deleted Ports");
+            }
+        } catch (Exception ignored) {}
+    }
+
+    public static void clearDeletedPort(String portName, String portCode) {
+        if (deletedPortKeys == null) return;
+        if (portName != null && !portName.isBlank()) {
+            deletedPortKeys.remove(portName.trim().toLowerCase());
+        }
+        if (portCode != null && !portCode.isBlank()) {
+            deletedPortKeys.remove(portCode.trim().toLowerCase());
         }
         try {
             java.util.Properties props = new java.util.Properties();
@@ -112,26 +132,14 @@ public class AdminDataStore {
                     "Cochin Port Authority", 16, 10, "Operational", "Crude oil, containers, spices", "78%",
                     "Clear", now(), 9.9600, 76.2600, "APPROVED"));
         }
+        if (!isPortDeleted("Puri Port", "IN-PURI-01")) {
+            ports.add(new Port("Puri Port", "Puri, Odisha", "IN-PURI-01",
+                    "Puri Port Authority", 15, 10, "Operational", "Bulk cargo, containers", "85%",
+                    "Clear", now(), 19.8135, 85.8312, "APPROVED"));
+        }
 
-        users.add(new UserAccount("usr_admin_babu", "Babu", "babu@gmail.com", "Admin",
+        users.add(new UserAccount("yaU5iKXkN5aAhm6YNmTH5P0bZkv1", "Babu", "babu@gmail.com", "Admin",
                 "Active", "01 Jan 2026, 09:00", "Just now"));
-        users.add(new UserAccount("pa_mum_01", "Mumbai Port Authority", "pa_mumbai@docktech.com", "Port Authority",
-                "Active", "01 Jan 2026, 09:00", "Just now"));
-        users.add(new UserAccount("pa_maa_01", "Chennai Port Authority", "pa_chennai@docktech.com", "Port Authority",
-                "Active", "01 Jan 2026, 09:00", "Just now"));
-        users.add(new UserAccount("pa_vtz_01", "Visakhapatnam Port Authority", "pa_vizag@docktech.com",
-                "Port Authority", "Active", "01 Jan 2026, 09:00", "Just now"));
-        users.add(new UserAccount("pa_ccu_01", "Kolkata Port Authority", "pa_kolkata@docktech.com", "Port Authority",
-                "Active", "01 Jan 2026, 09:00", "Just now"));
-        users.add(new UserAccount("pa_cok_01", "Cochin Port Authority", "pa_cochin@docktech.com", "Port Authority",
-                "Active", "01 Jan 2026, 09:00", "Just now"));
-
-        portRequests.add(new PortRequest(
-                "NPR-101", "Port of Hazira", "IN-HAZ-01", "Hazira, Gujarat", "Hazira Port Complex, Surat",
-                "Industrial container & liquid cargo terminal",
-                "Vikram Shah", "vikram@haziraport.com", "+91 98765 11223",
-                "Rajesh Varma", "pa_hazira@docktech.com", "PENDING", "15 Aug 2026", 21.1122, 72.6411));
-
         generateReports("Today", "All Status");
     }
 
@@ -187,13 +195,22 @@ public class AdminDataStore {
     }
 
     public Port getPortByName(String name) {
-        if (name == null || name.isBlank()) return null;
-        String target = name.trim().toLowerCase();
+        return getPortByIdOrName(name);
+    }
+
+    public Port getPortByIdOrName(String identifier) {
+        if (identifier == null || identifier.isBlank()) return null;
+        String target = identifier.trim().toLowerCase();
+
+        // 1. Direct match on code or name in active ports
         for (Port p : ports) {
-            if (p != null && p.name != null && p.name.trim().equalsIgnoreCase(target)) {
-                return p;
+            if (p != null) {
+                if (p.code != null && p.code.trim().equalsIgnoreCase(target)) return p;
+                if (p.name != null && p.name.trim().equalsIgnoreCase(target)) return p;
             }
         }
+
+        // 2. Partial match in active ports
         for (Port p : ports) {
             if (p != null && p.name != null) {
                 String pLower = p.name.toLowerCase();
@@ -202,25 +219,165 @@ public class AdminDataStore {
                 }
             }
         }
+
+        // 3. Fallback to approved Port Requests (restoring if missing and not deleted)
+        for (PortRequest req : portRequests) {
+            if (req != null && "APPROVED".equalsIgnoreCase(req.status) && !isPortDeleted(req.portName, req.portCode)) {
+                boolean match = (req.portCode != null && req.portCode.trim().equalsIgnoreCase(target))
+                        || (req.portName != null && req.portName.trim().equalsIgnoreCase(target))
+                        || (req.requestId != null && req.requestId.trim().equalsIgnoreCase(target));
+                if (!match && req.portName != null) {
+                    String reqLower = req.portName.toLowerCase();
+                    if (reqLower.contains(target) || target.contains(reqLower)) match = true;
+                }
+
+                if (match) {
+                    Port restored = new Port(req.portName, req.location, req.portCode, req.proposedPaName, 12, 0,
+                            "Operational", "Mixed Cargo, Containers", "100%", "Clear", now(), req.lat, req.lng, "APPROVED");
+                    ports.add(restored);
+                    return restored;
+                }
+            }
+        }
+
+        if (!isPortDeleted(identifier, null)) {
+            if (target.contains("puri")) {
+                Port restored = new Port("Puri Port", "Puri, Odisha", "IN-PURI-01", "Puri Port Authority", 15, 10,
+                        "Operational", "Bulk cargo, containers", "85%", "Clear", now(), 19.8135, 85.8312, "APPROVED");
+                ports.add(restored);
+                return restored;
+            }
+        }
+
         return null;
     }
 
     public boolean deletePort(Port port) {
         if (port == null) return false;
-        saveDeletedPort(port.name, port.code);
-        ports.remove(port);
-        ports.removeIf(p -> (p.name != null && p.name.equalsIgnoreCase(port.name)) || (p.code != null && p.code.equalsIgnoreCase(port.code)));
-        
+
+        // 1. Delete from Firestore database if connected
         try {
             com.google.cloud.firestore.Firestore db = com.projectui.config.FirebaseConfig.getFirestore();
             if (db != null) {
-                String docId = port.code != null ? port.code : (port.name != null ? port.name.replaceAll("[^A-Za-z0-9]", "_") : "unknown");
-                if (docId != null) {
-                    db.collection("registered_ports").document(docId).delete();
+                // Delete from registered_ports collection
+                if (port.code != null && !port.code.isBlank()) {
+                    try {
+                        db.collection("registered_ports").document(port.code.trim()).delete().get(5, java.util.concurrent.TimeUnit.SECONDS);
+                    } catch (Exception ignored) {}
+                }
+                if (port.name != null && !port.name.isBlank()) {
+                    String docId = port.name.replaceAll("[^A-Za-z0-9]", "_");
+                    try {
+                        db.collection("registered_ports").document(docId).delete().get(5, java.util.concurrent.TimeUnit.SECONDS);
+                    } catch (Exception ignored) {}
+                }
+                try {
+                    com.google.cloud.firestore.QuerySnapshot regSnap = db.collection("registered_ports").get().get(5, java.util.concurrent.TimeUnit.SECONDS);
+                    if (regSnap != null) {
+                        for (com.google.cloud.firestore.DocumentSnapshot doc : regSnap.getDocuments()) {
+                            String c = doc.getString("code");
+                            if (c == null) c = doc.getString("portCode");
+                            String n = doc.getString("name");
+                            if (n == null) n = doc.getString("portName");
+                            boolean match = (port.code != null && !port.code.isBlank() && port.code.equalsIgnoreCase(c))
+                                    || (port.name != null && !port.name.isBlank() && port.name.equalsIgnoreCase(n));
+                            if (match) {
+                                doc.getReference().delete().get(5, java.util.concurrent.TimeUnit.SECONDS);
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+
+                // Delete matching port_requests collection records
+                try {
+                    com.google.cloud.firestore.QuerySnapshot reqSnap = db.collection("port_requests").get().get(5, java.util.concurrent.TimeUnit.SECONDS);
+                    if (reqSnap != null) {
+                        for (com.google.cloud.firestore.DocumentSnapshot doc : reqSnap.getDocuments()) {
+                            String c = doc.getString("portCode");
+                            String n = doc.getString("portName");
+                            boolean match = (port.code != null && !port.code.isBlank() && port.code.equalsIgnoreCase(c))
+                                    || (port.name != null && !port.name.isBlank() && port.name.equalsIgnoreCase(n));
+                            if (match) {
+                                doc.getReference().delete().get(5, java.util.concurrent.TimeUnit.SECONDS);
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+
+                // Delete specifically associated ship records from Ships collection
+                try {
+                    com.google.cloud.firestore.QuerySnapshot shipSnap = db.collection("Ships").get().get(5, java.util.concurrent.TimeUnit.SECONDS);
+                    if (shipSnap != null) {
+                        for (com.google.cloud.firestore.DocumentSnapshot doc : shipSnap.getDocuments()) {
+                            String company = doc.getString("company");
+                            String arrival = doc.getString("arrival");
+                            String departure = doc.getString("departure");
+                            boolean match = (port.name != null && !port.name.isBlank() && (port.name.equalsIgnoreCase(company) || port.name.equalsIgnoreCase(arrival) || port.name.equalsIgnoreCase(departure)))
+                                    || (port.code != null && !port.code.isBlank() && (port.code.equalsIgnoreCase(company) || port.code.equalsIgnoreCase(arrival) || port.code.equalsIgnoreCase(departure)));
+                            if (match) {
+                                doc.getReference().delete().get(5, java.util.concurrent.TimeUnit.SECONDS);
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        } catch (Exception ex) {
+            System.err.println("Database deletion error for port " + port.name + ": " + ex.getMessage());
+            throw new RuntimeException("Database deletion failed: " + ex.getMessage(), ex);
+        }
+
+        // 2. Persist deletion in local properties
+        saveDeletedPort(port.name, port.code);
+
+        // 3. Remove port from memory list
+        ports.remove(port);
+        ports.removeIf(p -> (p.name != null && p.name.equalsIgnoreCase(port.name)) || (p.code != null && p.code.equalsIgnoreCase(port.code)));
+
+        // 4. Remove port requests from memory & DAO
+        portRequests.removeIf(req -> (req.portName != null && req.portName.equalsIgnoreCase(port.name))
+                || (req.portCode != null && req.portCode.equalsIgnoreCase(port.code)));
+        try {
+            new com.projectui.dao.PortRequestDao().deletePortRequestsForPort(port.name, port.code);
+        } catch (Exception ignored) {}
+
+        // 5. Clean up associated payments, cargos, and container bookings
+        try {
+            new com.projectui.dao.PaymentDao().deletePaymentsForPort(port.name, port.code);
+            com.projectui.view.portauthority.PaymentPage.clearPortPayments(port.name, port.code);
+        } catch (Exception ignored) {}
+
+        try {
+            new com.projectui.dao.CargoDao().deleteCargosForPort(port.name, port.code);
+        } catch (Exception ignored) {}
+
+        try {
+            new com.projectui.dao.ContainerDao().deleteBookingsForPort(port.name, port.code);
+        } catch (Exception ignored) {}
+
+        // 6. Revoke associated Port Authority access without deleting unrelated users
+        com.projectui.dao.UserDao.deactivatePortAuthorityForPort(port.name, port.code);
+
+        // 7. Remove specifically associated vessels from VesselManager
+        try {
+            java.util.Collection<com.projectui.service.VesselData> allVessels = com.projectui.service.VesselManager.getInstance().getAllVessels();
+            if (allVessels != null) {
+                java.util.List<Long> toRemove = new java.util.ArrayList<>();
+                for (com.projectui.service.VesselData v : allVessels) {
+                    if (v != null) {
+                        boolean match = (port.name != null && !port.name.isBlank() && (port.name.equalsIgnoreCase(v.destination) || (v.name != null && v.name.equalsIgnoreCase(port.name))))
+                                || (port.code != null && !port.code.isBlank() && port.code.equalsIgnoreCase(v.destination));
+                        if (match) {
+                            toRemove.add(v.mmsi);
+                        }
+                    }
+                }
+                for (Long mmsi : toRemove) {
+                    com.projectui.service.VesselManager.getInstance().removeVessel(mmsi);
                 }
             }
         } catch (Exception ignored) {}
 
+        // 8. Refresh all map instances
         com.projectui.view.admin.GeoTileMapCanvas.refreshAllMapInstances();
         return true;
     }
@@ -228,13 +385,34 @@ public class AdminDataStore {
     public boolean deletePortByName(String name) {
         if (name == null || name.isBlank()) return false;
         saveDeletedPort(name, null);
-        ports.removeIf(p -> p.name != null && p.name.equalsIgnoreCase(name.trim()));
-        
+        Port p = getPortByName(name);
+        if (p != null) {
+            return deletePort(p);
+        }
+        ports.removeIf(prt -> prt.name != null && prt.name.equalsIgnoreCase(name.trim()));
+
+        try {
+            new com.projectui.dao.PaymentDao().deletePaymentsForPort(name, null);
+            com.projectui.view.portauthority.PaymentPage.clearPortPayments(name, null);
+        } catch (Exception ignored) {}
+
+        try {
+            new com.projectui.dao.CargoDao().deleteCargosForPort(name, null);
+        } catch (Exception ignored) {}
+
+        try {
+            new com.projectui.dao.ContainerDao().deleteBookingsForPort(name, null);
+        } catch (Exception ignored) {}
+
+        try {
+            new com.projectui.dao.PortRequestDao().deletePortRequestsForPort(name, null);
+        } catch (Exception ignored) {}
+
         try {
             com.google.cloud.firestore.Firestore db = com.projectui.config.FirebaseConfig.getFirestore();
             if (db != null) {
                 String docId = name.replaceAll("[^A-Za-z0-9]", "_");
-                db.collection("registered_ports").document(docId).delete();
+                db.collection("registered_ports").document(docId).delete().get(5, java.util.concurrent.TimeUnit.SECONDS);
             }
         } catch (Exception ignored) {}
 
@@ -315,31 +493,18 @@ public class AdminDataStore {
     public int pendingPortRequestsCount() {
         int count = 0;
         for (PortRequest req : portRequests) {
-            if ("PENDING".equalsIgnoreCase(req.status))
-                count++;
+            if (req != null && req.status != null && "PENDING".equalsIgnoreCase(req.status.trim())) {
+                if (!"APPROVED".equalsIgnoreCase(req.status) && !"REJECTED".equalsIgnoreCase(req.status)
+                        && !"COMPLETED".equalsIgnoreCase(req.status) && !"CANCELLED".equalsIgnoreCase(req.status)) {
+                    count++;
+                }
+            }
         }
         return count;
     }
 
     public int pendingInspectionsCount() {
-        int count = 0;
-        try {
-            com.projectui.dao.CargoDao cargoDao = new com.projectui.dao.CargoDao();
-            List<java.util.Map<String, Object>> cargos = cargoDao.getAllCargos();
-            if (cargos != null) {
-                for (java.util.Map<String, Object> c : cargos) {
-                    if (c == null) continue;
-                    String inspectStatus = c.get("inspectionStatus") != null ? String.valueOf(c.get("inspectionStatus")).trim() : "";
-                    String status = c.get("status") != null ? String.valueOf(c.get("status")).trim() : "";
-                    if ("Pending".equalsIgnoreCase(inspectStatus) || "Under Inspection".equalsIgnoreCase(inspectStatus)
-                            || "Pending Inspection".equalsIgnoreCase(inspectStatus)
-                            || "Under Inspection".equalsIgnoreCase(status) || "Pending Inspection".equalsIgnoreCase(status)) {
-                        count++;
-                    }
-                }
-            }
-        } catch (Exception ignored) {}
-        return count;
+        return pendingPortRequestsCount();
     }
 
     public int[] weeklyOperations() {

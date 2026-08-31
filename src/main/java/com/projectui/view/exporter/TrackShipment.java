@@ -69,7 +69,7 @@ public class TrackShipment {
         subtitle.setStyle("-fx-font-size: 14px; -fx-fill: " + TEXT_MUTED + ";");
         headerBanner.getChildren().addAll(title, subtitle);
 
-        List<Map<String, Object>> allCargos = cargoDao.getAllCargos();
+        List<Map<String, Object>> allCargos = cargoDao.getShipmentsForExporter(com.projectui.view.login.LoginPage.loggedInUser);
 
         if (allCargos == null || allCargos.isEmpty()) {
             // Empty State

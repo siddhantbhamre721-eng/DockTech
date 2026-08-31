@@ -102,7 +102,7 @@ public class MakePayment {
         summaryHeader.getChildren().addAll(summaryTitle, summarySub);
 
         // Dynamic Cargo Data
-        List<Map<String, Object>> cargos = cargoDao.getAllCargos();
+        List<Map<String, Object>> cargos = cargoDao.getShipmentsForExporter(com.projectui.view.login.LoginPage.loggedInUser);
         ComboBox<String> cargoSelect = new ComboBox<>();
         cargoSelect.setMaxWidth(Double.MAX_VALUE);
         cargoSelect.setPrefHeight(38);
@@ -329,9 +329,19 @@ public class MakePayment {
             try {
                 com.projectui.util.JavaFXModuleHelper.allowJavaFXWebAccess();
                 String sel = cargoSelect.getValue();
-                String cId = "CGO-1024";
-                if (sel != null && !sel.startsWith("No Registered")) {
+                String cId = "";
+                if (sel != null && !sel.startsWith("No Registered") && !sel.startsWith("No Cargos") && sel.contains(" — ")) {
                     cId = sel.split(" — ")[0].trim();
+                } else if (sel != null && !sel.startsWith("No Registered") && !sel.startsWith("No Cargos")) {
+                    cId = sel.trim();
+                }
+                if (cId.isBlank()) {
+                    Alert noSelAlert = new Alert(Alert.AlertType.WARNING);
+                    noSelAlert.setTitle("Select Cargo");
+                    noSelAlert.setHeaderText("No Cargo Selected");
+                    noSelAlert.setContentText("Please select a valid registered cargo consignment to proceed with payment.");
+                    noSelAlert.show();
+                    return;
                 }
                 Map<String, Object> c = cargoDao.getCargo(cId);
                 String cName = c != null && c.get("cargoName") != null ? c.get("cargoName").toString() : "Cargo";
