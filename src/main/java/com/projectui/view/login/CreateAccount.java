@@ -43,12 +43,12 @@ public class CreateAccount {
 
         VBox container = new VBox();
         container.setAlignment(Pos.CENTER);
-        container.setPadding(new Insets(40));
+        container.setPadding(new Insets(12));
         container.setMaxWidth(540);
 
-        VBox card = new VBox(16);
+        VBox card = new VBox(7);
         card.setMaxWidth(520);
-        card.setPadding(new Insets(32));
+        card.setPadding(new Insets(16));
         card.setStyle(LoginPage.cardStyle());
 
         Button back = createLink("←  Back to Login");
@@ -57,13 +57,13 @@ public class CreateAccount {
         // Form Mode Selector (User Registration vs Request New Port)
         HBox modeSelector = new HBox(8);
         modeSelector.setAlignment(Pos.CENTER);
-        modeSelector.setPadding(new Insets(0, 0, 8, 0));
+        modeSelector.setPadding(new Insets(0));
 
         Button modeUserBtn = new Button("👤 User Account");
         Button modePortBtn = new Button("⚓ Request New Port");
 
-        String activeStyle = "-fx-background-color: #0F66D0; -fx-text-fill: white; -fx-font-size: 12px; -fx-font-weight: bold; -fx-padding: 8px 16px; -fx-background-radius: 20px; -fx-cursor: hand;";
-        String inactiveStyle = "-fx-background-color: rgba(255,255,255,0.08); -fx-text-fill: #C7DDF0; -fx-font-size: 12px; -fx-font-weight: bold; -fx-padding: 8px 16px; -fx-background-radius: 20px; -fx-cursor: hand;";
+        String activeStyle = "-fx-background-color: #0F66D0; -fx-text-fill: white; -fx-font-size: 12px; -fx-font-weight: bold; -fx-padding: 6px 12px; -fx-background-radius: 20px; -fx-cursor: hand;";
+        String inactiveStyle = "-fx-background-color: rgba(255,255,255,0.08); -fx-text-fill: #C7DDF0; -fx-font-size: 12px; -fx-font-weight: bold; -fx-padding: 6px 12px; -fx-background-radius: 20px; -fx-cursor: hand;";
 
         modeUserBtn.setStyle(activeStyle);
         modePortBtn.setStyle(inactiveStyle);
@@ -73,7 +73,7 @@ public class CreateAccount {
         Label title = new Label("Create Account");
         title.setStyle(
                 "-fx-text-fill:white;" +
-                        "-fx-font-size:32px;" +
+                        "-fx-font-size:28px;" +
                         "-fx-font-weight:700;");
 
         Label description = new Label(
@@ -83,7 +83,7 @@ public class CreateAccount {
         description.setStyle(
                 "-fx-text-fill:#C7DDF0;" +
                         "-fx-font-size:13px;" +
-                        "-fx-line-spacing:3px;");
+                        "-fx-line-spacing:2px;");
 
         // Standard User Account Fields
         TextField fullName = createTextField("Full Name");
@@ -95,6 +95,14 @@ public class CreateAccount {
 
         LoginPage.PasswordControl password = new LoginPage.PasswordControl("Create password");
         LoginPage.PasswordControl confirm = new LoginPage.PasswordControl("Confirm password");
+        password.root.setPrefHeight(34);
+        confirm.root.setPrefHeight(34);
+        password.root.getChildren().stream()
+                .filter(node -> node instanceof javafx.scene.control.TextInputControl)
+                .forEach(node -> node.setStyle(LoginPage.fieldStyle() + "-fx-padding:7px 64px 7px 10px;"));
+        confirm.root.getChildren().stream()
+                .filter(node -> node instanceof javafx.scene.control.TextInputControl)
+                .forEach(node -> node.setStyle(LoginPage.fieldStyle() + "-fx-padding:7px 64px 7px 10px;"));
         CheckBox terms = new CheckBox("I agree to the Terms of Service and Privacy Policy");
         terms.setWrapText(true);
         terms.setStyle("-fx-text-fill:#C8D9EA; -fx-font-size:13px; -fx-font-weight:bold;");
@@ -110,7 +118,7 @@ public class CreateAccount {
         TextField reqPaName = createTextField("Proposed Port Authority Name");
         TextField reqPaEmail = createTextField("Proposed Port Authority Email");
 
-        VBox userFormBox = new VBox(12,
+        VBox userFormBox = new VBox(4,
                 createLabeledField("Full Name", fullName),
                 createLabeledField("Email", email),
                 createLabeledField("Company Name", company),
@@ -121,7 +129,7 @@ public class CreateAccount {
                 terms
         );
 
-        VBox portFormBox = new VBox(12,
+        VBox portFormBox = new VBox(4,
                 createLabeledField("Port Name *", reqPortName),
                 createLabeledField("Port Code", reqPortCode),
                 createLabeledField("Location *", reqLocation),
@@ -389,8 +397,8 @@ public class CreateAccount {
         new com.projectui.dao.PortRequestDao().savePortRequestFull(
                 reqId, portName, code, location, address, "New Port Proposal",
                 name, email, phone, paName, paEmail, "Aadhaar_Card.pdf, Port_Establishment_Proposal.pdf",
-                "Aadhaar_Card.pdf", "https://res.cloudinary.com/docktech/image/upload/docktech_port_documents/Aadhaar_Card.pdf", "doc_aadhaar_" + System.currentTimeMillis(), "pdf", "pdf", "",
-                "Port_Establishment_Proposal.pdf", "https://res.cloudinary.com/docktech/image/upload/docktech_port_documents/Port_Establishment_Proposal.pdf", "doc_proposal_" + System.currentTimeMillis(), "pdf", "pdf", ""
+                "Aadhaar_Card.pdf", "https://res.cloudinary.com/" + com.projectui.service.CloudinaryService.CLOUD_NAME + "/raw/upload/docktech_port_documents/Aadhaar_Card.pdf", "doc_aadhaar_" + System.currentTimeMillis(), "raw", "pdf", "",
+                "Port_Establishment_Proposal.pdf", "https://res.cloudinary.com/" + com.projectui.service.CloudinaryService.CLOUD_NAME + "/raw/upload/docktech_port_documents/Port_Establishment_Proposal.pdf", "doc_proposal_" + System.currentTimeMillis(), "raw", "pdf", ""
         );
 
         message.setStyle("-fx-text-fill:#76E6B1; -fx-font-size:12px; -fx-font-weight:bold;");
@@ -486,7 +494,7 @@ public class CreateAccount {
 
         title.setStyle(
                 "-fx-text-fill:white;" +
-                        "-fx-font-size:42px;" +
+                        "-fx-font-size:36px;" +
                         "-fx-font-weight:bold;" +
                         "-fx-line-spacing:2px;");
 
@@ -545,8 +553,9 @@ public class CreateAccount {
                 left,
                 right);
 
-        root.getChildren().add(
-                mainLayout);
+        mainLayout.setFillHeight(true);
+        root.setAlignment(Pos.CENTER);
+        root.getChildren().add(mainLayout);
 
         return root;
     }
@@ -562,6 +571,7 @@ public class CreateAccount {
         TextField field = new TextField();
 
         field.setPromptText(prompt);
+        field.setPrefHeight(34);
 
         field.setMaxWidth(
                 Double.MAX_VALUE);
@@ -586,7 +596,7 @@ public class CreateAccount {
         role.setMaxWidth(
                 Double.MAX_VALUE);
 
-        role.setPrefHeight(44);
+        role.setPrefHeight(34);
 
         role.setStyle(
                 LoginPage.fieldStyle() +
@@ -648,7 +658,7 @@ public class CreateAccount {
                         "-fx-font-weight:bold;");
 
         return new VBox(
-                6,
+                2,
                 label,
                 field);
     }
@@ -669,7 +679,7 @@ public class CreateAccount {
                         "-fx-text-fill:white;" +
                         "-fx-font-size:15px;" +
                         "-fx-font-weight:700;" +
-                        "-fx-padding:14px 22px;" +
+                        "-fx-padding:8px 18px;" +
                         "-fx-background-radius:12px;" +
                         "-fx-cursor:hand;" +
                         "-fx-effect:dropshadow(" +

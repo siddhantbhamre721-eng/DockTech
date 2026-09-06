@@ -151,6 +151,42 @@ public class NotificationDao extends Dao {
         }
     }
 
+    public void deleteForCargo(String cargoId) {
+        if (cargoId == null || cargoId.isBlank()) return;
+        List<String> ids = new ArrayList<>();
+        for (Map.Entry<String, Notification> entry : localNotificationCache.entrySet()) {
+            Notification notification = entry.getValue();
+            if (notification != null && (cargoId.equalsIgnoreCase(notification.getVesselId())
+                    || containsCargoId(notification.getMessage(), cargoId)
+                    || containsCargoId(notification.getTitle(), cargoId))) {
+                ids.add(entry.getKey());
+            }
+        }
+        try {
+            Firestore db = getDb();
+            if (db != null) {
+                QuerySnapshot snapshot = db.collection("notifications").get().get();
+                for (DocumentSnapshot doc : snapshot.getDocuments()) {
+                    Map<String, Object> data = doc.getData();
+                    Notification notification = doc.toObject(Notification.class);
+                    if ((data != null && (cargoId.equalsIgnoreCase(String.valueOf(data.get("cargoId")))
+                            || cargoId.equalsIgnoreCase(String.valueOf(data.get("requestId")))))
+                            || (notification != null && (cargoId.equalsIgnoreCase(notification.getVesselId())
+                            || containsCargoId(notification.getMessage(), cargoId)
+                            || containsCargoId(notification.getTitle(), cargoId)))) {
+                        ids.add(doc.getId());
+                    }
+                }
+                for (String id : ids) db.collection("notifications").document(id).delete();
+            }
+        } catch (Exception ignored) {}
+        for (String id : ids) localNotificationCache.remove(id);
+    }
+
+    private static boolean containsCargoId(String text, String cargoId) {
+        return text != null && text.contains(cargoId);
+    }
+
     /**
      * Mark customs duty assignment notifications as completed/read.
      */

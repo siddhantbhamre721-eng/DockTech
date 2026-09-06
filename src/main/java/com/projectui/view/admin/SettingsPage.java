@@ -84,7 +84,7 @@ public class SettingsPage extends AdminTheme {
         // 3. Row 1: Admin Profile, Change Password, Notification Preferences
         HBox row1 = createRow1();
 
-        // 4. Row 2: Account Settings, Active Sessions, Quick Account Actions
+        // 4. Row 2: Active Sessions, Quick Account Actions
         HBox row2 = createRow2();
 
         page.getChildren().addAll(
@@ -203,8 +203,8 @@ public class SettingsPage extends AdminTheme {
         subtitle.setStyle("-fx-text-fill:#64748b; -fx-font-size:13;");
         VBox titleBox = new VBox(2, title, subtitle);
 
-        String currentAdmin = store.adminName == null || store.adminName.isBlank() ? "Aarav Mehta" : store.adminName;
-        String currentEmail = store.adminEmail == null ? "" : store.adminEmail;
+        String currentAdmin = "docktech admin";
+        String currentEmail = "docktech@gmail.com";
 
         TextField nameField = new TextField(currentAdmin);
         nameField.setPromptText("Enter full name");
@@ -412,83 +412,26 @@ public class SettingsPage extends AdminTheme {
     }
 
     // ==========================================
-    // ROW 2: 3 CARDS
-    // 4. Account Settings ⭐⭐
-    // 5. Active Sessions ⭐⭐
-    // 6. Quick Account Actions ⭐⭐
+    // ==========================================
+    // ROW 2: 2 CARDS
+    // 4. Active Sessions ⭐⭐
+    // 5. Quick Account Actions ⭐⭐
     // ==========================================
     private HBox createRow2() {
-        VBox card1 = accountSettingsCard();
-        VBox card2 = activeSessionsCard();
-        VBox card3 = quickAccountActionsCard();
+        VBox card1 = activeSessionsCard();
+        VBox card2 = quickAccountActionsCard();
 
-        HBox row = new HBox(14, card1, card2, card3);
-        card1.prefWidthProperty().bind(row.widthProperty().multiply(0.33));
-        card2.prefWidthProperty().bind(row.widthProperty().multiply(0.34));
-        card3.prefWidthProperty().bind(row.widthProperty().multiply(0.33));
+        HBox row = new HBox(14, card1, card2);
+        card1.prefWidthProperty().bind(row.widthProperty().multiply(0.50));
+        card2.prefWidthProperty().bind(row.widthProperty().multiply(0.50));
 
         HBox.setHgrow(card1, Priority.ALWAYS);
         HBox.setHgrow(card2, Priority.ALWAYS);
-        HBox.setHgrow(card3, Priority.ALWAYS);
 
         return row;
     }
 
-    // 4. Account Settings Card ⭐⭐
-    private VBox accountSettingsCard() {
-        Label title = new Label("Account Settings");
-        title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:18; -fx-font-weight:bold;");
-        Label subtitle = new Label("System preferences & user-facing account options");
-        subtitle.setStyle("-fx-text-fill:#64748b; -fx-font-size:13;");
-        VBox titleBox = new VBox(2, title, subtitle);
-
-        ComboBox<String> timeoutCombo = combo("Timeout", "15 Minutes", "30 Minutes", "1 Hour", "4 Hours");
-        timeoutCombo.setValue("30 Minutes");
-        timeoutCombo.setMaxWidth(Double.MAX_VALUE);
-
-        ComboBox<String> langCombo = combo("Language", "English", "Spanish", "French", "German");
-        langCombo.setValue(store.language == null || store.language.isBlank() ? "English" : store.language);
-        langCombo.setMaxWidth(Double.MAX_VALUE);
-
-        ComboBox<String> formatCombo = combo("Date Format", "DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD");
-        formatCombo.setValue(store.dateFormat == null || store.dateFormat.isBlank() ? "DD/MM/YYYY" : store.dateFormat);
-        formatCombo.setMaxWidth(Double.MAX_VALUE);
-
-        VBox fields = new VBox(8,
-                labeledControl("Session Inactivity Timeout", timeoutCombo),
-                labeledControl("Interface Language", langCombo),
-                labeledControl("Date Display Format", formatCombo)
-        );
-
-        Button saveSettingsBtn = new Button("💾  Save Account Settings");
-        saveSettingsBtn.setMaxWidth(Double.MAX_VALUE);
-        saveSettingsBtn.setStyle(
-                "-fx-background-color:" + BLUE + ";" +
-                "-fx-text-fill:white;" +
-                "-fx-font-size:14;" +
-                "-fx-font-weight:bold;" +
-                "-fx-padding:9 16;" +
-                "-fx-background-radius:6;" +
-                "-fx-cursor:hand;"
-        );
-        saveSettingsBtn.setOnAction(e -> {
-            store.language = langCombo.getValue();
-            store.dateFormat = formatCombo.getValue();
-            showToast("Account settings saved (Language: " + store.language + ", Format: " + store.dateFormat + ")", true);
-        });
-
-        VBox content = new VBox(10,
-                titleBox,
-                new Separator(),
-                fields,
-                new Separator(),
-                saveSettingsBtn
-        );
-
-        return cardContainer(content);
-    }
-
-    // 5. Active Sessions Card ⭐⭐
+    // 4. Active Sessions Card ⭐⭐
     private VBox activeSessionsCard() {
         Label title = new Label("Active Sessions");
         title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:18; -fx-font-weight:bold;");

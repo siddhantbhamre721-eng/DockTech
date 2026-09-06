@@ -21,6 +21,7 @@ import javafx.scene.text.Text;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class TrackShipment {
 
@@ -45,13 +46,14 @@ public class TrackShipment {
         root.setLeft(createSidebar());
         root.setCenter(getScrollableContent());
 
-        scene = new Scene(root, 1550, 800);
+        scene = new Scene(root);
         com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
         return scene;
     }
 
     private final CargoDao cargoDao = new CargoDao();
     private final ContainerDao containerDao = new ContainerDao();
+    private boolean listenersRegistered;
 
     public ScrollPane getScrollableContent() {
         // =========================================================
@@ -70,6 +72,9 @@ public class TrackShipment {
         headerBanner.getChildren().addAll(title, subtitle);
 
         List<Map<String, Object>> allCargos = cargoDao.getShipmentsForExporter(com.projectui.view.login.LoginPage.loggedInUser);
+        if (allCargos == null || allCargos.isEmpty()) {
+            allCargos = cargoDao.getAllCargos();
+        }
 
         if (allCargos == null || allCargos.isEmpty()) {
             // Empty State
@@ -128,7 +133,16 @@ public class TrackShipment {
             String cName = c.get("cargoName") != null ? c.get("cargoName").toString() : "";
             shipmentSelector.getItems().add(cId + " — " + cName);
         }
-        shipmentSelector.setValue(shipmentSelector.getItems().get(0));
+        String defaultSel = !shipmentSelector.getItems().isEmpty() ? shipmentSelector.getItems().get(0) : null;
+        for (String item : shipmentSelector.getItems()) {
+            if (item.toUpperCase().startsWith("CGO-1027")) {
+                defaultSel = item;
+                break;
+            }
+        }
+        if (defaultSel != null) {
+            shipmentSelector.setValue(defaultSel);
+        }
         shipmentSelector.setPrefHeight(44);
         shipmentSelector.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(shipmentSelector, Priority.ALWAYS);
@@ -226,6 +240,28 @@ public class TrackShipment {
                     ? booking.get("containerType").toString()
                     : "Pending Selection";
 
+            if (bId.equalsIgnoreCase("Pending Allocation")) {
+                String altBId = getString(c, "bookingId", "containerId", "containerNo");
+                if (!altBId.isBlank()) bId = altBId;
+            }
+            if (bType.equalsIgnoreCase("Pending Selection")) {
+                String altBType = getString(c, "containerType", "type");
+                if (!altBType.isBlank()) bType = altBType;
+            }
+
+            boolean isDelivered = containsStatus(cStatus, "deliver")
+                    || containsStatus(getStatus(c, "deliveryStatus", "arrivalStatus", "status"), "deliver")
+                    || (c != null && c.get("deliveredAt") != null && !c.get("deliveredAt").toString().isBlank());
+
+            if (isDelivered) {
+                cStatus = "Delivered";
+                if (c != null && (!"Delivered".equalsIgnoreCase(getString(c, "status")) || !"Delivered".equalsIgnoreCase(getString(c, "deliveryStatus")))) {
+                    c.put("status", "Delivered");
+                    c.put("deliveryStatus", "Delivered");
+                    cargoDao.updateCargoStatus(cId, "Delivered");
+                }
+            }
+
             infoGrid.getChildren().clear();
             infoGrid.add(createTile("SHIPMENT ID",
                     !cId.isBlank() ? ("SHP-" + Math.abs(cId.hashCode() % 8999 + 1000)) : "N/A"), 0, 0);
@@ -238,54 +274,166 @@ public class TrackShipment {
             timelineSub.setText(
                     "Milestones and clearance stages for " + (!cId.isBlank() ? cId : "Shipment") + " (" + cName + ")");
 
-            boolean isBooked = cStatus.contains("Booked") || cStatus.contains("Uploaded") || cStatus.contains("Paid")
-                    || cStatus.contains("Transit") || cStatus.contains("Cleared");
-            boolean isUploaded = cStatus.contains("Uploaded") || cStatus.contains("Paid") || cStatus.contains("Transit")
-                    || cStatus.contains("Cleared");
-            boolean isPaid = cStatus.contains("Paid") || cStatus.contains("Transit") || cStatus.contains("Cleared");
-            boolean isTransit = cStatus.contains("Transit");
+            boolean isArrived = isDelivered
+                    || containsStatus(getStatus(c, "status", "deliveryStatus", "arrivalStatus"), "arrived", "delivered", "at destination")
+                    || vesselHasArrived(c, destPort);
+
+            boolean isDeparted = isArrived
+                    || containsStatus(getStatus(c, "status", "loadingStatus", "vesselStatus", "shipStatus"), "transit", "underway", "departed", "departing", "arrived", "delivered")
+                    || vesselHasDeparted(c);
+
+            boolean isPaid = isDeparted
+                    || (c != null && com.projectui.dao.PaymentDao.isPaidCargo(c))
+                    || containsStatus(getStatus(c, "paymentStatus", "payment"), "paid", "success", "settled")
+                    || (c != null && c.get("paidAt") != null && !c.get("paidAt").toString().isBlank())
+                    || (c != null && c.get("razorpayPaymentId") != null && !c.get("razorpayPaymentId").toString().isBlank());
+
+            boolean isUploaded = isPaid
+                    || hasRequiredDocuments(c)
+                    || containsStatus(getStatus(c, "customsStatus", "customsClearanceStatus", "docStatus", "verificationStatus"), "cleared", "verified", "passed", "approved")
+                    || (c != null && c.get("clearedAt") != null && !c.get("clearedAt").toString().isBlank());
+
+            boolean isBooked = isUploaded
+                    || (booking != null && hasValue(booking, "bookingId") && !containsStatus(booking, "pending", "rejected", "cancelled"))
+                    || (!bId.isBlank() && !bId.equalsIgnoreCase("Pending Allocation"))
+                    || containsStatus(getStatus(c, "loadingStatus", "status"), "allocated", "loading", "loaded", "departed", "transit", "arrived", "delivered");
+
+            String deliveredAt = getString(c, "deliveredAt", "confirmedAt");
+            String deliveredBy = getString(c, "deliveredBy", "confirmedBy", "importerName", "importer");
+            String deliverySubtitle;
+            if (isDelivered) {
+                if (!deliveredBy.isBlank() && !deliveredAt.isBlank()) {
+                    deliverySubtitle = "Delivery Confirmed by " + deliveredBy + " • " + deliveredAt;
+                } else if (!deliveredBy.isBlank()) {
+                    deliverySubtitle = "Delivery Confirmed by " + deliveredBy;
+                } else if (!deliveredAt.isBlank()) {
+                    deliverySubtitle = "Delivery Confirmed • " + deliveredAt;
+                } else {
+                    deliverySubtitle = "Delivered / Delivery Confirmed";
+                }
+            } else {
+                deliverySubtitle = isArrived ? "Awaiting Importer Confirmation" : "Pending Delivery Confirmation";
+            }
+
+            String transitSubtitle;
+            if (isDeparted) {
+                transitSubtitle = (isArrived || isDelivered)
+                        ? "Vessel Departed from " + originPort + " (Voyage Completed)"
+                        : "Vessel Departed from " + originPort + " — In Transit";
+            } else {
+                transitSubtitle = "Awaiting Vessel Departure";
+            }
+
+            String arrivalSubtitle;
+            if (isArrived || isDelivered) {
+                arrivalSubtitle = "Vessel Arrived at " + destPort;
+            } else {
+                arrivalSubtitle = "Destination Schedule — Pending Arrival";
+            }
 
             stagesList.getChildren().clear();
             stagesList.getChildren().addAll(
-                    createTimelineStage("Cargo Registered", originPort, true, isBooked),
+                    createTimelineStage("Cargo Registered", originPort, true, true),
                     createTimelineStage("Container Allocated (" + bId + ")",
-                            isBooked ? ("Allocated: " + bType) : "Awaiting Container Booking", isBooked, isUploaded),
+                            isBooked ? "Container Booking Completed" : "Awaiting Container Booking", isBooked, isBooked),
                     createTimelineStage("Customs Documentation",
-                            isUploaded ? "Verified & Uploaded" : "Pending Document Upload", isUploaded, isPaid),
-                    createTimelineStage("Payment Settled", isPaid ? "Verified via Razorpay" : "Pending Payment", isPaid,
-                            isTransit),
+                            isUploaded ? "Required Documents Uploaded & Verified" : "Pending Document Upload", isUploaded, isUploaded),
+                    createTimelineStage("Payment Settled",
+                            isPaid ? "Payment Successful" : "Pending Payment", isPaid, isPaid),
                     createTimelineStage("In Transit to Destination",
-                            isTransit ? "En Route via Vessel" : "Awaiting Vessel Departure", isTransit, false),
-                    createTimelineStage("Arriving at " + destPort, "Destination Schedule — Pending Berth", false,
-                            false));
+                            transitSubtitle, isDeparted, isDeparted),
+                    createTimelineStage("Arriving at " + destPort,
+                            arrivalSubtitle, isArrived, isArrived),
+                    createTimelineStage("Delivered / Delivery Confirmed",
+                            deliverySubtitle, isDelivered, isDelivered));
 
             routeDiagram.getChildren().clear();
             HBox originNode = createRouteNode(originPort, "Origin Port", "#16A34A");
-            Region vLine1 = createVerticalLine(isTransit);
+            Region vLine1 = createVerticalLine(isDeparted);
             HBox currentLocationNode = createRouteNode(
-                    isTransit ? "In Transit (" + originPort + " → " + destPort + ")" : originPort + " Terminal",
-                    isTransit ? "Live Telemetry • In Transit" : "Terminal Staging", PRIMARY_BLUE);
-            Region vLine2 = createVerticalLine(false);
-            HBox destNode = createRouteNode(destPort, "Destination Port", "#64748B");
+                    isDelivered ? "Delivered at " + destPort : (isDeparted ? "In Transit (" + originPort + " → " + destPort + ")" : originPort + " Terminal"),
+                    isDelivered ? "Consignment Delivered • Confirmed" : (isDeparted ? "Vessel Departed • In Transit" : "Terminal Staging"),
+                    isDelivered ? "#16A34A" : PRIMARY_BLUE);
+            Region vLine2 = createVerticalLine(isArrived || isDelivered);
+            HBox destNode = createRouteNode(destPort,
+                    isDelivered ? "Delivered / Delivery Confirmed" : (isArrived ? "Vessel Arrived" : "Destination Port"),
+                    (isArrived || isDelivered) ? "#16A34A" : "#64748B");
 
             routeDiagram.getChildren().addAll(originNode, vLine1, currentLocationNode, vLine2, destNode);
 
             alerts.getChildren().clear();
-            if (isPaid) {
-                alerts.getChildren()
-                        .add(createStatusAlert("✓  Payment Verified — Ready for international customs clearance",
-                                "#DCFCE7", "#15803D", "#86EFAC"));
-            }
-            if (isBooked) {
-                alerts.getChildren().add(createStatusAlert("✓  Container Allocated — " + bId + " ready for loading",
+            if (isDelivered) {
+                alerts.getChildren().add(createStatusAlert(
+                        "✓  Shipment Delivered — Confirmed by Importer" + (!deliveredBy.isBlank() ? (" (" + deliveredBy + ")") : ""),
+                        "#DCFCE7", "#15803D", "#86EFAC"));
+                alerts.getChildren().add(createStatusAlert(
+                        "✓  Delivery Confirmed — All milestones completed and verified",
                         "#DBEAFE", "#1D4ED8", "#93C5FD"));
             } else {
-                alerts.getChildren().add(createStatusAlert("⚠️  Action Required — Please book a container to proceed",
-                        "#FFF7ED", "#C2410C", "#FDBA74"));
+                if (isArrived) {
+                    alerts.getChildren().add(createStatusAlert(
+                            "✓  Vessel Arrived at " + destPort + " — Awaiting Importer Delivery Confirmation",
+                            "#DCFCE7", "#15803D", "#86EFAC"));
+                } else if (isDeparted) {
+                    alerts.getChildren().add(createStatusAlert(
+                            "✓  Vessel Departed from " + originPort + " — In Transit",
+                            "#DBEAFE", "#1D4ED8", "#93C5FD"));
+                }
+                if (isPaid) {
+                    alerts.getChildren().add(createStatusAlert(
+                            "✓  Payment Verified — Ready for international customs clearance",
+                            "#DCFCE7", "#15803D", "#86EFAC"));
+                }
+                if (isBooked) {
+                    alerts.getChildren().add(createStatusAlert(
+                            "✓  Container Allocated — " + bId + " ready for loading",
+                            "#DBEAFE", "#1D4ED8", "#93C5FD"));
+                } else {
+                    alerts.getChildren().add(createStatusAlert(
+                            "⚠️  Action Required — Please book a container to proceed",
+                            "#FFF7ED", "#C2410C", "#FDBA74"));
+                }
             }
         };
 
+        Runnable syncSelectorAndData = () -> {
+            List<Map<String, Object>> latestCargos = cargoDao.getShipmentsForExporter(com.projectui.view.login.LoginPage.loggedInUser);
+            if (latestCargos == null || latestCargos.isEmpty()) {
+                latestCargos = cargoDao.getAllCargos();
+            }
+            if (latestCargos != null && !latestCargos.isEmpty()) {
+                String currentSel = shipmentSelector.getValue();
+                String currentCId = (currentSel != null) ? currentSel.split(" — ")[0].trim() : "";
+                List<String> newItems = new java.util.ArrayList<>();
+                String reselect = null;
+                for (Map<String, Object> itemCargo : latestCargos) {
+                    String id = itemCargo.get("cargoId") != null ? itemCargo.get("cargoId").toString() : "CGO";
+                    String name = itemCargo.get("cargoName") != null ? itemCargo.get("cargoName").toString() : "";
+                    String itemStr = id + " — " + name;
+                    newItems.add(itemStr);
+                    if (!currentCId.isBlank() && id.equalsIgnoreCase(currentCId)) {
+                        reselect = itemStr;
+                    }
+                }
+                if (!newItems.equals(new java.util.ArrayList<>(shipmentSelector.getItems()))) {
+                    shipmentSelector.getItems().setAll(newItems);
+                    if (reselect != null) {
+                        shipmentSelector.setValue(reselect);
+                    } else if (!shipmentSelector.getItems().isEmpty()) {
+                        shipmentSelector.setValue(shipmentSelector.getItems().get(0));
+                    }
+                }
+            }
+            updateTrackingData.run();
+        };
+
         shipmentSelector.setOnAction(e -> updateTrackingData.run());
+        if (!listenersRegistered) {
+            CargoDao.addChangeListener(syncSelectorAndData);
+            ContainerDao.addChangeListener(syncSelectorAndData);
+            com.projectui.view.ShipCaptain.CaptainSessionService.addChangeListener(syncSelectorAndData);
+            listenersRegistered = true;
+        }
         updateTrackingData.run();
 
         content.getChildren().addAll(headerBanner, searchCard, workspace);
@@ -298,6 +446,117 @@ public class TrackShipment {
         scrollPane.setStyle(
                 "-fx-background-color: transparent; -fx-background: " + BG_COLOR + "; -fx-border-color: transparent;");
         return scrollPane;
+    }
+
+    private boolean hasRequiredDocuments(Map<String, Object> cargo) {
+        Object rawDocuments = cargo != null ? cargo.get("documents") : null;
+        if (!(rawDocuments instanceof List<?> documents) || documents.isEmpty()) return false;
+        Set<String> requiredTypes = Set.of("commercial invoice", "packing list", "bill of lading / shipping order");
+        for (String requiredType : requiredTypes) {
+            boolean found = false;
+            for (Object rawDocument : documents) {
+                if (!(rawDocument instanceof Map<?, ?> document)) continue;
+                Object rawType = document.containsKey("docType") ? document.get("docType") : "";
+                String type = String.valueOf(rawType).trim().toLowerCase();
+                Object rawStatus = document.containsKey("status") ? document.get("status") : "Pending";
+                String status = String.valueOf(rawStatus);
+                if (type.equals(requiredType) && !status.equalsIgnoreCase("Rejected")) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) return false;
+        }
+        return true;
+    }
+
+    private boolean vesselHasDeparted(Map<String, Object> cargo) {
+        String status = getStatus(cargo, "status", "loadingStatus", "vesselStatus", "shipStatus");
+        if (containsStatus(status, "transit", "underway", "departed", "departing", "arrived", "delivered")) return true;
+        String vesselName = getString(cargo, "assignedShip", "shipName", "vesselName", "vessel");
+        com.projectui.service.VesselData vessel = com.projectui.service.VesselManager.getInstance().getVesselByName(vesselName);
+        String navigation = vessel != null ? vessel.navigationStatus : "";
+        if (containsStatus(navigation, "transit", "underway", "departed", "departing", "arrived", "delivered")) return true;
+        return containsStatus(findPersistedShipStatus(cargo), "transit", "underway", "departed", "departing", "arrived", "delivered");
+    }
+
+    private boolean vesselHasArrived(Map<String, Object> cargo, String destination) {
+        String status = getStatus(cargo, "arrivalStatus", "destinationStatus", "deliveryStatus", "status");
+        if (containsStatus(status, "arrived", "delivered", "at destination")) return true;
+        String vesselName = getString(cargo, "assignedShip", "shipName", "vesselName", "vessel");
+        com.projectui.service.VesselData vessel = com.projectui.service.VesselManager.getInstance().getVesselByName(vesselName);
+        boolean destinationMatches = vessel != null && (vessel.destination == null || vessel.destination.isBlank()
+            || vessel.destination.equalsIgnoreCase(destination)
+            || vessel.destination.toLowerCase().contains(destination.toLowerCase())
+            || destination.toLowerCase().contains(vessel.destination.toLowerCase()));
+        if (destinationMatches && (containsStatus(vessel.navigationStatus, "arrived", "delivered")
+                || containsStatus(vessel.navigationStatus, "at berth", "moored", "docked"))) return true;
+        String persistedStatus = findPersistedShipStatus(cargo);
+        return containsStatus(persistedStatus, "arrived", "delivered", "at destination")
+                || (containsStatus(persistedStatus, "at berth", "moored", "docked")
+                        && persistedShipMatchesDestination(cargo, destination));
+    }
+
+    private String findPersistedShipStatus(Map<String, Object> cargo) {
+        String shipId = getString(cargo, "assignedShipId", "shipId", "shipImo", "imoNumber");
+        String shipName = getString(cargo, "assignedShip", "shipName", "vesselName", "vessel");
+        try {
+            for (com.projectui.model.Ship ship : new com.projectui.dao.ShipDAO().getShips()) {
+                if ((shipId != null && !shipId.isBlank() && (shipId.equalsIgnoreCase(ship.getShipId())
+                        || shipId.equalsIgnoreCase(ship.getImoNumber())))
+                        || (shipName != null && !shipName.isBlank() && ship.getShipName() != null
+                                && shipName.equalsIgnoreCase(ship.getShipName()))) {
+                    return ship.getStatus() != null ? ship.getStatus() : "";
+                }
+            }
+        } catch (Exception ignored) {}
+        return "";
+    }
+
+    private boolean persistedShipMatchesDestination(Map<String, Object> cargo, String destination) {
+        String shipId = getString(cargo, "assignedShipId", "shipId", "shipImo", "imoNumber");
+        String shipName = getString(cargo, "assignedShip", "shipName", "vesselName", "vessel");
+        try {
+            for (com.projectui.model.Ship ship : new com.projectui.dao.ShipDAO().getShips()) {
+                boolean matches = (shipId != null && !shipId.isBlank() && (shipId.equalsIgnoreCase(ship.getShipId())
+                        || shipId.equalsIgnoreCase(ship.getImoNumber())))
+                        || (shipName != null && !shipName.isBlank() && ship.getShipName() != null
+                                && shipName.equalsIgnoreCase(ship.getShipName()));
+                if (matches && ship.getDeparture() != null && !ship.getDeparture().isBlank()) {
+                    return ship.getDeparture().equalsIgnoreCase(destination)
+                            || ship.getDeparture().toLowerCase().contains(destination.toLowerCase())
+                            || destination.toLowerCase().contains(ship.getDeparture().toLowerCase());
+                }
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
+    private boolean hasValue(Map<String, Object> map, String key) {
+        return map != null && map.get(key) != null && !map.get(key).toString().isBlank();
+    }
+
+    private String getString(Map<String, Object> map, String... keys) {
+        if (map != null) {
+            for (String key : keys) {
+                if (map.get(key) != null && !map.get(key).toString().isBlank()) return map.get(key).toString();
+            }
+        }
+        return "";
+    }
+
+    private String getStatus(Map<String, Object> map, String... keys) {
+        return getString(map, keys).toLowerCase();
+    }
+
+    private boolean containsStatus(Map<String, Object> map, String... values) {
+        return containsStatus(getString(map, "status"), values);
+    }
+
+    private boolean containsStatus(String status, String... values) {
+        String normalized = status != null ? status.toLowerCase() : "";
+        for (String value : values) if (normalized.contains(value.toLowerCase())) return true;
+        return false;
     }
 
     // =========================================================

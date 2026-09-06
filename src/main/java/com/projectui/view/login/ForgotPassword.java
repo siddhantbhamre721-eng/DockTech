@@ -11,6 +11,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
@@ -114,7 +115,7 @@ public class ForgotPassword {
 
         title.setStyle(
                 "-fx-text-fill:white;" +
-                        "-fx-font-size:42px;" +
+                        "-fx-font-size:36px;" +
                         "-fx-font-weight:bold;" +
                         "-fx-line-spacing:2px;");
 
@@ -173,8 +174,13 @@ public class ForgotPassword {
                 left,
                 right);
 
+        ScrollPane scrollPane = new ScrollPane(mainLayout);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(true);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent;");
+
         root.getChildren().add(
-                mainLayout);
+                scrollPane);
 
         // =================================================
         // CARD ANIMATION

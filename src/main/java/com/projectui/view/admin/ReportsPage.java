@@ -811,6 +811,8 @@ public class ReportsPage extends AdminTheme {
                 new Label("Author:"), authorField, new Separator(), submitBtn);
 
         Scene scene = new Scene(root, 400, 360);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(modal);
         modal.setScene(scene);
         modal.showAndWait();
     }

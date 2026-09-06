@@ -78,7 +78,7 @@ public class ViewAssignedShip {
     }
 
     public Scene getShipScene() {
-        return new Scene(getRoot(), 1280, 800);
+        return new Scene(getRoot());
     }
 
     private VBox buildHeader(Ship ship, VesselData v) {
@@ -146,7 +146,7 @@ public class ViewAssignedShip {
     private HBox buildKpiRow(Ship ship, VesselData v) {
         String status = ship.getStatus() != null ? ship.getStatus() : (v != null ? v.navigationStatus : "At Berth");
         String location = ship.getBerth() != null && !ship.getBerth().isBlank() ? ship.getBerth() : "Port of Mumbai";
-        String dest = ship.getDeparture() != null && !ship.getDeparture().isBlank() ? ship.getDeparture() : (v != null ? v.destination : "Port of Singapore");
+        String dest = CaptainSessionService.getAssignedVoyageDestination();
 
         HBox row = new HBox(12,
                 kpiCard("⚓", "Vessel Name", ship.getShipName(), "Assigned Ship", "#1d4ed8", "#eaf3ff"),
@@ -175,7 +175,7 @@ public class ViewAssignedShip {
         idGrid.setVgap(12);
 
         String imo = ship.getImoNumber() != null && !ship.getImoNumber().isBlank() ? ship.getImoNumber() : (v != null ? v.imo : "9234567");
-        String mmsi = v != null ? String.valueOf(v.mmsi) : (ship.getShipId() != null ? ship.getShipId() : "211280000");
+        String mmsi = v != null ? String.valueOf(v.mmsi) : (ship.getShipId() != null ? ship.getShipId() : "");
         String callSign = v != null && v.callSign != null ? v.callSign : "V-4089";
         String type = ship.getShipType() != null && !ship.getShipType().isBlank() ? ship.getShipType() : (v != null ? v.shipType : "Container Vessel");
         String company = ship.getCompany() != null && !ship.getCompany().isBlank() ? ship.getCompany() : "DockTech Fleet Lines";
@@ -250,8 +250,8 @@ public class ViewAssignedShip {
         rGrid.setHgap(16);
         rGrid.setVgap(12);
 
-        String origin = ship.getArrival() != null && !ship.getArrival().isBlank() ? "Port of Chennai" : "Port of Mumbai";
-        String dest = ship.getDeparture() != null && !ship.getDeparture().isBlank() ? ship.getDeparture() : (v != null ? v.destination : "Port of Singapore");
+        String origin = CaptainSessionService.getAssignedVoyageOrigin();
+        String dest = CaptainSessionService.getAssignedVoyageDestination();
         String voyageId = "VOY-" + (ship.getShipId() != null ? ship.getShipId() : "2026") + "-E";
         String depStatus = "Scheduled / Ready";
         String eta = ship.getArrival() != null && !ship.getArrival().isBlank() ? ship.getArrival() : "10:30 AM";
@@ -305,8 +305,8 @@ public class ViewAssignedShip {
         Label title = new Label("Voyage Progress");
         title.setStyle("-fx-text-fill:#05070c; -fx-font-size:16; -fx-font-weight:bold;");
 
-        String origin = ship.getArrival() != null && !ship.getArrival().isBlank() ? "Port of Chennai" : "Port of Mumbai";
-        String dest = ship.getDeparture() != null && !ship.getDeparture().isBlank() ? ship.getDeparture() : (v != null ? v.destination : "Port of Singapore");
+        String origin = CaptainSessionService.getAssignedVoyageOrigin();
+        String dest = CaptainSessionService.getAssignedVoyageDestination();
         String currentLoc = ship.getBerth() != null && !ship.getBerth().isBlank() ? ship.getBerth() : "Port of Mumbai (Berth B04)";
         String eta = ship.getArrival() != null && !ship.getArrival().isBlank() ? ship.getArrival() : "10:30 AM";
         String status = ship.getStatus() != null ? ship.getStatus() : (v != null ? v.navigationStatus : "At Berth");

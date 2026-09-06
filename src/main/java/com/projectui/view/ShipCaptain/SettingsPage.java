@@ -50,11 +50,21 @@ public class SettingsPage {
         );
         HBox.setHgrow(top.getChildren().get(1), Priority.ALWAYS);
 
-        Label avatar = new Label("CAP");
-        avatar.setMinSize(52, 52);
-        avatar.setAlignment(Pos.CENTER);
-        avatar.setStyle("-fx-background-color:#dbeafe; -fx-background-radius:50; -fx-text-fill:#1769ff; -fx-font-size:18px; -fx-font-weight:bold;");
-        top.getChildren().add(avatar);
+        StackPane avatarPane = new StackPane(com.projectui.service.UserProfileImageManager.createAvatarNode(52, "CAP", emailStr));
+        Button editPicBtn = new Button("📷 Change");
+        editPicBtn.setStyle("-fx-background-color:#eff6ff; -fx-text-fill:#1769ff; -fx-font-size:10px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:6; -fx-cursor:hand;");
+        editPicBtn.setOnAction(e -> {
+            com.projectui.service.UserProfileImageManager.chooseAndUploadProfilePicture(
+                    avatarPane.getScene() != null ? avatarPane.getScene().getWindow() : null,
+                    emailStr,
+                    CaptainSessionService.getCaptainUid(),
+                    () -> avatarPane.getChildren().setAll(com.projectui.service.UserProfileImageManager.createAvatarNode(52, "CAP", emailStr)),
+                    null
+            );
+        });
+        VBox avatarBox = new VBox(4, avatarPane, editPicBtn);
+        avatarBox.setAlignment(Pos.CENTER);
+        top.getChildren().add(avatarBox);
 
         GridPane profileGrid = new GridPane();
         profileGrid.setHgap(16);

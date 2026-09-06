@@ -12,7 +12,7 @@ import com.google.cloud.firestore.Firestore;
 import com.projectui.view.admin.AdminDataStore;
 import com.projectui.view.admin.AdminDataStore.PortRequest;
 
-@SuppressWarnings({ "null", "unchecked" })
+@SuppressWarnings("null")
 public class PortRequestDao extends Dao {
 
     private static final Map<String, Map<String, Object>> localRequestStore = new ConcurrentHashMap<>();

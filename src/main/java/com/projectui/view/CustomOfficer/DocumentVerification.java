@@ -359,7 +359,7 @@ public class DocumentVerification {
         typeFilter.setPrefWidth(125);
         typeFilter.setOnAction(e -> applyFilter());
 
-        statusFilter = combo("All Statuses", "All Statuses", "Pending", "Under Review", "Verified", "On Hold", "Rejected");
+        statusFilter = combo("All Statuses", "All Statuses", "Pending Verification", "Under Review", "Verified", "On Hold", "Rejected");
         statusFilter.setPrefWidth(115);
         statusFilter.setOnAction(e -> applyFilter());
 
@@ -582,7 +582,7 @@ public class DocumentVerification {
         g.setHgap(8);
         g.setVgap(4);
 
-        detailCargoId = createLabel("—", true, BLUE);
+        detailCargoId = createLabel("—", true, "#0f172a");
         detailCommodity = createLabel("—", false, "#334155");
         detailHsCode = createLabel("—", false, "#334155");
         detailQuantity = createLabel("—", false, "#334155");
@@ -872,7 +872,10 @@ public class DocumentVerification {
                                 item.put("priority", cargoPriority);
                             }
 
-                            String st = String.valueOf(item.get("status"));
+                                String st = item.get("status") != null && !String.valueOf(item.get("status")).isBlank()
+                                    && !"null".equalsIgnoreCase(String.valueOf(item.get("status")))
+                                    ? String.valueOf(item.get("status")) : "Pending Verification";
+                            item.put("status", st);
                             if ("Verified".equalsIgnoreCase(st) || "Approved".equalsIgnoreCase(st) || "Certified".equalsIgnoreCase(st)) {
                                 verifiedCount++;
                             } else if ("On Hold".equalsIgnoreCase(st) || "Hold".equalsIgnoreCase(st)) {
@@ -942,7 +945,7 @@ public class DocumentVerification {
         if (result.isEmpty()) {
             String cargoId = String.valueOf(cargo.get("cargoId"));
             String exp = cargo.get("exporter") != null ? String.valueOf(cargo.get("exporter")) : (cargo.get("exporterName") != null ? String.valueOf(cargo.get("exporterName")) : "Exporter");
-            String vStatus = cargo.get("verificationStatus") != null ? String.valueOf(cargo.get("verificationStatus")) : "Pending";
+            String vStatus = cargo.get("verificationStatus") != null ? String.valueOf(cargo.get("verificationStatus")) : "Pending Verification";
             String cTime = cargo.get("createdAt") != null ? String.valueOf(cargo.get("createdAt")) : "Registration Date";
             String prio = cargo.get("priority") != null ? String.valueOf(cargo.get("priority")) : "Normal";
 

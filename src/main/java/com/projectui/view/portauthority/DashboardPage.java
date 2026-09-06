@@ -55,7 +55,13 @@ import javafx.scene.layout.VBox;
 @SuppressWarnings({ "unchecked", "unused", "deprecation" })
 public class DashboardPage {
 
+    public enum PersonnelView {
+        SHIP_CAPTAIN,
+        CUSTOMS_OFFICER
+    }
+
     private final VBox root = new VBox(16);
+    private final PersonnelView personnelView;
 
     // Services (Same source of truth as Admin Map & Admin Backend)
     private final VesselManager vesselManager = VesselManager.getInstance();
@@ -116,6 +122,11 @@ public class DashboardPage {
     private final List<String> recentActivityItems = new ArrayList<>();
 
     public DashboardPage() {
+        this(null);
+    }
+
+    public DashboardPage(PersonnelView personnelView) {
+        this.personnelView = personnelView;
         root.setSpacing(16);
         root.setPadding(new Insets(0));
         root.setStyle("-fx-background-color:transparent;");
@@ -123,7 +134,9 @@ public class DashboardPage {
         resolveAssignedPort();
         buildDashboardLayout();
         connectLiveAISService();
-        loadPersonnelData();
+        if (personnelView != null) {
+            loadPersonnelData();
+        }
 
         com.projectui.service.SosEmergencyService.addChangeListener(() -> {
             Platform.runLater(() -> {
@@ -168,6 +181,11 @@ public class DashboardPage {
     // LAYOUT COMPOSITION
     // =====================================================
     private void buildDashboardLayout() {
+        if (personnelView != null) {
+            root.getChildren().add(buildPersonnelPage());
+            return;
+        }
+
         // 1. Header Banner
         VBox header = buildHeader();
 
@@ -180,16 +198,41 @@ public class DashboardPage {
         // 4. Bottom Split (Recent Activity + Status/Types Breakdown + Important Alerts)
         HBox bottomSplit = buildBottomSplit();
 
-        // 5. Port Personnel & Duty Management Section (Captains & Custom Officers)
-        VBox personnelSection = buildPersonnelManagementSection();
-
         root.getChildren().addAll(
                 header,
                 summaryCards,
                 centerSplit,
-                bottomSplit,
-                personnelSection);
+            bottomSplit);
     }
+
+        private VBox buildPersonnelPage() {
+        VBox page = new VBox(14);
+        page.setFillWidth(true);
+
+        Label title = new Label(personnelView == PersonnelView.SHIP_CAPTAIN
+            ? "Manage Ship Captain"
+            : "Manage Custom Officer");
+        title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:20px; -fx-font-weight:bold;");
+
+        Label subtitle = new Label("Registered Port Personnel & Duty Assignments for " + activeViewingPort);
+        subtitle.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px;");
+
+        Button refreshBtn = new Button("⟳ Refresh Personnel Data");
+        refreshBtn.setStyle(
+            "-fx-background-color:#f8fafc; -fx-text-fill:#334155; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-radius:6; -fx-padding:6 12; -fx-cursor:hand;");
+        refreshBtn.setOnAction(e -> refreshDashboardData());
+
+        HBox header = new HBox(12, new VBox(2, title, subtitle), new Region(), refreshBtn);
+        HBox.setHgrow(header.getChildren().get(1), Priority.ALWAYS);
+
+        VBox card = personnelView == PersonnelView.SHIP_CAPTAIN
+            ? buildCaptainsCard()
+            : buildOfficersCard();
+        VBox.setVgrow(card, Priority.ALWAYS);
+
+        page.getChildren().addAll(header, card);
+        return page;
+        }
 
     // =====================================================
     // 1. HEADER BANNER
@@ -371,6 +414,10 @@ public class DashboardPage {
 
         // Table
         vesselTable = new TableView<>();
+        var vesselCss = getClass().getResource("/table-headers.css");
+        if (vesselCss != null) {
+            vesselTable.getStylesheets().add(vesselCss.toExternalForm());
+        }
         vesselTable.setPrefHeight(500);
         VBox.setVgrow(vesselTable, Priority.ALWAYS);
         vesselTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
@@ -644,17 +691,11 @@ public class DashboardPage {
         Label g3 = new Label("VESSEL PARTICULARS");
         g3.setStyle("-fx-text-fill:#0284c7; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:5 0 2 0;");
 
-        long seed = Math.abs(v.mmsi);
-        int len = 180 + (int) (seed % 140);
-        int beam = 25 + (int) (seed % 15);
-        double draught = 8.0 + (seed % 50) / 10.0;
-        int tonnage = 20000 + (int) (seed % 30000);
-
         VBox g3Box = new VBox(3,
-                detailLine("Length", len + " m"),
-                detailLine("Beam", beam + " m"),
-                detailLine("Draught", String.format("%.1f m", draught)),
-                detailLine("Gross Tonnage", String.format("%,d GT", tonnage)));
+            detailLine("Length", "-"),
+            detailLine("Beam", "-"),
+            detailLine("Draught", "-"),
+            detailLine("Gross Tonnage", "-"));
 
         panel.getChildren().addAll(head, g1, g1Box, g2, g2Box, g3, g3Box);
     }
@@ -786,53 +827,6 @@ public class DashboardPage {
     }
 
     // =====================================================
-    // 6. PORT PERSONNEL & DUTY MANAGEMENT SECTION
-    // =====================================================
-    private VBox buildPersonnelManagementSection() {
-        VBox section = new VBox(14);
-        section.setPadding(new Insets(18));
-        section.setStyle(
-                "-fx-background-color:#ffffff; -fx-background-radius:12; -fx-border-color:#e2e8f0; -fx-border-radius:12; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.04), 8, 0, 0, 2);");
-
-        // Section Title Bar
-        HBox topBar = new HBox(12);
-        topBar.setAlignment(Pos.CENTER_LEFT);
-
-        VBox titleBox = new VBox(2);
-        Label secTitle = new Label("PORT PERSONNEL & OPERATIONAL DUTY MANAGEMENT");
-        secTitle.setStyle("-fx-text-fill:#0f172a; -fx-font-size:16px; -fx-font-weight:bold;");
-
-        Label secSub = new Label("• Registered Port Personnel & Duty Assignments for " + activeViewingPort);
-        secSub.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px;");
-        titleBox.getChildren().addAll(secTitle, secSub);
-
-        Region topSpacer = new Region();
-        HBox.setHgrow(topSpacer, Priority.ALWAYS);
-
-        Button refreshBtn = new Button("⟳ Refresh Personnel Data");
-        refreshBtn.setStyle(
-                "-fx-background-color:#f8fafc; -fx-text-fill:#334155; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-font-size:12px; -fx-font-weight:bold; -fx-background-radius:6; -fx-padding:6 12; -fx-cursor:hand;");
-        refreshBtn.setOnAction(e -> refreshDashboardData());
-
-        topBar.getChildren().addAll(titleBox, topSpacer, refreshBtn);
-
-        // Two Cards Side-by-Side: Registered Ship Captains & Registered Customs
-        // Officers
-        HBox split = new HBox(14);
-        split.setAlignment(Pos.TOP_LEFT);
-
-        VBox captainsCard = buildCaptainsCard();
-        HBox.setHgrow(captainsCard, Priority.ALWAYS);
-
-        VBox officersCard = buildOfficersCard();
-        HBox.setHgrow(officersCard, Priority.ALWAYS);
-
-        split.getChildren().addAll(captainsCard, officersCard);
-        section.getChildren().addAll(topBar, split);
-        return section;
-    }
-
-    // =====================================================
     // CARD 1: REGISTERED SHIP CAPTAINS
     // =====================================================
     private VBox buildCaptainsCard() {
@@ -881,6 +875,10 @@ public class DashboardPage {
 
         // Captains Table
         captainsTable = new TableView<>();
+        var captainsCss = getClass().getResource("/table-headers.css");
+        if (captainsCss != null) {
+            captainsTable.getStylesheets().add(captainsCss.toExternalForm());
+        }
         captainsTable.setPrefHeight(230);
         captainsTable.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
         captainsTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");
@@ -1113,6 +1111,10 @@ public class DashboardPage {
                 miniKpiChip("Available", availOfficersVal, "#d97706", "#fef3c7"));
 
         officersTable = new TableView<>();
+        var officersCss = getClass().getResource("/table-headers.css");
+        if (officersCss != null) {
+            officersTable.getStylesheets().add(officersCss.toExternalForm());
+        }
         officersTable.setPrefHeight(230);
         officersTable.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
         officersTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");

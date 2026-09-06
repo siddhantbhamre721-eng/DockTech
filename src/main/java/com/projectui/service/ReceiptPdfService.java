@@ -221,6 +221,23 @@ public class ReceiptPdfService {
         }
     }
 
+    public static void deleteReceipt(Map<String, Object> paymentData) {
+        if (paymentData == null) return;
+
+        String receiptNo = getString(paymentData, "receiptNumber", "");
+        String cargoId = getString(paymentData, "cargoId", "");
+        if (receiptNo.isBlank()) return;
+
+        String prefix = "Receipt_" + receiptNo.replaceAll("[^a-zA-Z0-9_-]", "_") + "_";
+        File receiptsDir = new File("documents/receipts");
+        File[] receipts = receiptsDir.listFiles((dir, name) -> name.startsWith(prefix) && name.endsWith(".pdf"));
+        if (receipts != null) {
+            for (File receipt : receipts) {
+                receipt.delete();
+            }
+        }
+    }
+
     public static void openReceipt(File pdfFile) {
         if (pdfFile == null || !pdfFile.exists()) return;
         try {

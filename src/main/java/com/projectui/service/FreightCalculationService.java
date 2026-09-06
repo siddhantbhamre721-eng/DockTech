@@ -6,6 +6,8 @@ import java.util.Map;
 
 public class FreightCalculationService {
 
+    private static final double MAX_BUSINESS_AMOUNT = 49900.0;
+
     private static final FreightCalculationService INSTANCE = new FreightCalculationService();
 
     public static FreightCalculationService getInstance() {
@@ -143,7 +145,8 @@ public class FreightCalculationService {
         double distanceFactor = 1.0 + (distanceKm / 50000.0);
 
         double estimatedTotal = (baseRatePerKg * weightKg * Math.max(1, quantity)) * distanceFactor;
-        return Math.round(estimatedTotal / 100.0) * 100.0;
+        double roundedValue = Math.round(estimatedTotal / 100.0) * 100.0;
+        return Math.max(100.0, Math.min(MAX_BUSINESS_AMOUNT, roundedValue));
     }
 
     /**
@@ -247,9 +250,10 @@ public class FreightCalculationService {
                 declaredValue = Double.parseDouble(cargo.get("value").toString().replaceAll("[^0-9.]", ""));
             } catch (Exception ignored) {}
         }
-        if (declaredValue <= 0) {
+        if (declaredValue <= 0 || declaredValue >= MAX_BUSINESS_AMOUNT) {
             declaredValue = calculateEstimatedCargoValue(cargoType, weightKg, quantity, originPort, destinationPort);
         }
+        declaredValue = Math.max(100.0, Math.min(MAX_BUSINESS_AMOUNT, declaredValue));
 
         // Container allocation fee
         String containerType = "20 ft Standard Dry";
@@ -281,6 +285,13 @@ public class FreightCalculationService {
         double customsDuty = Math.round((declaredValue * 0.08) / 100.0) * 100.0;
 
         double totalPayable = freightFee + portHandlingFee + customsDuty;
+        if (totalPayable >= MAX_BUSINESS_AMOUNT) {
+            double scale = (MAX_BUSINESS_AMOUNT - 100.0) / totalPayable;
+            freightFee = Math.round(freightFee * scale / 100.0) * 100.0;
+            portHandlingFee = Math.round(portHandlingFee * scale / 100.0) * 100.0;
+            customsDuty = Math.round(customsDuty * scale / 100.0) * 100.0;
+            totalPayable = freightFee + portHandlingFee + customsDuty;
+        }
 
         return new PaymentBreakdown(declaredValue, freightFee, portHandlingFee, customsDuty, totalPayable,
                 distanceKm, originPort, destinationPort, containerType);

@@ -87,7 +87,7 @@ public class ContainerBooking {
 
                 root.setCenter(getScrollableContent());
 
-                Scene sc = new Scene(root, 1550, 800);
+                Scene sc = new Scene(root);
                 LoginPage.applyInvisibleScrollbar(sc);
                 return sc;
         }

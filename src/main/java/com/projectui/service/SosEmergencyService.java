@@ -321,7 +321,7 @@ public class SosEmergencyService extends Dao {
             a.captainName = str(map.get("captainName"), str(map.get("captain"), "Captain"));
             a.captainUid = str(map.get("captainUid"), "");
             a.imo = str(map.get("imo"), "9234567");
-            a.mmsi = str(map.get("mmsi"), "211280000");
+            a.mmsi = str(map.get("mmsi"), "");
             a.severity = str(map.get("severity"), str(map.get("priority"), "CRITICAL"));
             a.category = str(map.get("category"), str(map.get("emergencyType"), "General Distress"));
             a.description = str(map.get("description"), str(map.get("details"), "Emergency Distress Beacon"));
@@ -859,6 +859,8 @@ public class SosEmergencyService extends Dao {
         root.getChildren().addAll(header, vesselCard, grid, descBox, new Separator(), actions);
 
         javafx.scene.Scene scene = new javafx.scene.Scene(root);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(dialog);
         dialog.setScene(scene);
         dialog.show();
     }

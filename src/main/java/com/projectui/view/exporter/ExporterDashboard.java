@@ -8,14 +8,18 @@ import java.util.Map;
 
 import com.projectui.dao.CargoDao;
 import com.projectui.dao.ContainerDao;
+import com.projectui.dao.PaymentDao;
 import com.projectui.view.login.DashboardLayoutHelper;
 import com.projectui.view.login.LoginPage;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
@@ -39,6 +43,7 @@ public class ExporterDashboard extends Application {
     private final Map<String, Button> navButtons = new LinkedHashMap<>();
     private Label headerTitleLabel;
     private Label breadcrumbLabel;
+    private boolean paymentListenerRegistered;
 
     public static ExporterDashboard getInstance() {
         return instance;
@@ -92,14 +97,21 @@ public class ExporterDashboard extends Application {
 
         showPage(currentPage);
 
+        if (!paymentListenerRegistered) {
+            PaymentDao.addChangeListener(() -> {
+                if ("Dashboard".equals(currentPage)) {
+                    Platform.runLater(() -> showPage("Dashboard"));
+                }
+            });
+            paymentListenerRegistered = true;
+        }
+
         root.sceneProperty().addListener((obsScene, oldScene, newScene) -> {
             if (newScene == null) return;
             newScene.windowProperty().addListener((obsWin, oldWin, newWin) -> {
                 if (newWin == null) return;
                 if (newWin instanceof Stage s) {
                     dashboardStage = s;
-                    root.prefWidthProperty().bind(s.widthProperty());
-                    root.prefHeightProperty().bind(s.heightProperty());
                 }
             });
         });
@@ -298,10 +310,52 @@ public class ExporterDashboard extends Application {
 
         // Pending Action Items Section
         VBox pendingActions = createModernPendingActions(allCargos);
+        VBox paymentsReceived = createPaymentReceivedBox(new PaymentDao().getAllPayments());
 
-        main.getChildren().addAll(welcome, cards, contentLayout, pendingActions);
+        main.getChildren().addAll(welcome, cards, contentLayout, pendingActions, paymentsReceived);
         scrollPane.setContent(main);
         return scrollPane;
+    }
+
+    private VBox createPaymentReceivedBox(List<Map<String, Object>> payments) {
+        VBox box = new VBox(10);
+        box.setPadding(new Insets(20));
+        box.setStyle("-fx-background-color: white; -fx-background-radius: 16px; -fx-border-color: #E3EAF3; -fx-border-radius: 16px;");
+
+        Label title = new Label("Payment Received");
+        title.setStyle("-fx-text-fill:#0F172A; -fx-font-size:16px; -fx-font-weight:bold;");
+        box.getChildren().add(title);
+
+        String exporterId = LoginPage.loggedInUser != null ? String.valueOf(LoginPage.loggedInUser.getOrDefault("uid", "")) : "";
+        String exporterEmail = LoginPage.loggedInUser != null ? String.valueOf(LoginPage.loggedInUser.getOrDefault("email", "")) : "";
+        String exporterName = LoginPage.loggedInUser != null ? String.valueOf(LoginPage.loggedInUser.getOrDefault("name", LoginPage.loggedInUser.getOrDefault("fullName", ""))) : "";
+        int shown = 0;
+        if (payments != null) {
+            for (Map<String, Object> payment : payments) {
+                if (payment == null || !"PAID".equalsIgnoreCase(String.valueOf(payment.getOrDefault("paymentStatus", "")))) continue;
+                boolean matches = (!exporterId.isBlank() && exporterId.equals(String.valueOf(payment.getOrDefault("exporterUid", ""))))
+                        || (!exporterEmail.isBlank() && exporterEmail.equalsIgnoreCase(String.valueOf(payment.getOrDefault("exporterEmail", ""))))
+                        || (!exporterName.isBlank() && exporterName.equalsIgnoreCase(String.valueOf(payment.getOrDefault("exporterName", ""))));
+                if (!matches) continue;
+
+                String cargoId = String.valueOf(payment.getOrDefault("cargoId", "—"));
+                String importer = String.valueOf(payment.getOrDefault("importerName", "—"));
+                String amount = String.valueOf(payment.getOrDefault("amount", payment.getOrDefault("paymentAmount", "0")));
+                String paymentId = String.valueOf(payment.getOrDefault("razorpayPaymentId", payment.getOrDefault("paymentId", "—")));
+                String date = String.valueOf(payment.getOrDefault("paymentDate", payment.getOrDefault("paidAt", "—")));
+                Label received = new Label("PAID  •  " + cargoId + "  •  ₹" + amount + "  •  " + importer + "\nPayment ID: " + paymentId + "  |  " + date);
+                received.setWrapText(true);
+                received.setStyle("-fx-text-fill:#15803D; -fx-background-color:#ECFDF5; -fx-padding:10px; -fx-font-size:12px; -fx-font-weight:bold;");
+                box.getChildren().add(received);
+                if (++shown >= 5) break;
+            }
+        }
+        if (shown == 0) {
+            Label empty = new Label("No payments received for your consignments yet.");
+            empty.setStyle("-fx-text-fill:#94A3B8; -fx-font-size:12px;");
+            box.getChildren().add(empty);
+        }
+        return box;
     }
 
     // STAT CARD HELPER
@@ -408,7 +462,7 @@ public class ExporterDashboard extends Application {
                 else if (lower.contains("auto") || lower.contains("car")) icon = "🚗";
                 else if (lower.contains("chemical") || lower.contains("pharma")) icon = "🧪";
 
-                rows.getChildren().add(modernCargoRow(cId, cName, cStatus, eta, icon));
+                rows.getChildren().add(modernCargoRow(cId, cName, cStatus, eta, icon, c));
             }
         } else {
             Label emptyLbl = new Label("No registered cargo records found. Click 'Register Cargo' to start.");
@@ -427,7 +481,7 @@ public class ExporterDashboard extends Application {
         return label;
     }
 
-    private HBox modernCargoRow(String id, String type, String status, String eta, String icon) {
+    private HBox modernCargoRow(String id, String type, String status, String eta, String icon, Map<String, Object> cargo) {
         HBox row = new HBox(12);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(10, 14, 10, 14));
@@ -468,6 +522,32 @@ public class ExporterDashboard extends Application {
         etaLabel.setStyle("-fx-text-fill: #64748B; -fx-font-size: 12px;");
 
         row.getChildren().addAll(idBox, typeLabel, statusLabel, etaLabel);
+
+        boolean canDelete = id != null && !id.isBlank();
+        if (canDelete) {
+            Button deleteButton = new Button("Delete Cargo");
+            deleteButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #DC2626; -fx-font-size: 11px; -fx-font-weight: bold; -fx-cursor: hand;");
+            deleteButton.setOnAction(event -> {
+                event.consume();
+                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                    "Are you sure you want to delete this cargo? This will remove all associated cargo records, bookings, documents, payments, and requests.",
+                    ButtonType.CANCEL, ButtonType.OK);
+                confirm.setTitle("Delete Cargo");
+                confirm.setHeaderText("Delete cargo");
+                confirm.showAndWait().ifPresent(result -> {
+                    if (result == ButtonType.OK) {
+                        if (new CargoDao().deleteCargo(id)) {
+                            CargoDao.syncFromFirestore();
+                            switchPage("Dashboard");
+                        } else {
+                            Alert error = new Alert(Alert.AlertType.ERROR, "Cargo could not be deleted.");
+                            error.showAndWait();
+                        }
+                    }
+                });
+            });
+            row.getChildren().add(deleteButton);
+        }
 
         row.setOnMouseEntered(e -> row.setStyle("-fx-background-color: #F8FAFC; -fx-border-color: #F1F5F9; -fx-border-width: 0 0 1 0; -fx-cursor: hand;"));
         row.setOnMouseExited(e -> row.setStyle("-fx-background-color: white; -fx-border-color: #F1F5F9; -fx-border-width: 0 0 1 0;"));

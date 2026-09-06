@@ -83,7 +83,7 @@ public class UpdateShipStatus {
     }
 
     public Scene getShipScene() {
-        return new Scene(getRoot(), 1280, 800);
+        return new Scene(getRoot());
     }
 
     private VBox buildEmptyState() {
@@ -216,7 +216,7 @@ public class UpdateShipStatus {
         String speedStr = v != null ? String.format("%.1f Knots", v.speed) : "12.5 Knots";
         String courseStr = v != null ? String.format("%.1f°", v.course) : "184.0°";
         String coords = v != null ? String.format("%.4f° N, %.4f° E", v.latitude, v.longitude) : "18.9439° N, 72.8354° E";
-        String dest = ship.getDeparture() != null && !ship.getDeparture().isBlank() ? ship.getDeparture() : (v != null ? v.destination : "Port of Singapore");
+        String dest = CaptainSessionService.getAssignedVoyageDestination();
         String captain = CaptainSessionService.getCaptainName();
 
         stateGrid.add(fieldCell("Assigned Vessel", ship.getShipName()), 0, 0);
@@ -291,8 +291,8 @@ public class UpdateShipStatus {
         rGrid.setHgap(16);
         rGrid.setVgap(10);
 
-        String origin = ship.getArrival() != null && !ship.getArrival().isBlank() ? "Port of Chennai" : "Port of Mumbai";
-        String dest = ship.getDeparture() != null && !ship.getDeparture().isBlank() ? ship.getDeparture() : (v != null ? v.destination : "Port of Singapore");
+        String origin = CaptainSessionService.getAssignedVoyageOrigin();
+        String dest = CaptainSessionService.getAssignedVoyageDestination();
         String voyageId = "VOY-" + (ship.getShipId() != null ? ship.getShipId() : "2026") + "-E";
         String eta = ship.getArrival() != null && !ship.getArrival().isBlank() ? ship.getArrival() : "10:30 AM";
         String berth = ship.getBerth() != null && !ship.getBerth().isBlank() ? ship.getBerth() : "Berth B04";

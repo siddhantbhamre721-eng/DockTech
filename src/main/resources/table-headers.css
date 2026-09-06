@@ -1,0 +1,5 @@
+@import "hide-scrollbar.css";
+
+.table-view .column-header .label {
+    -fx-text-fill: #111827;
+}

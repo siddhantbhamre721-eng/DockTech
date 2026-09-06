@@ -64,11 +64,19 @@ public class RegistrationCargo {
 
         private ComboBox<String> priority;
 
+        private ComboBox<String> importerSelect;
+
+        private final java.util.List<Map<String, Object>> loadedImporters = new java.util.ArrayList<>();
+
         private Label successMessage;
 
         private Label cargoIdLabel;
 
         private ProgressBar progressBar;
+
+        private Button registerButton;
+
+        private boolean registrationInProgress;
 
         // =========================================================
 
@@ -91,7 +99,7 @@ public class RegistrationCargo {
 
                 root.setCenter(getScrollableContent());
 
-                Scene sc = new Scene(root, 1550, 800);
+                Scene sc = new Scene(root);
                 com.projectui.view.login.LoginPage.applyInvisibleScrollbar(sc);
                 return sc;
         }
@@ -356,11 +364,30 @@ public class RegistrationCargo {
 
                 priority.setValue("Normal");
 
+                importerSelect = new ComboBox<>();
+                loadDynamicImporters();
+
                 quantity.textProperty().addListener((obs, oldV, newV) -> updateEstimatedValue());
                 weight.textProperty().addListener((obs, oldV, newV) -> updateEstimatedValue());
                 cargoType.setOnAction(e -> updateEstimatedValue());
                 originPort.setOnAction(e -> updateEstimatedValue());
                 destinationPort.setOnAction(e -> updateEstimatedValue());
+                String enteredValue = cargoValue.getText() != null ? cargoValue.getText().trim() : "";
+                if (!enteredValue.isBlank()) {
+                        try {
+                                double manualValue = Double.parseDouble(enteredValue.replaceAll("[^0-9.]", ""));
+                                if (manualValue >= 50000.0) {
+                                        showError("Estimated Value must be less than ₹50,000.");
+                                        cargoValue.requestFocus();
+                                        return main;
+                                }
+                        } catch (Exception ex) {
+                                showError("Estimated Value must be a valid amount less than ₹50,000.");
+                                cargoValue.requestFocus();
+                                return main;
+                        }
+                }
+
                 updateEstimatedValue();
 
                 addField(form, "Cargo Name", cargoName, 0, 0);
@@ -378,6 +405,9 @@ public class RegistrationCargo {
                 addField(form, "Estimated Value (₹)", cargoValue, 0, 3);
 
                 addField(form, "Priority", priority, 1, 3);
+
+                addField(form, "Assign Importer (Consignee)", importerSelect, 0, 4);
+                GridPane.setColumnSpan(form.getChildren().get(form.getChildren().size() - 1), 2);
 
                 // =====================================================
 
@@ -399,7 +429,7 @@ public class RegistrationCargo {
 
                 GridPane.setColumnSpan(progressBar, 2);
 
-                form.add(progressBar, 0, 4);
+                form.add(progressBar, 0, 5);
 
                 // =====================================================
 
@@ -411,7 +441,7 @@ public class RegistrationCargo {
 
                 buttons.setAlignment(Pos.CENTER_LEFT);
 
-                Button registerButton = new Button("Register Cargo");
+                registerButton = new Button("Register Cargo");
 
                 registerButton.setPrefHeight(52);
 
@@ -712,6 +742,9 @@ public class RegistrationCargo {
                 if (label.contains("Priority"))
                         return "⚑";
 
+                if (label.contains("Importer"))
+                        return "👤";
+
                 return "•";
 
         }
@@ -723,6 +756,8 @@ public class RegistrationCargo {
         // =========================================================
 
         private void registerCargo() {
+
+                if (registrationInProgress) return;
 
                 if (cargoName.getText().trim().isEmpty()) {
 
@@ -780,7 +815,23 @@ public class RegistrationCargo {
 
                 }
 
+                double estimatedValue;
+                try {
+                        estimatedValue = Double.parseDouble(cargoValue.getText().replaceAll("[^0-9.]", "").trim());
+                } catch (Exception ex) {
+                        showError("Estimated Value must be a valid amount less than ₹50,000.");
+                        cargoValue.requestFocus();
+                        return;
+                }
+                if (estimatedValue >= 50000.0) {
+                        showError("Estimated Value must be less than ₹50,000.");
+                        cargoValue.requestFocus();
+                        return;
+                }
                 updateEstimatedValue();
+
+                registrationInProgress = true;
+                registerButton.setDisable(true);
 
                 // =====================================================
 
@@ -827,6 +878,19 @@ public class RegistrationCargo {
                                                         calcVal = Double.parseDouble(cargoValue.getText().replaceAll("[^0-9.]", "").trim());
                                                 } catch (Exception ignored) {}
 
+                                                int selIdx = (importerSelect != null) ? importerSelect.getSelectionModel().getSelectedIndex() : -1;
+                                                Map<String, Object> selImp = (selIdx >= 0 && selIdx < loadedImporters.size()) ? loadedImporters.get(selIdx) : null;
+                                                String impName = null, impEmail = null, impId = null, impComp = null;
+                                                if (selImp != null) {
+                                                        impName = selImp.get("name") != null ? selImp.get("name").toString().trim()
+                                                                : (selImp.get("fullName") != null ? selImp.get("fullName").toString().trim() : null);
+                                                        impEmail = selImp.get("email") != null ? selImp.get("email").toString().trim() : null;
+                                                        impId = selImp.get("uid") != null ? selImp.get("uid").toString().trim() : null;
+                                                        impComp = selImp.get("company") != null ? selImp.get("company").toString().trim() : null;
+                                                } else if (importerSelect != null && importerSelect.getValue() != null && !importerSelect.getValue().startsWith("No Registered")) {
+                                                        impName = importerSelect.getValue().trim();
+                                                }
+
                                                 String id = controller.addCargo(
 
                                                                 cargoName.getText().trim(),
@@ -843,7 +907,15 @@ public class RegistrationCargo {
 
                                                                 destinationPort.getValue(),
 
-                                                                priority.getValue()
+                                                                priority.getValue(),
+
+                                                                impName,
+
+                                                                impEmail,
+
+                                                                impId,
+
+                                                                impComp
 
                                                 );
 
@@ -858,6 +930,9 @@ public class RegistrationCargo {
                                         } catch (Exception ex) {
 
                                                 progressBar.setVisible(false);
+
+                                                registrationInProgress = false;
+                                                registerButton.setDisable(false);
 
                                                 showError("Failed to save: " + ex.getMessage());
 
@@ -921,6 +996,38 @@ public class RegistrationCargo {
                 destinationPort.setValue(destList.size() > 1 ? destList.get(1) : destList.get(0));
         }
 
+        private void loadDynamicImporters() {
+                if (importerSelect == null) return;
+                loadedImporters.clear();
+                java.util.List<Map<String, Object>> importers = com.projectui.dao.UserDao.getUsersByRoles("Importer");
+                java.util.List<String> displayList = new java.util.ArrayList<>();
+                if (importers != null && !importers.isEmpty()) {
+                        for (Map<String, Object> imp : importers) {
+                                if (imp == null) continue;
+                                loadedImporters.add(imp);
+                                String name = imp.get("name") != null ? imp.get("name").toString().trim() : "";
+                                if (name.isBlank() && imp.get("fullName") != null) name = imp.get("fullName").toString().trim();
+                                String email = imp.get("email") != null ? imp.get("email").toString().trim() : "";
+                                String company = imp.get("company") != null ? imp.get("company").toString().trim() : "";
+
+                                String label = !name.isBlank() ? name : (!company.isBlank() ? company : email);
+                                if (!company.isBlank() && !company.equalsIgnoreCase(label)) {
+                                        label = label + " (" + company + ")";
+                                } else if (!email.isBlank() && !label.contains("@")) {
+                                        label = label + " <" + email + ">";
+                                }
+                                displayList.add(label);
+                        }
+                }
+                if (displayList.isEmpty()) {
+                        importerSelect.getItems().setAll("No Registered Importers");
+                        importerSelect.setValue("No Registered Importers");
+                } else {
+                        importerSelect.getItems().setAll(displayList);
+                        importerSelect.setValue(displayList.get(0));
+                }
+        }
+
         // =========================================================
 
         // CLEAR FORM
@@ -928,6 +1035,9 @@ public class RegistrationCargo {
         // =========================================================
 
         private void clearForm() {
+
+                registrationInProgress = false;
+                if (registerButton != null) registerButton.setDisable(false);
 
                 cargoName.clear();
 
@@ -942,6 +1052,7 @@ public class RegistrationCargo {
                 );
 
                 loadDynamicPorts();
+                loadDynamicImporters();
 
                 priority.setValue(
 

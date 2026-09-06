@@ -293,6 +293,7 @@ public class ShipManagementPage {
 
         // Table
         shipTable = new TableView<>();
+        shipTable.getStylesheets().add(getClass().getResource("/table-headers.css").toExternalForm());
         shipTable.setPrefHeight(450);
         shipTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         shipTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");
@@ -845,17 +846,11 @@ public class ShipManagementPage {
         Label g3 = new Label("VESSEL PARTICULARS");
         g3.setStyle("-fx-text-fill:#0284c7; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:4 0 2 0;");
 
-        long seed = Math.abs(v.mmsi);
-        int len = 180 + (int)(seed % 140);
-        int beam = 25 + (int)(seed % 15);
-        double draught = 8.0 + (seed % 50) / 10.0;
-        int tonnage = 20000 + (int)(seed % 30000);
-
         VBox g3Box = new VBox(3,
-                detailLine("Overall Length (LOA)", len + " m"),
-                detailLine("Beam (Breadth)", beam + " m"),
-                detailLine("Maximum Draught", String.format("%.1f m", draught)),
-                detailLine("Gross Tonnage", String.format("%,d GT", tonnage))
+            detailLine("Overall Length (LOA)", "-"),
+            detailLine("Beam (Breadth)", "-"),
+            detailLine("Maximum Draught", "-"),
+            detailLine("Gross Tonnage", "-")
         );
 
         contentBox.getChildren().addAll(head, g1, g1Box, g2, g2Box, g3, g3Box);

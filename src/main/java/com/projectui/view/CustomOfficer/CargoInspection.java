@@ -346,7 +346,7 @@ public class CargoInspection {
         searchField.textProperty().addListener((obs, o, n) -> applyFilter());
 
         // Dropdowns (Admin Style)
-        statusFilterCombo = combo("All Statuses", "All Statuses", "Pending", "Under Inspection", "Passed", "On Hold", "Failed");
+        statusFilterCombo = combo("All Statuses", "All Statuses", "Pending Inspection", "Under Inspection", "Passed", "On Hold", "Failed");
         statusFilterCombo.setPrefWidth(125);
         statusFilterCombo.setOnAction(e -> applyFilter());
 
@@ -538,7 +538,7 @@ public class CargoInspection {
         g.setHgap(8);
         g.setVgap(4);
 
-        detailCargoId = createLabel("—", true, BLUE);
+        detailCargoId = createLabel("—", true, "#0f172a");
         detailCargoName = createLabel("—", false, "#334155");
         detailCargoType = createLabel("—", false, "#334155");
         detailHsCode = createLabel("—", false, "#334155");
@@ -571,7 +571,7 @@ public class CargoInspection {
 
         detailVessel = createLabel("—", false, "#334155");
         detailVoyage = createLabel("—", false, "#334155");
-        detailImo = createLabel("IMO: 9410521", false, "#64748b");
+        detailImo = createLabel("IMO: 9410521", false, "#334155");
         detailRoute = createLabel("—", false, "#334155");
         detailEtaEtd = createLabel("—", false, "#334155");
 
@@ -806,7 +806,7 @@ public class CargoInspection {
                     String netWeight = c.get("netWeight") != null ? String.valueOf(c.get("netWeight")) : "—";
                     String eta = c.get("eta") != null ? String.valueOf(c.get("eta")) : "—";
                     String etd = c.get("etd") != null ? String.valueOf(c.get("etd")) : "—";
-                    String inspectStatus = c.get("inspectionStatus") != null ? String.valueOf(c.get("inspectionStatus")) : "Pending";
+                    String inspectStatus = c.get("inspectionStatus") != null ? String.valueOf(c.get("inspectionStatus")) : "Pending Inspection";
                     String customsStatus = c.get("customsStatus") != null ? String.valueOf(c.get("customsStatus")) : "Pending";
 
                     if (!exporter.isBlank() && !exporter.equals("—")) uniqueEntities.add(exporter);
@@ -1267,7 +1267,12 @@ public class CargoInspection {
         String inspectDate = cargo.get("inspectionDate") != null ? String.valueOf(cargo.get("inspectionDate")) : "Recent";
 
         auditTrailContainer.getChildren().add(createAuditRow("📥", "Cargo Registered by Shipper", exporter, createdAt));
-        auditTrailContainer.getChildren().add(createAuditRow("📋", "Document Verification Certified", "Customs Document Desk", "Approved"));
+        String verificationStatus = cargo.get("verificationStatus") != null ? String.valueOf(cargo.get("verificationStatus")) : "Pending Verification";
+        if ("Verified".equalsIgnoreCase(verificationStatus) || "Approved".equalsIgnoreCase(verificationStatus) || "Certified".equalsIgnoreCase(verificationStatus)) {
+            auditTrailContainer.getChildren().add(createAuditRow("📋", "Document Verification Certified", "Customs Document Desk", "Approved"));
+        } else {
+            auditTrailContainer.getChildren().add(createAuditRow("⏳", "Pending Document Verification", "Customs Document Desk", "Queued"));
+        }
 
         if ("Passed".equalsIgnoreCase(inspectStatus) || "Approved".equalsIgnoreCase(inspectStatus)) {
             auditTrailContainer.getChildren().add(createAuditRow("✓", "Physical Inspection Passed", inspectedBy, inspectDate));

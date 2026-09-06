@@ -9,6 +9,7 @@ public class Ship {
     private String company;
     private String arrival;
     private String departure;
+    private String destination;
     private String berth;
     private String status;
 
@@ -25,6 +26,26 @@ public class Ship {
         this.company = company;
         this.arrival = arrival;
         this.departure = departure;
+        this.destination = departure;
+        this.berth = berth;
+        this.status = status;
+    }
+
+    public Ship(String shipId, 
+        String shipName, String shipType, 
+        String imoNumber, String company, 
+        String arrival, String departure, 
+        String destination,
+        String berth, String status) {
+
+        this.shipId = shipId;
+        this.shipName = shipName;
+        this.shipType = shipType;
+        this.imoNumber = imoNumber;
+        this.company = company;
+        this.arrival = arrival;
+        this.departure = departure;
+        this.destination = (destination != null && !destination.isBlank()) ? destination : departure;
         this.berth = berth;
         this.status = status;
     }
@@ -93,6 +114,17 @@ public class Ship {
 
     public void setDeparture(String departure) {
         this.departure = departure;
+    }
+
+    public String getDestination() {
+        if (destination != null && !destination.isBlank()) {
+            return destination;
+        }
+        return departure;
+    }
+
+    public void setDestination(String destination) {
+        this.destination = destination;
     }
 
     public String getBerth() {

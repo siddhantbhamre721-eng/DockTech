@@ -497,7 +497,32 @@ public class ImporterDashboard extends Application {
         String rawWt = str(c.get("weight"), "—");
         s.weight = rawWt.equals("—") || rawWt.contains("kg") ? rawWt : (rawWt + " kg");
         s.cargoValue = "₹ " + str(c.get("value"), str(c.get("amount"), "0"));
-        s.exporterName = str(c.get("exporterName"), str(c.get("exporter"), str(c.get("customerName"), "—")));
+        
+        String exp = str(c.get("exporterName"), str(c.get("exporter"), str(c.get("exporterCompany"), str(c.get("shipper"), str(c.get("company"), str(c.get("customerName"), "—"))))));
+        if (exp.equals("—") || exp.isBlank() || exp.equalsIgnoreCase("Exporter")) {
+            String expUid = str(c.get("ownerUid"), str(c.get("exporterUid"), str(c.get("exporterId"), str(c.get("userId"), ""))));
+            String expEmail = str(c.get("ownerEmail"), str(c.get("exporterEmail"), ""));
+            if (!expUid.isBlank()) {
+                Map<String, Object> prof = com.projectui.dao.UserDao.getProfile(expUid);
+                if (prof != null) {
+                    Object pn = prof.get("name") != null ? prof.get("name") : (prof.get("fullName") != null ? prof.get("fullName") : prof.get("company"));
+                    if (pn != null && !pn.toString().isBlank()) {
+                        exp = pn.toString();
+                    }
+                }
+            }
+            if ((exp.equals("—") || exp.isBlank() || exp.equalsIgnoreCase("Exporter")) && !expEmail.isBlank()) {
+                Map<String, Object> prof = com.projectui.dao.UserDao.getProfile(expEmail);
+                if (prof != null) {
+                    Object pn = prof.get("name") != null ? prof.get("name") : (prof.get("fullName") != null ? prof.get("fullName") : prof.get("company"));
+                    if (pn != null && !pn.toString().isBlank()) {
+                        exp = pn.toString();
+                    }
+                }
+            }
+        }
+        s.exporterName = exp;
+
         s.originPort = str(c.get("originPort"), "—");
         s.destinationPort = str(c.get("destinationPort"), "—");
 
@@ -1047,6 +1072,8 @@ public class ImporterDashboard extends Application {
         root.getChildren().addAll(header, titleCard, grid, docBox, new Separator(), actions);
 
         Scene scene = new Scene(root);
+        LoginPage.applyInvisibleScrollbar(scene);
+        LoginPage.applyInvisibleScrollbar(dialog);
         dialog.setScene(scene);
         dialog.show();
     }

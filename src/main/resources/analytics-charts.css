@@ -1,0 +1,114 @@
+/* Analytics Dashboard Custom Chart Styles */
+
+.analytics-chart {
+    -fx-background-color: transparent;
+}
+
+.analytics-chart .chart-plot-background {
+    -fx-background-color: #FAFAFA;
+    -fx-border-color: #F1F5F9;
+    -fx-border-width: 1px;
+}
+
+.analytics-chart .chart-vertical-grid-lines {
+    -fx-stroke: #F1F5F9;
+}
+
+.analytics-chart .chart-horizontal-grid-lines {
+    -fx-stroke: #F1F5F9;
+}
+
+.analytics-chart .axis {
+    -fx-tick-label-fill: #64748B;
+    -fx-tick-label-font-size: 11px;
+}
+
+.analytics-chart .axis-label {
+    -fx-text-fill: #334155;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+/* Ship Activity Line Chart Series Styles */
+.ship-activity-chart {
+    -fx-padding: 2px 4px 0px 0px;
+}
+.ship-activity-chart .chart-content {
+    -fx-padding: 0px;
+}
+.ship-activity-chart .default-color0.chart-series-line {
+    -fx-stroke: #E05A32;
+    -fx-stroke-width: 2.5px;
+}
+.ship-activity-chart .default-color0.chart-line-symbol {
+    -fx-background-color: #E05A32, #FFFFFF;
+    -fx-background-insets: 0, 2;
+    -fx-background-radius: 6px;
+    -fx-padding: 4px;
+}
+
+.ship-activity-chart .default-color1.chart-series-line {
+    -fx-stroke: #E89D29;
+    -fx-stroke-width: 2.5px;
+}
+.ship-activity-chart .default-color1.chart-line-symbol {
+    -fx-background-color: #E89D29, #FFFFFF;
+    -fx-background-insets: 0, 2;
+    -fx-background-radius: 6px;
+    -fx-padding: 4px;
+}
+
+.ship-activity-chart .default-color2.chart-series-line {
+    -fx-stroke: #22C55E;
+    -fx-stroke-width: 2.5px;
+}
+.ship-activity-chart .default-color2.chart-line-symbol {
+    -fx-background-color: #22C55E, #FFFFFF;
+    -fx-background-insets: 0, 2;
+    -fx-background-radius: 6px;
+    -fx-padding: 4px;
+}
+
+/* Cargo Movement Bar Chart Fill */
+.cargo-movement-chart .chart-bar {
+    -fx-bar-fill: #E05A32;
+    -fx-background-radius: 2px 2px 0 0;
+}
+.cargo-movement-chart .default-color0.chart-bar {
+    -fx-bar-fill: #E05A32;
+}
+
+/* Pie Chart Styling */
+.container-pie-chart .data0.chart-pie {
+    -fx-pie-color: #E05A32;
+}
+.container-pie-chart .data1.chart-pie {
+    -fx-pie-color: #E89D29;
+}
+.container-pie-chart .data2.chart-pie {
+    -fx-pie-color: #22C55E;
+}
+.container-pie-chart .data3.chart-pie {
+    -fx-pie-color: #38BDF8;
+}
+
+.payment-pie-chart .data0.chart-pie {
+    -fx-pie-color: #E05A32;
+}
+.payment-pie-chart .data1.chart-pie {
+    -fx-pie-color: #E89D29;
+}
+.payment-pie-chart .data2.chart-pie {
+    -fx-pie-color: #22C55E;
+}
+
+.pie-chart .chart-pie-label {
+    -fx-fill: #334155;
+    -fx-font-size: 11px;
+    -fx-font-weight: 500;
+}
+
+.pie-chart .chart-pie-label-line {
+    -fx-stroke: #94A3B8;
+    -fx-stroke-width: 1px;
+}

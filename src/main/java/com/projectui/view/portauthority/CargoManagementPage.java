@@ -291,6 +291,7 @@ public class CargoManagementPage {
 
         // Pending & Importer Requests Table
         pendingRequestsTable = new TableView<>();
+        pendingRequestsTable.getStylesheets().add(getClass().getResource("/table-headers.css").toExternalForm());
         pendingRequestsTable.setPrefHeight(220);
         pendingRequestsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         pendingRequestsTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");
@@ -513,6 +514,7 @@ public class CargoManagementPage {
 
         // Table
         cargoOperationsTable = new TableView<>();
+        cargoOperationsTable.getStylesheets().add(getClass().getResource("/table-headers.css").toExternalForm());
         cargoOperationsTable.setPrefHeight(380);
         cargoOperationsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         cargoOperationsTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");
@@ -585,13 +587,14 @@ public class CargoManagementPage {
         colUpdated.setStyle("-fx-alignment:CENTER; -fx-font-size:11px; -fx-text-fill:#64748b;");
 
         TableColumn<Map<String, Object>, String> colAction = new TableColumn<>("Action");
-        colAction.setPrefWidth(260);
+        colAction.setPrefWidth(310);
         colAction.setCellFactory(col -> new TableCell<>() {
             private final Button viewBtn = new Button("View");
             private final Button assignBtn = new Button("Assign Ship");
             private final Button customsBtn = new Button("Customs");
             private final Button updateBtn = new Button("Status");
-            private final HBox btnBox = new HBox(4, viewBtn, assignBtn, customsBtn, updateBtn);
+            private final Button deleteBtn = new Button("Delete");
+            private final HBox btnBox = new HBox(4, viewBtn, assignBtn, customsBtn, updateBtn, deleteBtn);
 
             {
                 btnBox.setAlignment(Pos.CENTER);
@@ -599,6 +602,7 @@ public class CargoManagementPage {
                 assignBtn.setStyle("-fx-background-color:#2563eb; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
                 customsBtn.setStyle("-fx-background-color:#7c3aed; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
                 updateBtn.setStyle("-fx-background-color:#475569; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+                deleteBtn.setStyle("-fx-background-color:#dc2626; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
 
                 viewBtn.setOnAction(e -> {
                     Map<String, Object> item = getTableView().getItems().get(getIndex());
@@ -619,13 +623,24 @@ public class CargoManagementPage {
                     Map<String, Object> item = getTableView().getItems().get(getIndex());
                     showUpdateStatusDialog(item);
                 });
+
+                deleteBtn.setOnAction(e -> {
+                    int idx = getIndex();
+                    if (idx >= 0 && idx < getTableView().getItems().size()) {
+                        Map<String, Object> item = getTableView().getItems().get(idx);
+                        handleDeleteCargoRegistration(item);
+                    }
+                });
             }
 
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty) setGraphic(null);
-                else setGraphic(btnBox);
+                if (empty || getIndex() < 0 || getIndex() >= getTableView().getItems().size()) {
+                    setGraphic(null);
+                } else {
+                    setGraphic(btnBox);
+                }
             }
         });
 
@@ -926,15 +941,28 @@ public class CargoManagementPage {
                 if (!cStatus.equalsIgnoreCase(statusFilter)) continue;
             }
 
-            filteredList.add(c);
+            // Classify: pre-approval statuses go to Cargo Requests table ONLY.
+            // Post-approval statuses go to Live Cargo Operations table ONLY.
+            // The same cargo never appears in both tables simultaneously —
+            // it graduates from Cargo Requests to Live Cargo Operations only when
+            // checkAndAutoApprove() sets its status to "Approved" (both assignments done).
+            boolean isPendingOrInAssignment =
+                    "Pending".equalsIgnoreCase(cStatus)
+                    || "Registered".equalsIgnoreCase(cStatus)
+                    || "Ship Assigned".equalsIgnoreCase(cStatus)
+                    || "Customs Assigned".equalsIgnoreCase(cStatus)
+                    || "Pending Assignment".equalsIgnoreCase(cStatus)
+                    || "Request Submitted".equalsIgnoreCase(cStatus);
 
-            // Classify pending/importer requests
-            if ("Pending".equalsIgnoreCase(cStatus) || "Registered".equalsIgnoreCase(cStatus) || "Approved".equalsIgnoreCase(cStatus)) {
+            if (isPendingOrInAssignment) {
                 pendingList.add(c);
+            } else {
+                // Only approved/active/completed cargo goes to Live Cargo Operations
+                filteredList.add(c);
             }
         }
 
-        // Apply Sorting
+        // Apply Sorting to Live Cargo Operations list
         if ("Sort: Status".equalsIgnoreCase(sortOption)) {
             filteredList.sort(Comparator.comparing(a -> getString(a, "status", "")));
         } else if ("Sort: Type".equalsIgnoreCase(sortOption)) {
@@ -1433,13 +1461,38 @@ public class CargoManagementPage {
             for (int i = 0; i < caps.size(); i++) {
                 Map<String, Object> cap = caps.get(i);
                 String cUid = cap.get("uid") != null ? cap.get("uid").toString() : "";
-                String personName = cap.get("name") != null ? cap.get("name").toString() : (cap.get("fullName") != null ? cap.get("fullName").toString() : "Captain");
-                String cEmail = cap.get("email") != null ? cap.get("email").toString() : "";
-                String cPort = cap.get("assignedPort") != null ? cap.get("assignedPort").toString() : "All Ports";
-                String cShip = cap.get("assignedShip") != null ? cap.get("assignedShip").toString() : "Available";
+                String personName = cap.get("name") != null && !cap.get("name").toString().isBlank()
+                        ? cap.get("name").toString().trim()
+                        : (cap.get("fullName") != null && !cap.get("fullName").toString().isBlank()
+                                ? cap.get("fullName").toString().trim()
+                                : (cap.get("displayName") != null && !cap.get("displayName").toString().isBlank()
+                                        ? cap.get("displayName").toString().trim()
+                                        : ""));
+                String cEmail = cap.get("email") != null ? cap.get("email").toString().trim() : "";
+                if (personName.isBlank() && !cEmail.isBlank()) {
+                    personName = cEmail.contains("@") ? cEmail.substring(0, cEmail.indexOf("@")) : cEmail;
+                }
+                if (personName.isBlank()) {
+                    personName = "Captain";
+                }
+
+                Object pObj = cap.get("assignedPort");
+                if (pObj == null || pObj.toString().isBlank()) pObj = cap.get("port");
+                if (pObj == null || pObj.toString().isBlank()) pObj = cap.get("portName");
+                String cPort = (pObj != null && !pObj.toString().isBlank()) ? pObj.toString().trim() : "";
 
                 String isCurrent = (!shipCapUid.isEmpty() && shipCapUid.equals(cUid)) ? " [Currently Assigned to Ship]" : "";
-                capDisplayOptions.add("👨‍✈️ " + personName + " (" + cEmail + ") • " + cPort + isCurrent);
+
+                String displayStr = "👨‍✈️ " + personName;
+                if (!cEmail.isBlank()) {
+                    displayStr += " (" + cEmail + ")";
+                }
+                if (!cPort.isBlank() && !cPort.equalsIgnoreCase("Not Assigned") && !cPort.equalsIgnoreCase("All") && !cPort.equalsIgnoreCase("All Ports")) {
+                    displayStr += " • " + cPort;
+                }
+                displayStr += isCurrent;
+
+                capDisplayOptions.add(displayStr);
                 capUids.add(cUid);
                 capNames.add(personName);
                 capEmails.add(cEmail);
@@ -1450,10 +1503,10 @@ public class CargoManagementPage {
             }
 
             if (capDisplayOptions.isEmpty()) {
-                capDisplayOptions.add("👨‍✈️ Registered Ship Captain (captain@docktech.com)");
-                capUids.add("CAP-001");
-                capNames.add("Ship Captain");
-                capEmails.add("captain@docktech.com");
+                capDisplayOptions.add("⚠️ No Registered Captains Found");
+                capUids.add("");
+                capNames.add("");
+                capEmails.add("");
             }
 
             captainCombo.getItems().setAll(capDisplayOptions);
@@ -1466,7 +1519,13 @@ public class CargoManagementPage {
                 String uId = capUids.get(cIdx);
                 String uEmail = capEmails.get(cIdx);
                 String uName = capNames.get(cIdx);
-                captainDetailsLbl.setText("Selected Captain: " + uName + " | Email: " + uEmail + " | UID: " + (!uId.isEmpty() ? uId.substring(0, Math.min(10, uId.length())) + "..." : "N/A"));
+                if (uId.isBlank() && uEmail.isBlank()) {
+                    captainDetailsLbl.setText("No Captain account registered in the system.");
+                    captainDetailsLbl.setStyle("-fx-text-fill:#ef4444; -fx-font-size:12px; -fx-font-weight:bold;");
+                } else {
+                    captainDetailsLbl.setText("Selected Captain: " + uName + " | Email: " + uEmail + " | UID: " + (!uId.isEmpty() ? uId.substring(0, Math.min(10, uId.length())) + "..." : "N/A"));
+                    captainDetailsLbl.setStyle("-fx-text-fill:#16a34a; -fx-font-size:12px; -fx-font-weight:bold;");
+                }
             }
         };
 
@@ -1504,20 +1563,39 @@ public class CargoManagementPage {
                     String chosenShipImo = shipImos.get(sIdx);
 
                     String chosenCapUid = (cIdx >= 0 && cIdx < capUids.size()) ? capUids.get(cIdx) : "";
-                    String chosenCapName = (cIdx >= 0 && cIdx < capNames.size()) ? capNames.get(cIdx) : "Ship Captain";
+                    String chosenCapName = (cIdx >= 0 && cIdx < capNames.size()) ? capNames.get(cIdx) : "";
                     String chosenCapEmail = (cIdx >= 0 && cIdx < capEmails.size()) ? capEmails.get(cIdx) : "";
+
+                    if (chosenCapUid.isBlank() && chosenCapEmail.isBlank() && chosenCapName.isBlank()) {
+                        Alert warn = new Alert(Alert.AlertType.WARNING);
+                        warn.setTitle("Captain Selection Required");
+                        warn.setHeaderText("No Captain Selected");
+                        warn.setContentText("Please select a valid registered Ship Captain.");
+                        warn.showAndWait();
+                        return false;
+                    }
 
                     cargoDao.assignShipToCargo(cId, chosenShipId, chosenShipName, chosenShipImo,
                             chosenCapUid, chosenCapName, chosenCapEmail, "Port Authority (" + activeViewingPort + ")");
+                    // Check if both ship + customs officer are now assigned; if so, auto-approve.
+                    checkAndAutoApprove(cId);
                     refreshCargoData();
+
+                    // Compose a status-aware success message
+                    Map<String, Object> updatedCargo = cargoDao.getCargo(cId);
+                    boolean nowApproved = updatedCargo != null && "Approved".equalsIgnoreCase(
+                            updatedCargo.get("status") != null ? updatedCargo.get("status").toString() : "");
+                    String extraMsg = nowApproved
+                            ? "\n\n✅ Both ship and customs officer are now assigned.\nCargo status has been automatically set to APPROVED and is now visible in Live Cargo Operations."
+                            : "\n\nℹ️ Assign a Customs Officer to complete the approval process.";
 
                     Alert success = new Alert(Alert.AlertType.INFORMATION);
                     success.setTitle("Assignment Confirmed");
                     success.setHeaderText("Ship & Captain Assigned Successfully");
                     success.setContentText("Cargo " + cId + " has been assigned to vessel " + chosenShipName + ".\n"
                             + "Assigned Captain: " + chosenCapName + " (" + chosenCapEmail + ")\n"
-                            + "Route: " + orig + " ➔ " + dest + "\n\n"
-                            + "The assigned Captain will now see this cargo and vessel directly upon logging into their dashboard.");
+                            + "Route: " + orig + " ➔ " + dest
+                            + extraMsg);
                     success.showAndWait();
                     return true;
                 }
@@ -1571,11 +1649,35 @@ public class CargoManagementPage {
         for (int i = 0; i < eligibleOfficers.size(); i++) {
             Map<String, Object> off = eligibleOfficers.get(i);
             String uId = off.get("uid") != null ? off.get("uid").toString() : "";
-            String personName = off.get("name") != null ? off.get("name").toString() : (off.get("fullName") != null ? off.get("fullName").toString() : "Customs Officer");
-            String uEmail = off.get("email") != null ? off.get("email").toString() : "";
-            String uPort = off.get("assignedPort") != null ? off.get("assignedPort").toString() : "All Ports";
+            String personName = off.get("name") != null && !off.get("name").toString().isBlank()
+                    ? off.get("name").toString().trim()
+                    : (off.get("fullName") != null && !off.get("fullName").toString().isBlank()
+                            ? off.get("fullName").toString().trim()
+                            : (off.get("displayName") != null && !off.get("displayName").toString().isBlank()
+                                    ? off.get("displayName").toString().trim()
+                                    : ""));
+            String uEmail = off.get("email") != null ? off.get("email").toString().trim() : "";
+            if (personName.isBlank() && !uEmail.isBlank()) {
+                personName = uEmail.contains("@") ? uEmail.substring(0, uEmail.indexOf("@")) : uEmail;
+            }
+            if (personName.isBlank()) {
+                personName = "Customs Officer";
+            }
 
-            officerDisplayOptions.add("🛃 " + personName + " (" + uEmail + ") • " + uPort);
+            Object pObj = off.get("assignedPort");
+            if (pObj == null || pObj.toString().isBlank()) pObj = off.get("port");
+            if (pObj == null || pObj.toString().isBlank()) pObj = off.get("portName");
+            String uPort = (pObj != null && !pObj.toString().isBlank()) ? pObj.toString().trim() : "";
+
+            String displayStr = "🛃 " + personName;
+            if (!uEmail.isBlank()) {
+                displayStr += " (" + uEmail + ")";
+            }
+            if (!uPort.isBlank() && !uPort.equalsIgnoreCase("Not Assigned") && !uPort.equalsIgnoreCase("All") && !uPort.equalsIgnoreCase("All Ports")) {
+                displayStr += " • " + uPort;
+            }
+
+            officerDisplayOptions.add(displayStr);
             officerUids.add(uId);
             officerNames.add(personName);
             officerEmails.add(uEmail);
@@ -1586,10 +1688,10 @@ public class CargoManagementPage {
         }
 
         if (officerDisplayOptions.isEmpty()) {
-            officerDisplayOptions.add("🛃 Registered Customs Officer (customs@docktech.com)");
-            officerUids.add("OFF-001");
-            officerNames.add("Customs Officer");
-            officerEmails.add("customs@docktech.com");
+            officerDisplayOptions.add("⚠️ No Registered Customs Officers Found");
+            officerUids.add("");
+            officerNames.add("");
+            officerEmails.add("");
         }
 
         ComboBox<String> officerCombo = new ComboBox<>();
@@ -1606,7 +1708,13 @@ public class CargoManagementPage {
                 String uId = officerUids.get(idx);
                 String uEmail = officerEmails.get(idx);
                 String uName = officerNames.get(idx);
-                officerDetailsLbl.setText("Selected Officer: " + uName + " | Email: " + uEmail + " | UID: " + (!uId.isEmpty() ? uId.substring(0, Math.min(10, uId.length())) + "..." : "N/A"));
+                if (uId.isBlank() && uEmail.isBlank()) {
+                    officerDetailsLbl.setText("No Customs Officer account registered in the system.");
+                    officerDetailsLbl.setStyle("-fx-text-fill:#ef4444; -fx-font-size:12px; -fx-font-weight:bold;");
+                } else {
+                    officerDetailsLbl.setText("Selected Officer: " + uName + " | Email: " + uEmail + " | UID: " + (!uId.isEmpty() ? uId.substring(0, Math.min(10, uId.length())) + "..." : "N/A"));
+                    officerDetailsLbl.setStyle("-fx-text-fill:#7c3aed; -fx-font-size:12px; -fx-font-weight:bold;");
+                }
             }
         };
 
@@ -1634,16 +1742,35 @@ public class CargoManagementPage {
                     String chosenName = officerNames.get(idx);
                     String chosenEmail = officerEmails.get(idx);
 
+                    if (chosenUid.isBlank() && chosenEmail.isBlank() && chosenName.isBlank()) {
+                        Alert warn = new Alert(Alert.AlertType.WARNING);
+                        warn.setTitle("Officer Selection Required");
+                        warn.setHeaderText("No Customs Officer Selected");
+                        warn.setContentText("Please select a valid registered Customs Officer.");
+                        warn.showAndWait();
+                        return false;
+                    }
+
                     cargoDao.assignCustomsOfficerToCargo(cId, chosenUid, chosenName, chosenEmail, "Port Authority (" + activeViewingPort + ")");
+                    // Check if both ship + customs officer are now assigned; if so, auto-approve.
+                    checkAndAutoApprove(cId);
                     refreshCargoData();
+
+                    // Compose a status-aware success message
+                    Map<String, Object> updatedCargo = cargoDao.getCargo(cId);
+                    boolean nowApproved = updatedCargo != null && "Approved".equalsIgnoreCase(
+                            updatedCargo.get("status") != null ? updatedCargo.get("status").toString() : "");
+                    String extraMsg = nowApproved
+                            ? "\n\n✅ Both ship and customs officer are now assigned.\nCargo status has been automatically set to APPROVED and is now visible in Live Cargo Operations."
+                            : "\n\nℹ️ Assign a Ship to complete the approval process.";
 
                     Alert success = new Alert(Alert.AlertType.INFORMATION);
                     success.setTitle("Customs Officer Assigned");
                     success.setHeaderText("Cargo " + cId + " Assigned to Customs Officer Successfully");
                     success.setContentText("Cargo " + cId + " has been assigned to Customs Officer " + chosenName + " (" + chosenEmail + ").\n"
                             + "Route: " + orig + " ➔ " + dest + "\n"
-                            + "Assigned Vessel: " + ship + "\n\n"
-                            + "The assigned Customs Officer will now see this cargo on their dashboard for regulatory inspection and clearance.");
+                            + "Assigned Vessel: " + ship
+                            + extraMsg);
                     success.showAndWait();
                     return true;
                 }
@@ -1652,6 +1779,89 @@ public class CargoManagementPage {
         });
 
         dialog.showAndWait();
+    }
+
+    /**
+     * Checks whether both a ship AND a customs officer are assigned to the given cargo.
+     * If both conditions are met, automatically promotes the status to "Approved" and
+     * persists that to Firestore. This is the ONLY place where auto-approval is triggered —
+     * assignment of only one party leaves the cargo in its intermediate status.
+     */
+    private void checkAndAutoApprove(String cargoId) {
+        if (cargoId == null || cargoId.isBlank()) return;
+        Map<String, Object> cargo = cargoDao.getCargo(cargoId);
+        if (cargo == null) return;
+
+        String ship = getString(cargo, "assignedShip", getString(cargo, "shipName", ""));
+        String officer = getString(cargo, "assignedCustomsOfficerName",
+                getString(cargo, "assignedCustomsOfficer", ""));
+
+        boolean shipAssigned = !ship.isBlank() && !"Not Assigned".equalsIgnoreCase(ship);
+        boolean officerAssigned = !officer.isBlank() && !"Not Assigned".equalsIgnoreCase(officer);
+
+        if (shipAssigned && officerAssigned) {
+            cargoDao.updateCargoStatus(cargoId, "Approved");
+        }
+    }
+
+    /**
+     * Permanently deletes a single cargo registration from the database.
+     * Shows a confirmation dialog before proceeding.
+     * Does NOT affect any other cargo records.
+     */
+    private void handleDeleteCargoRegistration(Map<String, Object> item) {
+        if (item == null) return;
+        String id = getString(item, "cargoId", getString(item, "bookingId", getString(item, "id", "")));
+        String bookingId = getString(item, "bookingId", "");
+        String rawCargoId = getString(item, "cargoId", "");
+        String name = getString(item, "cargoName", "Cargo");
+
+        if (id.isBlank() && bookingId.isBlank() && rawCargoId.isBlank()) {
+            Alert err = new Alert(Alert.AlertType.WARNING);
+            err.setTitle("Delete Failed");
+            err.setHeaderText("Cannot Delete");
+            err.setContentText("No valid Cargo ID found for this record.");
+            err.showAndWait();
+            return;
+        }
+
+        String displayId = !id.isBlank() ? id : (!bookingId.isBlank() ? bookingId : rawCargoId);
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Delete Cargo Registration");
+        confirm.setHeaderText("Permanently delete cargo registration " + displayId + "?");
+        confirm.setContentText(
+                "Cargo: " + name + " (" + displayId + ")\n"
+                + "Port: " + activeViewingPort + "\n\n"
+                + "This will permanently remove this cargo record from the database.\n"
+                + "This action CANNOT be undone. All other cargo records will be unaffected.");
+
+        confirm.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                if (!displayId.isBlank()) {
+                    cargoDao.deleteCargo(displayId);
+                    containerDao.deleteBooking(displayId);
+                }
+                if (!bookingId.isBlank() && !bookingId.equalsIgnoreCase(displayId)) {
+                    containerDao.deleteBooking(bookingId);
+                    cargoDao.deleteCargo(bookingId);
+                }
+                if (!rawCargoId.isBlank() && !rawCargoId.equalsIgnoreCase(displayId)) {
+                    cargoDao.deleteCargo(rawCargoId);
+                    containerDao.deleteBooking(rawCargoId);
+                }
+                if (!id.isBlank() && !id.equalsIgnoreCase(displayId)) {
+                    cargoDao.deleteCargo(id);
+                    containerDao.deleteBooking(id);
+                }
+                refreshCargoData();
+                Alert done = new Alert(Alert.AlertType.INFORMATION);
+                done.setTitle("Deleted");
+                done.setHeaderText("Cargo Registration Deleted");
+                done.setContentText("Cargo " + displayId + " (" + name + ") has been permanently removed from the database and from Live Cargo Operations.");
+                done.showAndWait();
+            }
+        });
     }
 
     private void showUpdateStatusDialog(Map<String, Object> c) {

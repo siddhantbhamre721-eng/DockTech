@@ -83,7 +83,7 @@ public class SendSOS {
     }
 
     public Scene getSOSScene() {
-        return new Scene(getRoot(), 1280, 800);
+        return new Scene(getRoot());
     }
 
     private HBox buildKpiRow(Ship ship, VesselData v) {
@@ -216,16 +216,16 @@ public class SendSOS {
         grid.setHgap(16);
         grid.setVgap(8);
 
-        String shipName = ship != null ? ship.getShipName() : "AFRAPEARL II";
+        String shipName = ship != null ? ship.getShipName() : "";
         String shipType = ship != null && ship.getShipType() != null ? ship.getShipType() : "Tanker";
-        String imo = ship != null && ship.getImoNumber() != null ? ship.getImoNumber() : (v != null ? v.imo : "9234567");
-        String mmsi = v != null ? String.valueOf(v.mmsi) : "211280000";
+        String imo = ship != null && ship.getImoNumber() != null ? ship.getImoNumber() : (v != null ? v.imo : "");
+        String mmsi = v != null ? String.valueOf(v.mmsi) : "";
         String coords = v != null ? String.format("%.4f° N, %.4f° E", v.latitude, v.longitude) : "18.9439° N, 72.8354° E";
         String speed = v != null ? String.format("%.1f Knots", v.speed) : "12.5 Knots";
         String heading = v != null ? String.format("%.1f°", v.heading) : "184.0°";
         String captain = CaptainSessionService.getCaptainName();
-        String port = ship != null && ship.getBerth() != null ? ship.getBerth() : "Port of Mumbai";
-        String dest = ship != null && ship.getDeparture() != null ? ship.getDeparture() : "Port of Singapore";
+        String port = ship != null && ship.getBerth() != null ? ship.getBerth() : CaptainSessionService.getAssignedVoyageOrigin();
+        String dest = CaptainSessionService.getAssignedVoyageDestination();
 
         grid.add(fieldCell("Vessel Name", shipName + " (" + shipType + ")"), 0, 0);
         grid.add(fieldCell("IMO / MMSI", imo + " / " + mmsi), 1, 0);

@@ -15,10 +15,12 @@ import javafx.scene.text.Text;
 import javafx.stage.FileChooser;
 
 import java.io.File;
+import java.awt.Desktop;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class UploadDocument {
 
@@ -46,7 +48,7 @@ public class UploadDocument {
 
         root.setCenter(getScrollableContent());
 
-        scene = new Scene(root, 1550, 800);
+        scene = new Scene(root);
         com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
         return scene;
     }
@@ -151,14 +153,13 @@ public class UploadDocument {
 
         dropZone.getChildren().addAll(dropIcon, dropText, dropHint, chooseFileBtn, chooseFileText);
 
-        final java.util.concurrent.atomic.AtomicReference<String> selectedFileName = new java.util.concurrent.atomic.AtomicReference<>(
-                "");
+        final AtomicReference<File> selectedFile = new AtomicReference<>();
         chooseFileBtn.setOnAction(event -> {
             FileChooser chooser = new FileChooser();
             chooser.setTitle("Select Document File");
             File file = chooser.showOpenDialog(ExporterDashboard.dashboardStage);
             if (file != null) {
-                selectedFileName.set(file.getName());
+                selectedFile.set(file);
                 chooseFileText.setText("Selected: " + file.getName());
                 if (docRefNumber.getText() == null || docRefNumber.getText().isBlank()) {
                     docRefNumber.setText("DOC-" + Math.abs(file.getName().hashCode() % 89999 + 10000));
@@ -184,14 +185,19 @@ public class UploadDocument {
         statusLog.setStyle(
                 "-fx-background-color: #F8FAFC; -fx-background-radius: 10px; -fx-border-color: #E2E8F0; -fx-border-radius: 10px;");
 
-        Label log1 = new Label("✓  Commercial Invoice — Uploaded");
-        log1.setStyle("-fx-text-fill: #16A34A; -fx-font-size: 12px; -fx-font-weight: bold;");
-        Label log2 = new Label("✓  Packing List — Uploaded");
-        log2.setStyle("-fx-text-fill: #16A34A; -fx-font-size: 12px; -fx-font-weight: bold;");
+        Label log1 = new Label("•  Commercial Invoice — Awaiting upload");
+        log1.setStyle("-fx-text-fill: #D97706; -fx-font-size: 12px; -fx-font-weight: bold;");
+        Label log2 = new Label("•  Packing List — Awaiting upload");
+        log2.setStyle("-fx-text-fill: #D97706; -fx-font-size: 12px; -fx-font-weight: bold;");
         Label log3 = new Label("⚠️  Bill of Lading / Shipping Order — Pending");
         log3.setStyle("-fx-text-fill: #D97706; -fx-font-size: 12px; -fx-font-weight: bold;");
 
         statusLog.getChildren().addAll(log1, log2, log3);
+
+        VBox uploadedDocuments = new VBox(6);
+        Label uploadedDocumentsTitle = new Label("Uploaded Documents");
+        uploadedDocumentsTitle.setStyle("-fx-text-fill: #0F172A; -fx-font-size: 13px; -fx-font-weight: bold;");
+        uploadedDocuments.getChildren().add(uploadedDocumentsTitle);
 
         uploadButton.setOnAction(event -> {
             String selectedCargoEntry = cargoSelect.getValue();
@@ -209,34 +215,58 @@ public class UploadDocument {
                 alert.show();
                 return;
             }
+            final String cargoId = cId;
             String dType = docType.getValue() != null ? docType.getValue() : "Shipping Document";
             String dRef = docRefNumber.getText() != null && !docRefNumber.getText().isBlank()
                     ? docRefNumber.getText().trim()
                     : ("DOC-" + System.currentTimeMillis() % 100000);
-            String fName = selectedFileName.get().isBlank() ? (dType.replaceAll("\\s+", "_") + ".pdf")
-                    : selectedFileName.get();
+                File file = selectedFile.get();
+                if (file == null || !file.exists()) {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setTitle("Select Document");
+                alert.setHeaderText("No File Selected");
+                alert.setContentText("Please choose the actual document file before uploading.");
+                alert.showAndWait();
+                return;
+                }
 
-            // Save document into single canonical Cargo record
-            Map<String, Object> doc = new HashMap<>();
-            doc.put("docId", dRef);
-            doc.put("docType", dType);
-            doc.put("name", fName);
-            doc.put("fileName", fName);
-            doc.put("status", "Pending");
-            doc.put("uploadedAt", java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")));
-            doc.put("uploadedBy", (com.projectui.view.login.LoginPage.loggedInUser != null && com.projectui.view.login.LoginPage.loggedInUser.get("name") != null) ? com.projectui.view.login.LoginPage.loggedInUser.get("name").toString() : "Exporter");
+                uploadButton.setDisable(true);
+                log3.setText("Recording " + file.getName() + "...");
 
-            cargoDao.addDocumentToCargo(cId, doc);
-            cargoDao.updateCargoStatus(cId, "Documents Uploaded");
-            log3.setText("✓  " + dType + " (" + dRef + ") — Uploaded");
-            log3.setStyle("-fx-text-fill: #16A34A; -fx-font-size: 12px; -fx-font-weight: bold;");
+                Map<String, Object> doc = new HashMap<>();
+                doc.put("docId", dRef);
+                doc.put("docType", dType);
+                doc.put("name", file.getName());
+                doc.put("fileName", file.getName());
+                doc.put("filePath", file.getAbsolutePath());
+                doc.put("format", getFileExtension(file.getName()));
+                doc.put("status", "Pending");
+                doc.put("cargoId", cargoId);
+                if (com.projectui.view.login.LoginPage.loggedInUser != null) {
+                    Map<String, Object> user = com.projectui.view.login.LoginPage.loggedInUser;
+                    Object exporterId = user.getOrDefault("uid", user.getOrDefault("email", ""));
+                    doc.put("uploaderId", exporterId);
+                    doc.put("exporterId", exporterId);
+                    doc.put("requestId", cargoId);
+                    doc.put("uploadedBy", user.getOrDefault("name", user.getOrDefault("email", "")));
+                }
+                if (!cargoDao.addDocumentToCargo(cargoId, doc)) {
+                    uploadButton.setDisable(false);
+                    log3.setText("Document could not be saved");
+                    return;
+                }
+                uploadButton.setDisable(false);
+                refreshUploadedDocuments(uploadedDocuments, cargoId);
+                cargoDao.updateCargoStatus(cargoId, "Documents Uploaded");
+                log3.setText("✓  " + dType + " (" + dRef + ") — Uploaded");
+                log3.setStyle("-fx-text-fill: #16A34A; -fx-font-size: 12px; -fx-font-weight: bold;");
 
-            Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setTitle("Document Uploaded");
-            alert.setHeaderText("Upload Successful");
-            alert.setContentText("The document '" + fName + "' (" + dRef
-                    + ") has been uploaded and associated with Cargo " + cId + " for customs clearance.");
-            alert.showAndWait();
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setTitle("Document Uploaded");
+                alert.setHeaderText("Upload Successful");
+                alert.setContentText("The document '" + file.getName() + "' (" + dRef
+                    + ") has been uploaded and associated with Cargo " + cargoId + " for customs clearance.");
+                alert.showAndWait();
         });
 
         uploadCard.getChildren().addAll(
@@ -246,7 +276,8 @@ public class UploadDocument {
                 createFormField("Document Reference Number", docRefNumber),
                 dropZone,
                 uploadButton,
-                statusLog);
+                statusLog,
+                uploadedDocuments);
 
         // =========================================================
         // RIGHT COLUMN: CARGO DETAILS & CHECKLIST (42% Width)
@@ -295,6 +326,7 @@ public class UploadDocument {
                 String cId = selectedCargoEntry.split(" — ")[0].trim();
                 Map<String, Object> c = cargoDao.getCargo(cId);
                 if (c != null) {
+                    refreshUploadedDocuments(uploadedDocuments, cId);
                     refDetails.getChildren().clear();
                     String cName = c.get("cargoName") != null ? c.get("cargoName").toString() : "General Cargo";
                     String org = c.get("originPort") != null ? c.get("originPort").toString() : "N/A";
@@ -318,6 +350,8 @@ public class UploadDocument {
                 }
             }
         });
+
+        refreshUploadedDocuments(uploadedDocuments, initCId);
 
         cargoRefCard.getChildren().addAll(refTitle, refDetails);
 
@@ -401,6 +435,57 @@ public class UploadDocument {
 
         row.getChildren().addAll(l, space, v);
         return row;
+    }
+
+    private void refreshUploadedDocuments(VBox container, String cargoId) {
+        if (container == null) return;
+        while (container.getChildren().size() > 1) {
+            container.getChildren().remove(1);
+        }
+        Map<String, Object> cargo = cargoDao.getCargo(cargoId);
+        Object rawDocuments = cargo != null ? cargo.get("documents") : null;
+        if (!(rawDocuments instanceof List<?> documents) || documents.isEmpty()) {
+            Label empty = new Label("No documents uploaded for this cargo.");
+            empty.setStyle("-fx-text-fill: #64748B; -fx-font-size: 12px;");
+            container.getChildren().add(empty);
+            return;
+        }
+        for (Object rawDocument : documents) {
+            if (!(rawDocument instanceof Map<?, ?> rawMap)) continue;
+            Map<String, Object> document = new HashMap<>();
+            rawMap.forEach((key, value) -> document.put(String.valueOf(key), value));
+            String fileName = String.valueOf(document.getOrDefault("fileName", document.getOrDefault("name", "Document")));
+            String type = String.valueOf(document.getOrDefault("docType", "Document"));
+            String reference = String.valueOf(document.getOrDefault("docId", ""));
+            String status = String.valueOf(document.getOrDefault("status", "Pending"));
+            String filePath = String.valueOf(document.getOrDefault("filePath", ""));
+
+            HBox row = new HBox(8);
+            row.setAlignment(Pos.CENTER_LEFT);
+            row.setPadding(new Insets(8));
+            row.setStyle("-fx-background-color: #F8FAFC; -fx-border-color: #E2E8F0; -fx-border-radius: 8px; -fx-background-radius: 8px;");
+            Label details = new Label(fileName + " | " + type + " | " + reference + " | " + status);
+            details.setWrapText(true);
+            details.setStyle("-fx-text-fill: #334155; -fx-font-size: 12px;");
+            HBox.setHgrow(details, Priority.ALWAYS);
+            Button open = new Button("Open");
+            open.setDisable(filePath.isBlank() || !new File(filePath).exists());
+            open.setOnAction(event -> {
+                try {
+                    if (Desktop.isDesktopSupported()) Desktop.getDesktop().open(new File(filePath));
+                } catch (Exception ex) {
+                    Alert alert = new Alert(Alert.AlertType.ERROR, "The uploaded document could not be opened.");
+                    alert.showAndWait();
+                }
+            });
+            row.getChildren().addAll(details, open);
+            container.getChildren().add(row);
+        }
+    }
+
+    private String getFileExtension(String fileName) {
+        int extensionStart = fileName.lastIndexOf('.');
+        return extensionStart >= 0 ? fileName.substring(extensionStart + 1) : "";
     }
 
     private HBox createChecklistItem(String title, String status, boolean uploaded) {

@@ -301,19 +301,10 @@ public class SettingsPage {
         HBox cardHeader = new HBox(12);
         cardHeader.setAlignment(Pos.CENTER_LEFT);
 
-        Label avatar = new Label("PA");
+        StackPane avatar = new StackPane(com.projectui.service.UserProfileImageManager.createAvatarNode(48, "PA", userEmail));
         avatar.setMinSize(48, 48);
         avatar.setMaxSize(48, 48);
         avatar.setAlignment(Pos.CENTER);
-        avatar.setStyle(
-                "-fx-background-color: #DBEAFE;" +
-                "-fx-text-fill: #1D4ED8;" +
-                "-fx-font-size: 18px;" +
-                "-fx-font-weight: bold;" +
-                "-fx-background-radius: 50;" +
-                "-fx-border-color: #93C5FD;" +
-                "-fx-border-radius: 50;"
-        );
 
         Label cardTitle = new Label("Port Authority Profile");
         cardTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #0F172A;");
@@ -324,6 +315,31 @@ public class SettingsPage {
         VBox titleBox = new VBox(2, cardTitle, cardSub);
         Region space = new Region();
         HBox.setHgrow(space, Priority.ALWAYS);
+
+        Button changePhotoBtn = new Button("📷  Photo");
+        changePhotoBtn.setStyle(
+                "-fx-background-color: #EFF6FF;" +
+                "-fx-text-fill: #2563EB;" +
+                "-fx-font-weight: bold;" +
+                "-fx-font-size: 13px;" +
+                "-fx-padding: 8 12;" +
+                "-fx-background-radius: 6;" +
+                "-fx-border-color: #BFDBFE;" +
+                "-fx-border-radius: 6;" +
+                "-fx-cursor: hand;"
+        );
+        changePhotoBtn.setOnAction(e -> {
+            com.projectui.service.UserProfileImageManager.chooseAndUploadProfilePicture(
+                    avatar.getScene() != null ? avatar.getScene().getWindow() : null,
+                    userEmail,
+                    userAccountId,
+                    () -> {
+                        avatar.getChildren().setAll(com.projectui.service.UserProfileImageManager.createAvatarNode(48, "PA", userEmail));
+                        showToast("Profile photo updated successfully!", true);
+                    },
+                    err -> showToast("Photo error: " + err, false)
+            );
+        });
 
         editProfileBtn = new Button("✏️  Edit Profile");
         editProfileBtn.setStyle(

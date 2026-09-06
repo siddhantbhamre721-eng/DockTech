@@ -15,14 +15,63 @@ import com.google.cloud.firestore.Firestore;
 /**
  * Persistent Payment DAO managing Razorpay transactions, receipt linkage, and payment history.
  */
-@SuppressWarnings({"unchecked", "rawtypes"})
 public class PaymentDao extends Dao {
 
     private static final Map<String, Map<String, Object>> localPaymentStore = new ConcurrentHashMap<>();
     private static final List<Runnable> changeListeners = new CopyOnWriteArrayList<>();
 
+    private static final String PERSIST_DELETED_PAYMENTS = System.getProperty("user.home") + "/.docktech_deleted_payments.properties";
+    private static final java.util.Set<String> deletedPaymentKeys = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     static {
+        loadDeletedPayments();
         syncFromFirestore();
+        CargoDao.addChangeListener(() -> {
+            syncFromLocalCargoStore();
+            notifyListeners();
+        });
+    }
+
+    private static void loadDeletedPayments() {
+        try {
+            java.io.File file = new java.io.File(PERSIST_DELETED_PAYMENTS);
+            if (file.exists()) {
+                java.util.Properties props = new java.util.Properties();
+                try (java.io.FileInputStream in = new java.io.FileInputStream(file)) {
+                    props.load(in);
+                }
+                for (String key : props.stringPropertyNames()) {
+                    if (key != null && !key.isBlank()) {
+                        deletedPaymentKeys.add(key.trim().toLowerCase());
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    public static void saveDeletedPayment(String key) {
+        if (key == null || key.isBlank()) return;
+        deletedPaymentKeys.add(key.trim().toLowerCase());
+        try {
+            java.util.Properties props = new java.util.Properties();
+            for (String k : deletedPaymentKeys) {
+                props.setProperty(k, "DELETED");
+            }
+            java.io.File file = new java.io.File(PERSIST_DELETED_PAYMENTS);
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                props.store(out, "DockTech Deleted Payments");
+            }
+        } catch (Exception ignored) {}
+    }
+
+    public static boolean isPaymentDeleted(String... keys) {
+        if (keys == null || deletedPaymentKeys.isEmpty()) return false;
+        for (String k : keys) {
+            if (k != null && !k.isBlank() && deletedPaymentKeys.contains(k.trim().toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static void addChangeListener(Runnable r) {
@@ -41,11 +90,50 @@ public class PaymentDao extends Dao {
         }
     }
 
+    public static void syncFromLocalCargoStore() {
+        try {
+            CargoDao cargoDao = new CargoDao();
+            List<Map<String, Object>> cargos = cargoDao.getAllCargos();
+            if (cargos != null) {
+                for (Map<String, Object> c : cargos) {
+                    if (c == null) continue;
+                    if (isPaidCargo(c)) {
+                        Map<String, Object> paymentRec = buildPaymentRecordFromCargo(c);
+                        if (paymentRec != null) {
+                            String payId = (String) paymentRec.get("paymentId");
+                            String cargoId = (String) paymentRec.get("cargoId");
+                            if (isPaymentDeleted(payId, cargoId)) {
+                                continue;
+                            }
+                            if (payId != null && !payId.isBlank()) {
+                                if (cargoId != null && !cargoId.isBlank()) {
+                                    localPaymentStore.entrySet().removeIf(entry -> {
+                                        Map<String, Object> val = entry.getValue();
+                                        return val != null && cargoId.equalsIgnoreCase((String) val.get("cargoId")) && !payId.equals(entry.getKey());
+                                    });
+                                }
+                                Map<String, Object> existing = localPaymentStore.get(payId);
+                                if (existing == null) {
+                                    localPaymentStore.put(payId, paymentRec);
+                                } else {
+                                    for (Map.Entry<String, Object> e : paymentRec.entrySet()) {
+                                        existing.put(e.getKey(), e.getValue());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
     public static void syncFromFirestore() {
         java.util.concurrent.ForkJoinPool.commonPool().execute(() -> {
             try {
                 Firestore db = com.projectui.config.FirebaseConfig.getFirestore();
                 if (db != null) {
+                    // 1. Sync from 'payments' collection
                     com.google.cloud.firestore.QuerySnapshot snap = db.collection("payments").get().get();
                     if (snap != null && !snap.isEmpty()) {
                         for (com.google.cloud.firestore.DocumentSnapshot doc : snap.getDocuments()) {
@@ -57,15 +145,50 @@ public class PaymentDao extends Dao {
                                 if (pName != null && com.projectui.view.admin.AdminDataStore.isPortDeleted(pName, null)) {
                                     continue;
                                 }
+                                String payId = (String) data.get("paymentId");
+                                String rPayId = (String) data.get("razorpayPaymentId");
+                                String cId = (String) data.get("cargoId");
+                                if (isPaymentDeleted(doc.getId(), payId, rPayId, cId)) {
+                                    continue;
+                                }
                                 localPaymentStore.put(doc.getId(), data);
                             }
                         }
                         notifyListeners();
                     }
 
+                    // 2. Sync from 'cargos' collection for existing paid cargos
+                    com.google.cloud.firestore.QuerySnapshot cargoSnap = db.collection("cargos").get().get();
+                    if (cargoSnap != null && !cargoSnap.isEmpty()) {
+                        for (com.google.cloud.firestore.DocumentSnapshot doc : cargoSnap.getDocuments()) {
+                            if (doc.exists() && doc.getData() != null) {
+                                Map<String, Object> cData = new HashMap<>(doc.getData());
+                                if (isPaidCargo(cData)) {
+                                    Map<String, Object> paymentRec = buildPaymentRecordFromCargo(cData);
+                                    if (paymentRec != null) {
+                                        String payId = (String) paymentRec.get("paymentId");
+                                        String cId = (String) cData.get("cargoId");
+                                        if (isPaymentDeleted(payId, cId)) {
+                                            continue;
+                                        }
+                                        if (payId != null && !payId.isBlank()) {
+                                            if (!localPaymentStore.containsKey(payId)) {
+                                                localPaymentStore.put(payId, paymentRec);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        notifyListeners();
+                    }
+
+                    // Listeners for real-time changes
                     db.collection("payments").addSnapshotListener((snapshot, err) -> {
-                        if (snapshot != null && !snapshot.isEmpty()) {
+                        if (snapshot != null) {
+                            java.util.Set<String> snapshotIds = new java.util.HashSet<>();
                             for (com.google.cloud.firestore.DocumentSnapshot doc : snapshot.getDocuments()) {
+                                snapshotIds.add(doc.getId());
                                 if (doc.exists() && doc.getData() != null) {
                                     Map<String, Object> data = new HashMap<>(doc.getData());
                                     String pName = (String) data.get("port");
@@ -74,7 +197,38 @@ public class PaymentDao extends Dao {
                                     if (pName != null && com.projectui.view.admin.AdminDataStore.isPortDeleted(pName, null)) {
                                         continue;
                                     }
+                                    String payId = (String) data.get("paymentId");
+                                    String rPayId = (String) data.get("razorpayPaymentId");
+                                    String cId = (String) data.get("cargoId");
+                                    if (isPaymentDeleted(doc.getId(), payId, rPayId, cId)) {
+                                        continue;
+                                    }
                                     localPaymentStore.put(doc.getId(), data);
+                                }
+                            }
+                            localPaymentStore.keySet().removeIf(id -> !snapshotIds.contains(id));
+                            notifyListeners();
+                        }
+                    });
+
+                    db.collection("cargos").addSnapshotListener((snapshot, err) -> {
+                        if (snapshot != null && !snapshot.isEmpty()) {
+                            for (com.google.cloud.firestore.DocumentSnapshot doc : snapshot.getDocuments()) {
+                                if (doc.exists() && doc.getData() != null) {
+                                    Map<String, Object> cData = new HashMap<>(doc.getData());
+                                    if (isPaidCargo(cData)) {
+                                        Map<String, Object> paymentRec = buildPaymentRecordFromCargo(cData);
+                                        if (paymentRec != null) {
+                                            String payId = (String) paymentRec.get("paymentId");
+                                            String cId = (String) cData.get("cargoId");
+                                            if (isPaymentDeleted(payId, cId)) {
+                                                continue;
+                                            }
+                                            if (payId != null && !payId.isBlank()) {
+                                                localPaymentStore.putIfAbsent(payId, paymentRec);
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             notifyListeners();
@@ -82,7 +236,119 @@ public class PaymentDao extends Dao {
                     });
                 }
             } catch (Exception ignored) {}
+            syncFromLocalCargoStore();
+            notifyListeners();
         });
+    }
+
+    public static boolean isPaidCargo(Map<String, Object> c) {
+        if (c == null) return false;
+        String payStatus = getString(c, "paymentStatus", "");
+        String paymentId = getString(c, "razorpayPaymentId", getString(c, "paymentId", ""));
+        return "PAID".equalsIgnoreCase(payStatus.trim())
+            && !paymentId.isBlank();
+    }
+
+    public static Map<String, Object> buildPaymentRecordFromCargo(Map<String, Object> c) {
+        if (c == null) return null;
+        String cargoId = getString(c, "cargoId", "");
+        String payId = getString(c, "razorpayPaymentId", getString(c, "paymentId", ""));
+        if (payId.isEmpty() || !isPaidCargo(c)) return null;
+
+        String receiptNo = getString(c, "receiptNumber", getString(c, "receiptNo", "RCT-" + (cargoId.isEmpty() ? (System.currentTimeMillis() % 1000000) : (Math.abs(cargoId.hashCode()) % 899999 + 100000))));
+        String invId = getString(c, "invoiceId", "INV-" + (cargoId.isEmpty() ? (System.currentTimeMillis() % 100000) : (Math.abs(cargoId.hashCode()) % 89999 + 10000)));
+        String txnId = getString(c, "transactionId", getString(c, "razorpayOrderId", payId));
+
+        String exporterName = getString(c, "exporterName", getString(c, "exporter", getString(c, "userName", getString(c, "shipper", getString(c, "customerName", "Exporter")))));
+        String originPort = getString(c, "originPort", getString(c, "origin", getString(c, "port", "Port of Mumbai")));
+        String destPort = getString(c, "destinationPort", getString(c, "destination", "Port of Singapore"));
+        String cargoName = getString(c, "cargoName", "Commercial Freight Cargo");
+        String cargoType = getString(c, "cargoType", "Export Freight");
+        String weight = getString(c, "weight", "—");
+
+        double amount = 0.0;
+        if (c.get("paymentAmount") != null) {
+            try { amount = Double.parseDouble(c.get("paymentAmount").toString().replace("₹", "").replace(",", "").trim()); } catch (Exception ignored) {}
+        }
+        if (amount <= 0 && c.get("amount") != null) {
+            try { amount = Double.parseDouble(c.get("amount").toString().replace("₹", "").replace(",", "").trim()); } catch (Exception ignored) {}
+        }
+        if (amount <= 0) {
+            Map<String, Object> booking = !cargoId.isEmpty() ? new ContainerDao().getBookingByCargoId(cargoId) : null;
+            com.projectui.service.FreightCalculationService.PaymentBreakdown breakdown = com.projectui.service.FreightCalculationService.getInstance().calculatePaymentBreakdown(c, booking);
+            if (breakdown != null && breakdown.totalPayable > 0) {
+                amount = breakdown.totalPayable;
+            } else {
+                try {
+                    String valStr = getString(c, "value", "0");
+                    double val = Double.parseDouble(valStr.replace("₹", "").replace(",", "").trim());
+                    amount = val > 0 ? (val * 0.12) : 0.0;
+                } catch (Exception ignored) {
+                    amount = 0.0;
+                }
+            }
+        }
+
+        String containerNo = "—";
+        String containerType = "Standard Container";
+        ContainerDao containerDao = new ContainerDao();
+        Map<String, Object> booking = !cargoId.isEmpty() ? containerDao.getBookingByCargoId(cargoId) : null;
+        if (booking == null && c.get("bookingId") != null) {
+            booking = containerDao.getBooking(c.get("bookingId").toString());
+        }
+        if (booking != null) {
+            String bCont = getString(booking, "containerNo", getString(booking, "containerNumber", getString(booking, "assignedContainer", "")));
+            if (!bCont.isEmpty() && !"—".equals(bCont) && !"-".equals(bCont)) {
+                containerNo = bCont;
+            } else {
+                containerNo = getString(booking, "bookingId", "—");
+            }
+            containerType = getString(booking, "containerType", "Standard Container");
+        } else if (c.get("containerNo") != null && !c.get("containerNo").toString().isBlank() && !"—".equals(c.get("containerNo").toString().trim())) {
+            containerNo = c.get("containerNo").toString().trim();
+        } else if (c.get("bookingId") != null && !c.get("bookingId").toString().isBlank()) {
+            containerNo = c.get("bookingId").toString().trim();
+        }
+
+        String dateStr = getString(c, "paidAt", getString(c, "paymentDate", getString(c, "updatedAt", getString(c, "createdAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm"))))));
+
+        Map<String, Object> paymentRecord = new HashMap<>();
+        paymentRecord.put("paymentId", payId);
+        paymentRecord.put("razorpayPaymentId", payId);
+        paymentRecord.put("receiptNumber", receiptNo);
+        paymentRecord.put("invoiceId", invId);
+        paymentRecord.put("transactionId", txnId);
+        paymentRecord.put("cargoId", cargoId);
+        paymentRecord.put("cargoName", cargoName);
+        paymentRecord.put("cargoType", cargoType);
+        paymentRecord.put("weight", weight);
+        paymentRecord.put("originPort", originPort);
+        paymentRecord.put("destinationPort", destPort);
+        paymentRecord.put("importerName", getString(c, "importerName", getString(c, "importer", "Global Traders Ltd.")));
+        paymentRecord.put("exporterName", exporterName);
+        paymentRecord.put("customerName", exporterName);
+        paymentRecord.put("customerType", "Exporter");
+        paymentRecord.put("containerNo", containerNo);
+        paymentRecord.put("containerType", containerType);
+        paymentRecord.put("port", originPort);
+        paymentRecord.put("amount", amount);
+        paymentRecord.put("currency", "INR");
+        paymentRecord.put("paymentStatus", "PAID");
+        String paymentPurpose = getString(c, "paymentPurpose", "");
+        if (!paymentPurpose.isBlank()) paymentRecord.put("paymentPurpose", paymentPurpose);
+        paymentRecord.put("paymentMethod", getString(c, "paymentMethod", "Razorpay Standard Checkout (Cards / UPI / NetBanking)"));
+        paymentRecord.put("freightCharge", amount * 0.55);
+        paymentRecord.put("portHandling", amount * 0.15);
+        paymentRecord.put("customsDuty", amount * 0.30);
+        paymentRecord.put("paymentDate", dateStr);
+        paymentRecord.put("updatedAt", dateStr);
+
+        if (c.containsKey("ownerUid")) paymentRecord.put("ownerUid", c.get("ownerUid"));
+        if (c.containsKey("exporterUid")) paymentRecord.put("exporterUid", c.get("exporterUid"));
+        if (c.containsKey("exporterEmail")) paymentRecord.put("exporterEmail", c.get("exporterEmail"));
+        if (c.containsKey("ownerEmail")) paymentRecord.put("ownerEmail", c.get("ownerEmail"));
+
+        return paymentRecord;
     }
 
     /**
@@ -96,7 +362,7 @@ public class PaymentDao extends Dao {
             payId = (String) paymentData.get("paymentId");
         }
         if (payId == null || payId.isBlank()) {
-            payId = "PAY-" + System.currentTimeMillis();
+            return null;
         }
 
         // Duplicate protection
@@ -161,27 +427,75 @@ public class PaymentDao extends Dao {
 
     public Map<String, Object> getPayment(String paymentId) {
         if (paymentId == null) return null;
+        syncFromLocalCargoStore();
         return localPaymentStore.get(paymentId);
     }
 
     public Map<String, Object> getPaymentByCargoId(String cargoId) {
         if (cargoId == null || cargoId.isBlank()) return null;
+        syncFromLocalCargoStore();
         for (Map<String, Object> p : localPaymentStore.values()) {
             if (p != null && cargoId.equalsIgnoreCase(String.valueOf(p.get("cargoId")))) {
                 return p;
+            }
+        }
+        CargoDao cargoDao = new CargoDao();
+        Map<String, Object> cargo = cargoDao.getCargo(cargoId);
+        if (cargo != null && isPaidCargo(cargo)) {
+            Map<String, Object> paymentRec = buildPaymentRecordFromCargo(cargo);
+            if (paymentRec != null) {
+                String payId = (String) paymentRec.get("paymentId");
+                localPaymentStore.put(payId, paymentRec);
+                return paymentRec;
             }
         }
         return null;
     }
 
     public List<Map<String, Object>> getAllPayments() {
+        syncFromLocalCargoStore();
         List<Map<String, Object>> list = new ArrayList<>();
+        ContainerDao containerDao = new ContainerDao();
+        CargoDao cargoDao = new CargoDao();
         for (Map<String, Object> p : localPaymentStore.values()) {
             if (p == null) continue;
+            String payId = getString(p, "paymentId", getString(p, "razorpayPaymentId", ""));
+            String cId = getString(p, "cargoId", "");
+            if (isPaymentDeleted(payId, cId)) {
+                continue;
+            }
             String pName = getString(p, "port", getString(p, "originPort", getString(p, "destinationPort", "")));
             if (!pName.isEmpty() && com.projectui.view.admin.AdminDataStore.isPortDeleted(pName, null)) {
                 continue;
             }
+
+            // Dynamically resolve real container if containerNo is empty or dash
+            String cont = getString(p, "containerNo", "");
+            if (cont.isEmpty() || "—".equals(cont) || "-".equals(cont) || "null".equalsIgnoreCase(cont)) {
+                String bId = getString(p, "bookingId", "");
+                Map<String, Object> booking = !cId.isEmpty() ? containerDao.getBookingByCargoId(cId) : null;
+                if (booking == null && !bId.isEmpty()) {
+                    booking = containerDao.getBooking(bId);
+                }
+                if (booking != null) {
+                    String resolved = getString(booking, "containerNo", getString(booking, "containerNumber", getString(booking, "assignedContainer", "")));
+                    if (resolved.isEmpty() || "—".equals(resolved) || "-".equals(resolved)) {
+                        resolved = getString(booking, "bookingId", "");
+                    }
+                    if (!resolved.isEmpty() && !"—".equals(resolved) && !"-".equals(resolved)) {
+                        p.put("containerNo", resolved);
+                    }
+                } else if (!cId.isEmpty()) {
+                    Map<String, Object> cg = cargoDao.getCargo(cId);
+                    if (cg != null) {
+                        String cgCont = getString(cg, "containerNo", getString(cg, "bookingId", getString(cg, "containerId", "")));
+                        if (!cgCont.isEmpty() && !"—".equals(cgCont) && !"-".equals(cgCont)) {
+                            p.put("containerNo", cgCont);
+                        }
+                    }
+                }
+            }
+
             list.add(p);
         }
         Collections.reverse(list);
@@ -232,6 +546,100 @@ public class PaymentDao extends Dao {
         if (!toRemove.isEmpty()) {
             notifyListeners();
         }
+    }
+
+    public synchronized boolean deletePaymentById(String paymentId) {
+        return deletePayment(paymentId, null);
+    }
+
+    public synchronized boolean deletePayment(String paymentId, Map<String, Object> paymentData) {
+        if (paymentId == null || paymentId.isBlank()) return false;
+
+        String cleanId = paymentId.trim();
+        saveDeletedPayment(cleanId);
+
+        // Remove from localPaymentStore
+        Map<String, Object> payment = localPaymentStore.remove(cleanId);
+        List<String> toRemove = new ArrayList<>();
+        for (Map.Entry<String, Map<String, Object>> entry : localPaymentStore.entrySet()) {
+            Map<String, Object> v = entry.getValue();
+            if (v == null) continue;
+            String pId = getString(v, "paymentId", "");
+            String rId = getString(v, "razorpayPaymentId", "");
+            String tId = getString(v, "transactionId", "");
+            if (cleanId.equalsIgnoreCase(entry.getKey()) ||
+                cleanId.equalsIgnoreCase(pId) ||
+                cleanId.equalsIgnoreCase(rId) ||
+                cleanId.equalsIgnoreCase(tId)) {
+                toRemove.add(entry.getKey());
+                if (payment == null) payment = v;
+            }
+        }
+        for (String k : toRemove) {
+            localPaymentStore.remove(k);
+        }
+
+        if (paymentData != null) {
+            String pId = getString(paymentData, "paymentId", "");
+            String rId = getString(paymentData, "razorpayPaymentId", "");
+            String tId = getString(paymentData, "transactionId", "");
+            if (!pId.isBlank()) saveDeletedPayment(pId);
+            if (!rId.isBlank()) saveDeletedPayment(rId);
+            if (!tId.isBlank()) saveDeletedPayment(tId);
+            if (payment == null) payment = paymentData;
+        }
+
+        String cargoId = "";
+        if (payment != null) {
+            cargoId = getString(payment, "cargoId", "");
+            String pId = getString(payment, "paymentId", "");
+            String rId = getString(payment, "razorpayPaymentId", "");
+            if (!pId.isBlank()) saveDeletedPayment(pId);
+            if (!rId.isBlank()) saveDeletedPayment(rId);
+        }
+
+        // Clear associated cargo in CargoDao and Firestore if any
+        CargoDao cargoDao = new CargoDao();
+        if (!cargoId.isBlank()) {
+            cargoDao.clearCargoPayment(cargoId);
+        }
+        cargoDao.clearCargoPaymentByPaymentId(cleanId);
+
+        // Delete from Firestore payments collection
+        try {
+            Firestore firestore = db();
+            if (firestore != null) {
+                try {
+                    firestore.collection("payments").document(cleanId).delete();
+                } catch (Exception ignored) {}
+
+                try {
+                    var snap = firestore.collection("payments").whereEqualTo("paymentId", cleanId).get().get();
+                    if (snap != null) {
+                        for (var doc : snap.getDocuments()) {
+                            doc.getReference().delete();
+                        }
+                    }
+                } catch (Exception ignored) {}
+                try {
+                    var snap2 = firestore.collection("payments").whereEqualTo("razorpayPaymentId", cleanId).get().get();
+                    if (snap2 != null) {
+                        for (var doc : snap2.getDocuments()) {
+                            doc.getReference().delete();
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        } catch (Exception ignored) {}
+
+        if (payment != null) {
+            try {
+                com.projectui.service.ReceiptPdfService.deleteReceipt(payment);
+            } catch (Exception ignored) {}
+        }
+
+        notifyListeners();
+        return true;
     }
 
     public static boolean isPaymentAssociatedWithPort(Map<String, Object> p, String portName, String portCode) {

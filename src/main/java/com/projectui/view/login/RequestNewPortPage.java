@@ -9,7 +9,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
@@ -48,11 +47,11 @@ public class RequestNewPortPage {
     private final TextField reqEmailField = createField("requester@docktech.com");
     private final TextField reqPhoneField = createField("+91 98123 45678");
 
-    private final VBox stepContentContainer = new VBox(20);
-    private final HBox stepperRow = new HBox(12);
+    private final VBox stepContentContainer = new VBox(12);
+    private final HBox stepperRow = new HBox(8);
 
-    private com.projectui.service.CloudinaryService.DocumentMetadata aadhaarDocMeta = new com.projectui.service.CloudinaryService.DocumentMetadata("Aadhaar_Card.pdf", "https://res.cloudinary.com/snmxmesm/raw/upload/v1724800000/docktech_port_documents/Aadhaar_Card.pdf", "doc_aadhaar_01", "pdf", null);
-    private com.projectui.service.CloudinaryService.DocumentMetadata supportingDocMeta = new com.projectui.service.CloudinaryService.DocumentMetadata("Port_Proposal_Clearance.pdf", "https://res.cloudinary.com/snmxmesm/raw/upload/v1724800000/docktech_port_documents/Port_Proposal_Clearance.pdf", "doc_proposal_01", "pdf", null);
+    private com.projectui.service.CloudinaryService.DocumentMetadata aadhaarDocMeta = null;
+    private com.projectui.service.CloudinaryService.DocumentMetadata supportingDocMeta = null;
 
     private Label errorLabel;
 
@@ -95,11 +94,12 @@ public class RequestNewPortPage {
                 null
         );
 
-        VBox content = new VBox(24);
-        content.setPadding(new Insets(28, 32, 36, 32));
+        VBox content = new VBox(12);
+        content.setPadding(new Insets(16, 24, 18, 24));
+        content.setFillWidth(true);
         content.setStyle("-fx-background-color: " + BG_COLOR + ";");
 
-        VBox headerBanner = new VBox(6);
+        VBox headerBanner = new VBox(3);
         Label title = new Label("Establish a New Port");
         title.setStyle("-fx-font-size: 26px; -fx-font-weight: bold; -fx-text-fill: " + TEXT_PRIMARY + ";");
         Label subtitle = new Label("Submit a formal port proposal for Dock Tech Admin review and Port Authority account provisioning.");
@@ -115,14 +115,9 @@ public class RequestNewPortPage {
 
         content.getChildren().addAll(headerBanner, errorLabel, stepperRow, stepContentContainer);
 
-        ScrollPane scrollPane = new ScrollPane(content);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setPannable(true);
-        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: " + BG_COLOR + "; -fx-border-color: transparent;");
-
         root.setTop(topHeader);
         root.setLeft(sidebar);
-        root.setCenter(scrollPane);
+        root.setCenter(content);
 
         LoginPage.showRoot(stage, root);
         stage.setTitle("Dock Tech - Request New Port");
@@ -134,8 +129,8 @@ public class RequestNewPortPage {
             currentStep = 4;
             renderStepper();
             stepContentContainer.getChildren().clear();
-            VBox card = new VBox(20);
-            card.setPadding(new Insets(24));
+            VBox card = new VBox(12);
+            card.setPadding(new Insets(16));
             card.setStyle("-fx-background-color: white; -fx-background-radius: 14px; -fx-border-color: #E2E8F0; -fx-border-radius: 14px; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.03), 10, 0, 0, 2);");
 
             renderSuccessView(card, existingRequest.requestId, existingRequest.portName, existingRequest.portCode,
@@ -169,7 +164,7 @@ public class RequestNewPortPage {
 
         HBox tile = new HBox(10);
         tile.setAlignment(Pos.CENTER_LEFT);
-        tile.setPadding(new Insets(10, 16, 10, 16));
+        tile.setPadding(new Insets(7, 10, 7, 10));
 
         String bg = active ? "#0B63FF" : (completed ? "#ECFDF5" : "#FFFFFF");
         String border = active ? "#0B63FF" : (completed ? "#A7F3D0" : "#E2E8F0");
@@ -191,7 +186,7 @@ public class RequestNewPortPage {
 
     private Region stepDivider() {
         Region r = new Region();
-        r.setPrefWidth(24);
+        r.setPrefWidth(14);
         r.setPrefHeight(2);
         r.setStyle("-fx-background-color: #E2E8F0;");
         return r;
@@ -200,8 +195,9 @@ public class RequestNewPortPage {
     private void renderStepContent() {
         stepContentContainer.getChildren().clear();
 
-        VBox card = new VBox(20);
-        card.setPadding(new Insets(28));
+        VBox card = new VBox(12);
+        card.setMaxWidth(Double.MAX_VALUE);
+        card.setPadding(new Insets(16));
         card.setStyle("-fx-background-color: white; -fx-background-radius: 14px; -fx-border-color: #E2E8F0; -fx-border-radius: 14px; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.03), 10, 0, 0, 2);");
 
         if (currentStep == 1) {
@@ -232,10 +228,10 @@ public class RequestNewPortPage {
         getCoordsBtn.setOnAction(e -> handleGetCoordinates(getCoordsBtn));
         locationField.setOnAction(e -> handleGetCoordinates(getCoordsBtn));
 
-        VBox grid = new VBox(14,
-                new HBox(14, formGroup("Port Name *", portNameField), formGroup("Port Code", portCodeField)),
-                new HBox(14, formGroup("Location / City *", locationBox), formGroup("Port Capacity (%)", capacityField)),
-                new HBox(14, formGroup("Latitude (-90 to +90) *", latField), formGroup("Longitude (-180 to +180) *", lngField)),
+        VBox grid = new VBox(8,
+            new HBox(8, formGroup("Port Name *", portNameField), formGroup("Port Code", portCodeField)),
+            new HBox(8, formGroup("Location / City *", locationBox), formGroup("Port Capacity (%)", capacityField)),
+            new HBox(8, formGroup("Latitude (-90 to +90) *", latField), formGroup("Longitude (-180 to +180) *", lngField)),
                 formGroup("Cargo Handling Types", cargoTypeField),
                 formGroup("Port Address & Terminal Details *", addressField)
         );
@@ -318,11 +314,11 @@ public class RequestNewPortPage {
         Label stepTitle = new Label("Step 2: Designated Port Authority Details");
         stepTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: " + TEXT_PRIMARY + ";");
 
-        VBox grid = new VBox(14,
-                new HBox(14, formGroup("Proposed Port Authority Name *", paNameField), formGroup("Proposed Port Authority Email *", paEmailField)),
-                new HBox(14, formGroup("Phone Number *", paPhoneField), formGroup("Organization / Board", paOrgField)),
+        VBox grid = new VBox(8,
+            new HBox(8, formGroup("Proposed Port Authority Name *", paNameField), formGroup("Proposed Port Authority Email *", paEmailField)),
+            new HBox(8, formGroup("Phone Number *", paPhoneField), formGroup("Organization / Board", paOrgField)),
                 new Label("Requester Contact Information"),
-                new HBox(14, formGroup("Requester Name *", reqNameField), formGroup("Requester Email *", reqEmailField)),
+            new HBox(8, formGroup("Requester Name *", reqNameField), formGroup("Requester Email *", reqEmailField)),
                 formGroup("Requester Phone *", reqPhoneField)
         );
 
@@ -363,11 +359,12 @@ public class RequestNewPortPage {
         Label stepTitle = new Label("Step 3: Port Establishment Verification Documents");
         stepTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: " + TEXT_PRIMARY + ";");
 
-        Label notice = new Label("Upload documents using preset 'docktech_port_documents'. Files will be stored securely on Cloudinary.");
+        Label notice = new Label("Upload required verification documents. Files will be stored securely on Cloudinary.");
         notice.setStyle("-fx-text-fill: #0b63ff; -fx-font-size: 12px; -fx-font-weight: bold;");
 
-        Label aadhaarStatusLbl = new Label("Status: " + (aadhaarDocMeta.cloudinaryUrl.isEmpty() ? "Not uploaded" : "✓ Uploaded (" + aadhaarDocMeta.fileName + ")"));
-        aadhaarStatusLbl.setStyle("-fx-text-fill: #16a34a; -fx-font-size: 12px; -fx-font-weight: bold;");
+        boolean aadhaarUploaded = aadhaarDocMeta != null && aadhaarDocMeta.cloudinaryUrl != null && !aadhaarDocMeta.cloudinaryUrl.isBlank();
+        Label aadhaarStatusLbl = new Label("Status: " + (aadhaarUploaded ? "✓ Uploaded (" + aadhaarDocMeta.fileName + ")" : "Not uploaded"));
+        aadhaarStatusLbl.setStyle(aadhaarUploaded ? "-fx-text-fill: #16a34a; -fx-font-size: 12px; -fx-font-weight: bold;" : "-fx-text-fill: #64748b; -fx-font-size: 12px;");
 
         Button uploadAadhaarBtn = new Button("📤 Choose & Upload Aadhaar Card");
         uploadAadhaarBtn.setStyle(primaryBtnStyle());
@@ -384,11 +381,20 @@ public class RequestNewPortPage {
                 com.projectui.service.CloudinaryService.uploadDocument(selected, "NPR-REQ", "aadhaar").whenComplete((meta, err) -> javafx.application.Platform.runLater(() -> {
                     uploadAadhaarBtn.setDisable(false);
                     uploadAadhaarBtn.setText("📤 Choose & Upload Aadhaar Card");
-                    if (meta != null && err == null) {
+                    if (meta != null && err == null && meta.cloudinaryUrl != null && !meta.cloudinaryUrl.isBlank()) {
                         this.aadhaarDocMeta = meta;
                         aadhaarStatusLbl.setText("✓ Uploaded to Cloudinary: " + meta.fileName);
-                    } else if (err != null) {
-                        aadhaarStatusLbl.setText("❌ Upload failed: " + err.getMessage());
+                        aadhaarStatusLbl.setStyle("-fx-text-fill: #16a34a; -fx-font-size: 12px; -fx-font-weight: bold;");
+                    } else {
+                        String errMsg = err != null ? err.getMessage() : "Upload failed";
+                        this.aadhaarDocMeta = null;
+                        aadhaarStatusLbl.setText("❌ Upload failed: " + errMsg);
+                        aadhaarStatusLbl.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 12px; -fx-font-weight: bold;");
+                        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                                javafx.scene.control.Alert.AlertType.ERROR,
+                                "Failed to upload Aadhaar Card to Cloudinary:\n" + errMsg + "\n\nPlease try again."
+                        );
+                        alert.showAndWait();
                     }
                 }));
             }
@@ -397,8 +403,9 @@ public class RequestNewPortPage {
         VBox aadhaarCardBox = new VBox(8, new Label("1. Aadhaar Card Verification *"), uploadAadhaarBtn, aadhaarStatusLbl);
         aadhaarCardBox.setStyle("-fx-background-color: #f8fafc; -fx-border-color: #cbd5e1; -fx-border-radius: 8; -fx-padding: 14;");
 
-        Label supportingStatusLbl = new Label("Status: " + (supportingDocMeta.cloudinaryUrl.isEmpty() ? "Not uploaded" : "✓ Uploaded (" + supportingDocMeta.fileName + ")"));
-        supportingStatusLbl.setStyle("-fx-text-fill: #16a34a; -fx-font-size: 12px; -fx-font-weight: bold;");
+        boolean supportingUploaded = supportingDocMeta != null && supportingDocMeta.cloudinaryUrl != null && !supportingDocMeta.cloudinaryUrl.isBlank();
+        Label supportingStatusLbl = new Label("Status: " + (supportingUploaded ? "✓ Uploaded (" + supportingDocMeta.fileName + ")" : "Not uploaded"));
+        supportingStatusLbl.setStyle(supportingUploaded ? "-fx-text-fill: #16a34a; -fx-font-size: 12px; -fx-font-weight: bold;" : "-fx-text-fill: #64748b; -fx-font-size: 12px;");
 
         Button uploadSupportingBtn = new Button("📤 Choose & Upload Port Establishment Proposal");
         uploadSupportingBtn.setStyle(primaryBtnStyle());
@@ -415,11 +422,20 @@ public class RequestNewPortPage {
                 com.projectui.service.CloudinaryService.uploadDocument(selected, "NPR-REQ", "proposal").whenComplete((meta, err) -> javafx.application.Platform.runLater(() -> {
                     uploadSupportingBtn.setDisable(false);
                     uploadSupportingBtn.setText("📤 Choose & Upload Port Establishment Proposal");
-                    if (meta != null && err == null) {
+                    if (meta != null && err == null && meta.cloudinaryUrl != null && !meta.cloudinaryUrl.isBlank()) {
                         this.supportingDocMeta = meta;
                         supportingStatusLbl.setText("✓ Uploaded to Cloudinary: " + meta.fileName);
-                    } else if (err != null) {
-                        supportingStatusLbl.setText("❌ Upload failed: " + err.getMessage());
+                        supportingStatusLbl.setStyle("-fx-text-fill: #16a34a; -fx-font-size: 12px; -fx-font-weight: bold;");
+                    } else {
+                        String errMsg = err != null ? err.getMessage() : "Upload failed";
+                        this.supportingDocMeta = null;
+                        supportingStatusLbl.setText("❌ Upload failed: " + errMsg);
+                        supportingStatusLbl.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 12px; -fx-font-weight: bold;");
+                        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                                javafx.scene.control.Alert.AlertType.ERROR,
+                                "Failed to upload Port Establishment Proposal to Cloudinary:\n" + errMsg + "\n\nPlease try again."
+                        );
+                        alert.showAndWait();
                     }
                 }));
             }
@@ -428,7 +444,7 @@ public class RequestNewPortPage {
         VBox supportingCardBox = new VBox(8, new Label("2. Port Establishment Proposal Document *"), uploadSupportingBtn, supportingStatusLbl);
         supportingCardBox.setStyle("-fx-background-color: #f8fafc; -fx-border-color: #cbd5e1; -fx-border-radius: 8; -fx-padding: 14;");
 
-        VBox docList = new VBox(14, notice, aadhaarCardBox, supportingCardBox);
+        VBox docList = new VBox(8, notice, aadhaarCardBox, supportingCardBox);
 
         Button backBtn = new Button("← Back");
         backBtn.setStyle(secondaryBtnStyle());
@@ -441,6 +457,22 @@ public class RequestNewPortPage {
         Button nextBtn = new Button("Next: Review & Submit →");
         nextBtn.setStyle(primaryBtnStyle());
         nextBtn.setOnAction(e -> {
+            if (aadhaarDocMeta == null || aadhaarDocMeta.cloudinaryUrl == null || aadhaarDocMeta.cloudinaryUrl.isBlank()) {
+                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                        javafx.scene.control.Alert.AlertType.WARNING,
+                        "Please upload the Aadhaar Card document to Cloudinary before proceeding."
+                );
+                alert.showAndWait();
+                return;
+            }
+            if (supportingDocMeta == null || supportingDocMeta.cloudinaryUrl == null || supportingDocMeta.cloudinaryUrl.isBlank()) {
+                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                        javafx.scene.control.Alert.AlertType.WARNING,
+                        "Please upload the Port Establishment Proposal document to Cloudinary before proceeding."
+                );
+                alert.showAndWait();
+                return;
+            }
             currentStep = 4;
             renderStepper();
             renderStepContent();
@@ -481,8 +513,8 @@ public class RequestNewPortPage {
         final double finalLat = lat;
         final double finalLng = lng;
 
-        VBox summaryBox = new VBox(12);
-        summaryBox.setPadding(new Insets(16));
+        VBox summaryBox = new VBox(8);
+        summaryBox.setPadding(new Insets(10));
         summaryBox.setStyle("-fx-background-color: #F8FAFC; -fx-border-color: #E2E8F0; -fx-border-radius: 10px; -fx-background-radius: 10px;");
 
         summaryBox.getChildren().addAll(
@@ -491,8 +523,8 @@ public class RequestNewPortPage {
                 summaryRow("🌐  Geographic Coordinates", String.format("%.4f° N, %.4f° E", finalLat, finalLng)),
                 summaryRow("🛡️  Proposed Port Authority", paName + " <" + paEmail + "> (" + paPhone + ")"),
                 summaryRow("👤  Requester Contact", rName + " <" + rEmail + "> (" + rPhone + ")"),
-                summaryRow("📄  Aadhaar Card", aadhaarDocMeta.fileName),
-                summaryRow("📁  Supporting Document", supportingDocMeta.fileName)
+                summaryRow("📄  Aadhaar Card", (aadhaarDocMeta != null && aadhaarDocMeta.fileName != null) ? aadhaarDocMeta.fileName : "Not uploaded"),
+                summaryRow("📁  Supporting Document", (supportingDocMeta != null && supportingDocMeta.fileName != null) ? supportingDocMeta.fileName : "Not uploaded")
         );
 
         Label notice = new Label("● Status will be set to PENDING upon submission. Dock Tech Admin review and approval is required before port creation or Port Authority provisioning.");
@@ -510,6 +542,16 @@ public class RequestNewPortPage {
         submitBtn.setStyle("-fx-background-color: #16A34A; -fx-text-fill: white; -fx-font-size: 13px; -fx-font-weight: bold; -fx-padding: 10px 20px; -fx-background-radius: 8px; -fx-cursor: hand;");
 
         submitBtn.setOnAction(e -> {
+            if (aadhaarDocMeta == null || aadhaarDocMeta.cloudinaryUrl == null || aadhaarDocMeta.cloudinaryUrl.isBlank()
+                    || supportingDocMeta == null || supportingDocMeta.cloudinaryUrl == null || supportingDocMeta.cloudinaryUrl.isBlank()) {
+                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                        javafx.scene.control.Alert.AlertType.ERROR,
+                        "Document upload incomplete. Both Aadhaar Card and Port Establishment Proposal must be successfully uploaded to Cloudinary before submission."
+                );
+                alert.showAndWait();
+                return;
+            }
+
             if (!com.projectui.service.CoastalLocationValidator.isCoastal(finalLat, finalLng)) {
                 submitBtn.setText("SUBMIT PORT REQUEST (PENDING ADMIN APPROVAL)");
                 submitBtn.setDisable(false);
@@ -568,8 +610,8 @@ public class RequestNewPortPage {
                                   String paName, String paEmail, String paPhone,
                                   String aadhaarDoc, String supportingDoc, String submitDate) {
         card.getChildren().clear();
-        card.setPadding(new Insets(24));
-        card.setSpacing(18);
+        card.setPadding(new Insets(16));
+        card.setSpacing(12);
 
         // Header: Success Icon + Title + Request Badges
         HBox headerBox = new HBox(16);
@@ -622,7 +664,7 @@ public class RequestNewPortPage {
 
         // Left Column: Port & Terminal Details
         VBox portCard = new VBox(10);
-        portCard.setPadding(new Insets(14, 16, 14, 16));
+        portCard.setPadding(new Insets(10, 12, 10, 12));
         portCard.setStyle("-fx-background-color:#F8FAFC; -fx-border-color:#E2E8F0; -fx-border-radius:10px; -fx-background-radius:10px;");
         HBox.setHgrow(portCard, Priority.ALWAYS);
 
@@ -640,7 +682,7 @@ public class RequestNewPortPage {
 
         // Right Column: Authorities, Requester & Documents
         VBox authorityCard = new VBox(10);
-        authorityCard.setPadding(new Insets(14, 16, 14, 16));
+        authorityCard.setPadding(new Insets(10, 12, 10, 12));
         authorityCard.setStyle("-fx-background-color:#F8FAFC; -fx-border-color:#E2E8F0; -fx-border-radius:10px; -fx-background-radius:10px;");
         HBox.setHgrow(authorityCard, Priority.ALWAYS);
 
@@ -660,7 +702,7 @@ public class RequestNewPortPage {
 
         // Process Workflow Banner
         HBox workflowCard = new HBox(12);
-        workflowCard.setPadding(new Insets(12, 16, 12, 16));
+        workflowCard.setPadding(new Insets(8, 12, 8, 12));
         workflowCard.setAlignment(Pos.CENTER_LEFT);
         workflowCard.setStyle("-fx-background-color:#F0FDF4; -fx-border-color:#BBF7D0; -fx-border-radius:8px; -fx-background-radius:8px;");
 
@@ -747,7 +789,7 @@ public class RequestNewPortPage {
 
     private HBox docCard(String name, String fileName, String status) {
         HBox row = new HBox(12);
-        row.setPadding(new Insets(14));
+        row.setPadding(new Insets(10));
         row.setStyle("-fx-background-color: #F8FAFC; -fx-border-color: #E2E8F0; -fx-border-radius: 8px; -fx-background-radius: 8px;");
         row.setAlignment(Pos.CENTER_LEFT);
 
@@ -779,7 +821,7 @@ public class RequestNewPortPage {
     }
 
     private VBox formGroup(String labelText, javafx.scene.Node field) {
-        VBox group = new VBox(6);
+        VBox group = new VBox(3);
         Label label = new Label(labelText);
         label.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: " + TEXT_PRIMARY + ";");
         group.getChildren().addAll(label, field);
@@ -789,7 +831,7 @@ public class RequestNewPortPage {
     private TextField createField(String prompt) {
         TextField tf = new TextField();
         tf.setPromptText(prompt);
-        tf.setPrefHeight(42);
+        tf.setPrefHeight(36);
         tf.setStyle("-fx-background-color: #FFFFFF; -fx-border-color: #CBD5E1; -fx-border-radius: 6px; -fx-background-radius: 6px; -fx-padding: 0 12px; -fx-font-size: 13px;");
         return tf;
     }
@@ -797,7 +839,7 @@ public class RequestNewPortPage {
     private TextArea createTextArea(String prompt) {
         TextArea ta = new TextArea();
         ta.setPromptText(prompt);
-        ta.setPrefRowCount(3);
+        ta.setPrefRowCount(2);
         ta.setStyle("-fx-background-color: #FFFFFF; -fx-border-color: #CBD5E1; -fx-border-radius: 6px; -fx-background-radius: 6px; -fx-padding: 8px 12px; -fx-font-size: 13px;");
         return ta;
     }

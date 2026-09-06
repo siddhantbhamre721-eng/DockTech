@@ -68,6 +68,7 @@ public class ShipDAO extends Dao {
                       "company", ship.getCompany(),
                       "arrival", ship.getArrival(),
                       "departure", ship.getDeparture(),
+                      "destination", ship.getDestination(),
                       "berth", ship.getBerth(),
                       "status", ship.getStatus()    
                   );

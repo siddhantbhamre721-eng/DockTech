@@ -58,6 +58,10 @@ public class ContainerDao extends Dao {
                                     continue;
                                 }
                                 localBookingStore.put(doc.getId(), data);
+                                updateCounterFromId(doc.getId());
+                                if (data.get("bookingId") != null) {
+                                    updateCounterFromId(data.get("bookingId").toString());
+                                }
                             }
                         }
                         notifyListeners();
@@ -78,6 +82,10 @@ public class ContainerDao extends Dao {
                                         continue;
                                     }
                                     localBookingStore.put(doc.getId(), data);
+                                    updateCounterFromId(doc.getId());
+                                    if (data.get("bookingId") != null) {
+                                        updateCounterFromId(data.get("bookingId").toString());
+                                    }
                                 }
                             }
                             notifyListeners();
@@ -88,7 +96,29 @@ public class ContainerDao extends Dao {
         });
     }
 
+    private static synchronized void updateCounterFromId(String idStr) {
+        if (idStr != null && idStr.trim().startsWith("CONT-")) {
+            try {
+                int num = Integer.parseInt(idStr.trim().substring(5).trim());
+                if (num >= bookingCounter) {
+                    bookingCounter = num + 1;
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
     public synchronized String generateBookingId() {
+        for (String k : localBookingStore.keySet()) {
+            updateCounterFromId(k);
+        }
+        for (Map<String, Object> b : localBookingStore.values()) {
+            if (b != null && b.get("bookingId") != null) {
+                updateCounterFromId(b.get("bookingId").toString());
+            }
+        }
+        while (localBookingStore.containsKey("CONT-" + bookingCounter)) {
+            bookingCounter++;
+        }
         return "CONT-" + (bookingCounter++);
     }
 
@@ -196,6 +226,22 @@ public class ContainerDao extends Dao {
                 return booking;
             }
         }
+        try {
+            Firestore db = db();
+            if (db != null) {
+                com.google.cloud.firestore.QuerySnapshot snap = db.collection("container_bookings")
+                        .whereEqualTo("cargoId", cargoId).get().get();
+                if (snap != null && !snap.isEmpty()) {
+                    for (com.google.cloud.firestore.DocumentSnapshot doc : snap.getDocuments()) {
+                        if (doc.exists() && doc.getData() != null) {
+                            Map<String, Object> data = new HashMap<>(doc.getData());
+                            localBookingStore.put(doc.getId(), data);
+                            return data;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
         return null;
     }
 
@@ -294,6 +340,63 @@ public class ContainerDao extends Dao {
         return list;
     }
 
+    /**
+     * Permanently deletes a single container booking from both local in-memory store
+     * and Firestore. Does NOT affect any other booking records.
+     */
+    public boolean deleteBooking(String bookingId) {
+        if (bookingId == null || bookingId.isBlank()) return false;
+        String cleanId = bookingId.trim();
+        List<String> keysToRemove = new ArrayList<>();
+        for (Map.Entry<String, Map<String, Object>> entry : localBookingStore.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(cleanId)) {
+                keysToRemove.add(entry.getKey());
+                continue;
+            }
+            Map<String, Object> data = entry.getValue();
+            if (data != null) {
+                Object bId = data.get("bookingId");
+                Object cId = data.get("cargoId");
+                Object id = data.get("id");
+                Object docId = data.get("docId");
+                if ((bId != null && bId.toString().trim().equalsIgnoreCase(cleanId)) ||
+                    (cId != null && cId.toString().trim().equalsIgnoreCase(cleanId)) ||
+                    (id != null && id.toString().trim().equalsIgnoreCase(cleanId)) ||
+                    (docId != null && docId.toString().trim().equalsIgnoreCase(cleanId))) {
+                    keysToRemove.add(entry.getKey());
+                }
+            }
+        }
+        for (String k : keysToRemove) {
+            localBookingStore.remove(k);
+        }
+        localBookingStore.remove(cleanId);
+        notifyListeners();
+        try {
+            Firestore db = db();
+            if (db != null) {
+                for (String k : keysToRemove) {
+                    db.collection("container_bookings").document(k).delete();
+                }
+                db.collection("container_bookings").document(cleanId).delete();
+            }
+        } catch (Exception ignored) {}
+        return true;
+    }
+
+    public boolean deleteBookingForCargo(String cargoId) {
+        if (cargoId == null || cargoId.isBlank()) return false;
+        List<String> bookingIds = new ArrayList<>();
+        for (Map.Entry<String, Map<String, Object>> entry : localBookingStore.entrySet()) {
+            Map<String, Object> data = entry.getValue();
+            if (data != null && cargoId.equalsIgnoreCase(String.valueOf(data.get("cargoId")))) {
+                bookingIds.add(entry.getKey());
+            }
+        }
+        for (String bookingId : bookingIds) deleteBooking(bookingId);
+        return !bookingIds.isEmpty();
+    }
+
     public synchronized void deleteBookingsForPort(String portName, String portCode) {
         if (portName == null && portCode == null) return;
         List<String> toRemove = new ArrayList<>();
@@ -327,14 +430,46 @@ public class ContainerDao extends Dao {
         String bPref = getTrimmedLower(b, "preferredPort", "port");
         String bOrig = getTrimmedLower(b, "originPort", "origin");
         String bDest = getTrimmedLower(b, "destinationPort", "destination");
+        String bCurr = getTrimmedLower(b, "currentPort");
 
-        List<String> list = List.of(bPref, bOrig, bDest);
+        List<String> list = List.of(bPref, bOrig, bDest, bCurr);
         for (String s : list) {
             if (s.isEmpty()) continue;
             if (!pLower.isEmpty() && (s.equals(pLower) || s.contains(pLower) || pLower.contains(s))) return true;
             if (!cLower.isEmpty() && (s.equals(cLower) || s.contains(cLower))) return true;
         }
+
+        if (!pLower.isEmpty()) {
+            if (pLower.contains("cochin") || pLower.contains("kochi")) {
+                for (String s : list) if (s.contains("cochin") || s.contains("kochi")) return true;
+            } else if (pLower.contains("mumbai") || pLower.contains("jnpt")) {
+                for (String s : list) if (s.contains("mumbai") || s.contains("jnpt")) return true;
+            } else if (pLower.contains("chennai") || pLower.contains("madras")) {
+                for (String s : list) if (s.contains("chennai") || s.contains("madras")) return true;
+            } else if (pLower.contains("vizag") || pLower.contains("visakhapatnam")) {
+                for (String s : list) if (s.contains("vizag") || s.contains("visakhapatnam")) return true;
+            } else if (pLower.contains("kolkata") || pLower.contains("calcutta")) {
+                for (String s : list) if (s.contains("kolkata") || s.contains("calcutta")) return true;
+            }
+        }
+
         return false;
+    }
+
+    public Map<String, Object> getBooking(String bookingId) {
+        if (bookingId == null || bookingId.isBlank()) return null;
+        String clean = bookingId.trim();
+        Map<String, Object> found = localBookingStore.get(clean);
+        if (found != null) return found;
+        for (Map.Entry<String, Map<String, Object>> e : localBookingStore.entrySet()) {
+            if (e.getKey().equalsIgnoreCase(clean)) return e.getValue();
+            Map<String, Object> b = e.getValue();
+            if (b != null) {
+                Object id = b.get("bookingId");
+                if (id != null && id.toString().trim().equalsIgnoreCase(clean)) return b;
+            }
+        }
+        return null;
     }
 
     public void syncShipAssignmentForCargo(String cargoId, String shipId, String shipName, String shipImo) {
@@ -349,7 +484,7 @@ public class ContainerDao extends Dao {
                 b.put("shipName", shipName != null ? shipName : "");
                 b.put("shipImo", shipImo != null ? shipImo : "");
                 b.put("vessel", shipName != null ? shipName : "");
-                b.put("status", "Allocated");
+                // Do NOT automatically set status to "Allocated"! Keep authentic DB workflow status.
                 b.put("updatedAt", LocalDateTime.now().toString());
 
                 try {

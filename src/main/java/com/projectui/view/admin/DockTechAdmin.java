@@ -2,6 +2,7 @@ package com.projectui.view.admin;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
 // MenuButton/MenuItem removed; using a Popup for profile dropdown
@@ -15,6 +16,7 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -49,22 +51,6 @@ public class DockTechAdmin extends AdminTheme {
         root.setTop(header(title));
         root.setCenter(center);
         showPage(currentPage);
-
-        // Preserve window size/state when this root is attached to a Scene/Window.
-        root.sceneProperty().addListener((obsScene, oldScene, newScene) -> {
-            if (newScene == null)
-                return;
-            newScene.windowProperty().addListener((obsWin, oldWin, newWin) -> {
-                if (newWin == null)
-                    return;
-                if (newWin instanceof Stage) {
-                    Stage stage = (Stage) newWin;
-                    // Bind root preferred size to stage to avoid unexpected shrinking.
-                    root.prefWidthProperty().bind(stage.widthProperty());
-                    root.prefHeightProperty().bind(stage.heightProperty());
-                }
-            });
-        });
 
         return root;
     }
@@ -166,9 +152,16 @@ public class DockTechAdmin extends AdminTheme {
         system.setStyle(
                 "-fx-text-fill:#047857; -fx-background-color:#ecfdf5; -fx-background-radius:8; -fx-padding:6 12; -fx-font-size:13; -fx-font-weight:bold;");
 
-        // Circular profile avatar button showing initials
+        // Profile avatar button
         AdminDataStore store = AdminDataStore.getInstance();
         String adminName = store.adminName == null ? "" : store.adminName.trim();
+        String adminEmail = store.adminEmail == null ? "" : store.adminEmail.trim();
+        if (com.projectui.view.login.LoginPage.loggedInUser != null) {
+            Object n = com.projectui.view.login.LoginPage.loggedInUser.get("name");
+            if (n != null) adminName = n.toString();
+            Object em = com.projectui.view.login.LoginPage.loggedInUser.get("email");
+            if (em != null) adminEmail = em.toString();
+        }
         String initialsLocal = "DT";
         if (!adminName.isBlank()) {
             String[] parts = adminName.split("\\s+");
@@ -177,10 +170,18 @@ public class DockTechAdmin extends AdminTheme {
             initialsLocal = (a + b).toUpperCase();
         }
         final String initials = initialsLocal;
+        final String finalAdminEmail = adminEmail;
+        final String finalAdminName = adminName;
 
-        Button profile = new Button(initials);
-        profile.setStyle("-fx-background-color:" + BLUE
-                + "; -fx-text-fill:white; -fx-font-size:14; -fx-font-weight:bold; -fx-background-radius:999; -fx-min-width:38; -fx-min-height:38; -fx-pref-width:38; -fx-pref-height:38; -fx-cursor:hand;");
+        Button profile = new Button();
+        profile.setGraphic(com.projectui.service.UserProfileImageManager.createAvatarNode(38, initials, finalAdminEmail));
+        profile.setStyle("-fx-background-color:transparent; -fx-padding:0; -fx-cursor:hand; -fx-min-width:38; -fx-min-height:38; -fx-pref-width:38; -fx-pref-height:38;");
+
+        com.projectui.service.UserProfileImageManager.addAvatarChangeListener(() -> {
+            javafx.application.Platform.runLater(() -> {
+                profile.setGraphic(com.projectui.service.UserProfileImageManager.createAvatarNode(38, initials, finalAdminEmail));
+            });
+        });
 
         profile.setOnAction(evt -> {
             // build a compact popup dropdown aligned below the avatar, right-aligned
@@ -192,10 +193,9 @@ public class DockTechAdmin extends AdminTheme {
                     "-fx-background-color:white; -fx-padding:14; -fx-background-radius:10; -fx-effect: dropshadow(gaussian, rgba(14,30,70,0.12), 8, 0.5, 0, 3);");
 
             // header with circular avatar and labels
-            Label bigAvatar = new Label(initials);
-            bigAvatar.setStyle("-fx-background-color:" + BLUE
-                    + "; -fx-text-fill:white; -fx-font-size:18; -fx-font-weight:bold; -fx-alignment:center; -fx-min-width:48; -fx-min-height:48; -fx-background-radius:999;");
-            Label nameLbl = new Label(adminName.isBlank() ? "Dock Tech Admin" : adminName);
+            Node bigAvatarNode = com.projectui.service.UserProfileImageManager.createAvatarNode(48, initials, finalAdminEmail);
+            StackPane bigAvatar = new StackPane(bigAvatarNode);
+            Label nameLbl = new Label(finalAdminName.isBlank() ? "Dock Tech Admin" : finalAdminName);
             nameLbl.setStyle("-fx-text-fill:#0f172a; -fx-font-size:15; -fx-font-weight:bold;");
             Label roleLbl = new Label("Administrator");
             roleLbl.setStyle("-fx-text-fill:#6b7280; -fx-font-size:13;");

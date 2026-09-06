@@ -75,7 +75,7 @@ public class TrackShipment {
 
         refreshData();
 
-        Scene sc = new Scene(root, 1400, 800);
+        Scene sc = new Scene(root);
         LoginPage.applyInvisibleScrollbar(sc);
         return sc;
     }
@@ -206,7 +206,7 @@ public class TrackShipment {
             if (c == null) continue;
             String cId = str(c.get("cargoId"), "");
             String cName = str(c.get("cargoName"), "");
-            String vName = str(c.get("assignedVessel"), str(c.get("vesselName"), "AFRAPEARL II"));
+            String vName = str(c.get("assignedVessel"), str(c.get("vesselName"), ""));
             String status = str(c.get("status"), "In Transit");
 
             boolean matchesQ = q.isEmpty() || cId.toLowerCase().contains(q) || cName.toLowerCase().contains(q) || vName.toLowerCase().contains(q);
@@ -293,8 +293,30 @@ public class TrackShipment {
         String qty = str(c.get("quantity"), "1") + " Units";
         String rawWt = str(c.get("weight"), "—");
         String wt = rawWt.equals("—") || rawWt.contains("kg") ? rawWt : (rawWt + " kg");
-        String exp = str(c.get("exporterName"), str(c.get("exporter"), "—"));
-        String imp = getLoggedImporterName();
+        String exp = str(c.get("exporterName"), str(c.get("exporter"), str(c.get("exporterCompany"), str(c.get("shipper"), str(c.get("company"), str(c.get("customerName"), "—"))))));
+        if (exp.equals("—") || exp.isBlank() || exp.equalsIgnoreCase("Exporter")) {
+            String expUid = str(c.get("ownerUid"), str(c.get("exporterUid"), str(c.get("exporterId"), str(c.get("userId"), ""))));
+            String expEmail = str(c.get("ownerEmail"), str(c.get("exporterEmail"), ""));
+            if (!expUid.isBlank()) {
+                Map<String, Object> prof = com.projectui.dao.UserDao.getProfile(expUid);
+                if (prof != null) {
+                    Object pn = prof.get("name") != null ? prof.get("name") : (prof.get("fullName") != null ? prof.get("fullName") : prof.get("company"));
+                    if (pn != null && !pn.toString().isBlank()) {
+                        exp = pn.toString();
+                    }
+                }
+            }
+            if ((exp.equals("—") || exp.isBlank() || exp.equalsIgnoreCase("Exporter")) && !expEmail.isBlank()) {
+                Map<String, Object> prof = com.projectui.dao.UserDao.getProfile(expEmail);
+                if (prof != null) {
+                    Object pn = prof.get("name") != null ? prof.get("name") : (prof.get("fullName") != null ? prof.get("fullName") : prof.get("company"));
+                    if (pn != null && !pn.toString().isBlank()) {
+                        exp = pn.toString();
+                    }
+                }
+            }
+        }
+        String imp = str(c.get("importerName"), str(c.get("importer"), str(c.get("consignee"), str(c.get("importerCompany"), getLoggedImporterName()))));
         String orig = str(c.get("originPort"), "—");
         String dest = str(c.get("destinationPort"), "—");
         String vName = str(c.get("assignedVessel"), str(c.get("vesselName"), str(c.get("assignedShip"), "Not Assigned")));

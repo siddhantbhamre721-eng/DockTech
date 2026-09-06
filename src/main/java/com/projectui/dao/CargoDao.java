@@ -11,6 +11,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.cloud.firestore.Firestore;
+import com.projectui.dao.NotificationDao;
 
 @SuppressWarnings({"null", "unchecked"})
 public class CargoDao extends Dao {
@@ -86,7 +87,15 @@ public class CargoDao extends Dao {
     }
 
     public synchronized String generateCargoId() {
-        return "CGO-" + (cargoCounter++);
+        while (true) {
+            String cargoId = "CGO-" + (cargoCounter++);
+            if (localCargoStore.containsKey(cargoId)) continue;
+            try {
+                Firestore db = db();
+                if (db != null && db.collection("cargos").document(cargoId).get().get().exists()) continue;
+            } catch (Exception ignored) {}
+            return cargoId;
+        }
     }
 
     public CompletableFuture<Map<String, Object>> saveCargo(String cargoId, String cargoName, String cargoType,
@@ -96,9 +105,27 @@ public class CargoDao extends Dao {
 
     public CompletableFuture<Map<String, Object>> saveCargo(String cargoId, String cargoName, String cargoType,
             String quantity, String weight, String value, String originPort, String destinationPort, String priority, String status) {
+        return saveCargo(cargoId, cargoName, cargoType, quantity, weight, value, originPort, destinationPort, priority, null, null, null, null, status);
+    }
+
+    public CompletableFuture<Map<String, Object>> saveCargo(String cargoId, String cargoName, String cargoType,
+            String quantity, String weight, String value, String originPort, String destinationPort, String priority,
+            String importerName, String importerEmail, String importerId, String status) {
+        return saveCargo(cargoId, cargoName, cargoType, quantity, weight, value, originPort, destinationPort, priority,
+                importerName, importerEmail, importerId, null, status);
+    }
+
+    public CompletableFuture<Map<String, Object>> saveCargo(String cargoId, String cargoName, String cargoType,
+            String quantity, String weight, String value, String originPort, String destinationPort, String priority,
+            String importerName, String importerEmail, String importerId, String importerCompany, String status) {
         
         CompletableFuture<Map<String, Object>> future = new CompletableFuture<>();
         try {
+            double estimatedValue = parseCurrency(value);
+            if (!Double.isFinite(estimatedValue) || estimatedValue < 0.0 || estimatedValue > 50000.0) {
+                future.completeExceptionally(new IllegalArgumentException("Estimated Value must be less than or equal to ₹50,000."));
+                return future;
+            }
             if (cargoId == null || cargoId.isBlank()) {
                 cargoId = generateCargoId();
             }
@@ -139,6 +166,24 @@ public class CargoDao extends Dao {
             }
             if (!cargoData.containsKey("paymentStatus")) {
                 cargoData.put("paymentStatus", "PAYMENT PENDING");
+            }
+
+            // Store Importer references on cargo
+            if (importerId != null && !importerId.isBlank()) {
+                cargoData.put("importerId", importerId.trim());
+                cargoData.put("importerUid", importerId.trim());
+            }
+            if (importerEmail != null && !importerEmail.isBlank()) {
+                cargoData.put("importerEmail", importerEmail.trim());
+            }
+            if (importerName != null && !importerName.isBlank()) {
+                cargoData.put("importerName", importerName.trim());
+                cargoData.put("importer", importerName.trim());
+                cargoData.put("consignee", importerName.trim());
+                cargoData.put("assignedImporter", importerName.trim());
+            }
+            if (importerCompany != null && !importerCompany.isBlank()) {
+                cargoData.put("importerCompany", importerCompany.trim());
             }
 
             if (com.projectui.view.login.LoginPage.loggedInUser != null) {
@@ -200,6 +245,15 @@ public class CargoDao extends Dao {
             future.completeExceptionally(ex);
         }
         return future;
+    }
+
+    private static double parseCurrency(String value) {
+        if (value == null || value.isBlank()) return 0.0;
+        try {
+            return Double.parseDouble(value.replace("₹", "").replace(",", "").trim());
+        } catch (NumberFormatException ex) {
+            return Double.POSITIVE_INFINITY;
+        }
     }
 
     public boolean assignShipToCargo(String cargoId, String shipId, String shipName, String shipImo, String assignedBy) {
@@ -314,10 +368,38 @@ public class CargoDao extends Dao {
 
     public Map<String, Object> getCargo(String cargoId) {
         if (cargoId == null) return null;
-        return localCargoStore.get(cargoId);
+        Map<String, Object> c = localCargoStore.get(cargoId);
+        if (c == null) {
+            try {
+                Firestore db = db();
+                if (db != null) {
+                    com.google.cloud.firestore.DocumentSnapshot doc = db.collection("cargos").document(cargoId).get().get();
+                    if (doc.exists() && doc.getData() != null) {
+                        c = new HashMap<>(doc.getData());
+                        localCargoStore.put(cargoId, c);
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return c;
     }
 
     public List<Map<String, Object>> getAllCargos() {
+        if (localCargoStore.isEmpty()) {
+            try {
+                Firestore db = db();
+                if (db != null) {
+                    com.google.cloud.firestore.QuerySnapshot snap = db.collection("cargos").get().get();
+                    if (snap != null && !snap.isEmpty()) {
+                        for (com.google.cloud.firestore.DocumentSnapshot doc : snap.getDocuments()) {
+                            if (doc.exists() && doc.getData() != null) {
+                                localCargoStore.put(doc.getId(), new HashMap<>(doc.getData()));
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
         List<Map<String, Object>> list = new ArrayList<>(localCargoStore.values());
         Collections.reverse(list);
         return list;
@@ -414,7 +496,7 @@ public class CargoDao extends Dao {
         }
 
         cargo.put("documents", docs);
-        cargo.put("verificationStatus", "Pending");
+        cargo.put("verificationStatus", "Pending Verification");
         cargo.put("updatedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")));
         notifyListeners();
 
@@ -459,7 +541,7 @@ public class CargoDao extends Dao {
                 String st = String.valueOf(d.get("status"));
                 if ("Rejected".equalsIgnoreCase(st)) anyRejected = true;
                 else if (!"Verified".equalsIgnoreCase(st) && !"Approved".equalsIgnoreCase(st)) allVerified = false;
-                if ("Pending".equalsIgnoreCase(st)) anyPending = true;
+                if ("Pending".equalsIgnoreCase(st) || "Pending Verification".equalsIgnoreCase(st)) anyPending = true;
             }
         }
 
@@ -469,9 +551,13 @@ public class CargoDao extends Dao {
         } else if (allVerified && docs != null && !docs.isEmpty()) {
             cargo.put("docStatus", "Verified");
             cargo.put("verificationStatus", "Verified");
+            if (!"Passed".equalsIgnoreCase(String.valueOf(cargo.get("inspectionStatus")))
+                    && !"Cleared".equalsIgnoreCase(String.valueOf(cargo.get("inspectionStatus")))) {
+                cargo.put("inspectionStatus", "Pending Inspection");
+            }
         } else if (anyPending) {
             cargo.put("docStatus", "Pending Review");
-            cargo.put("verificationStatus", "Pending");
+            cargo.put("verificationStatus", "Pending Verification");
         }
 
         cargo.put("updatedAt", nowStr);
@@ -549,8 +635,8 @@ public class CargoDao extends Dao {
         cargo.put("customsOfficerAssignedAt", nowStr);
         cargo.put("customsStatus", "Pending Clearance");
         cargo.put("customsClearanceStatus", "Pending Clearance");
-        cargo.put("verificationStatus", "Pending");
-        cargo.put("inspectionStatus", "Pending");
+        cargo.put("verificationStatus", "Pending Verification");
+        cargo.put("inspectionStatus", "Pending Inspection");
         cargo.put("updatedAt", nowStr);
 
         // Update Customs Officer's user profile in UserDao
@@ -684,7 +770,125 @@ public class CargoDao extends Dao {
         return true;
     }
 
+    /**
+     * Permanently deletes a single cargo record from both the local in-memory store
+     * and Firestore. Does NOT affect any other cargo records.
+     */
+    public boolean deleteCargo(String cargoId) {
+        if (cargoId == null || cargoId.isBlank()) return false;
+        String cleanId = cargoId.trim();
+        Map<String, Object> cargoToDelete = getCargo(cleanId);
+        deleteCloudinaryDocuments(cargoToDelete);
+        new ContainerDao().deleteBookingForCargo(cleanId);
+        new PaymentDao().deletePaymentsForCargo(cleanId);
+        new NotificationDao().deleteForCargo(cleanId);
+        deleteRelatedFirestoreRecords(cleanId);
+        List<String> keysToRemove = new ArrayList<>();
+        for (Map.Entry<String, Map<String, Object>> entry : localCargoStore.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(cleanId)) {
+                keysToRemove.add(entry.getKey());
+                continue;
+            }
+            Map<String, Object> data = entry.getValue();
+            if (data != null) {
+                Object cId = data.get("cargoId");
+                Object bId = data.get("bookingId");
+                Object id = data.get("id");
+                Object docId = data.get("docId");
+                if ((cId != null && cId.toString().trim().equalsIgnoreCase(cleanId)) ||
+                    (bId != null && bId.toString().trim().equalsIgnoreCase(cleanId)) ||
+                    (id != null && id.toString().trim().equalsIgnoreCase(cleanId)) ||
+                    (docId != null && docId.toString().trim().equalsIgnoreCase(cleanId))) {
+                    keysToRemove.add(entry.getKey());
+                }
+            }
+        }
+        for (String k : keysToRemove) {
+            localCargoStore.remove(k);
+        }
+        localCargoStore.remove(cleanId);
+        notifyListeners();
+        try {
+            Firestore db = db();
+            if (db != null) {
+                for (String k : keysToRemove) {
+                    db.collection("cargos").document(k).delete();
+                }
+                db.collection("cargos").document(cleanId).delete();
+            }
+        } catch (Exception ignored) {}
+        return true;
+    }
+
+    private void deleteRelatedFirestoreRecords(String cargoId) {
+        try {
+            Firestore db = db();
+            if (db == null) return;
+            for (com.google.cloud.firestore.CollectionReference collection : db.listCollections()) {
+                String collectionId = collection.getId();
+                if ("cargos".equals(collectionId) || "users".equals(collectionId)
+                        || "Ships".equals(collectionId) || "registered_ports".equals(collectionId)) continue;
+                com.google.cloud.firestore.QuerySnapshot snapshot = collection.get().get();
+                for (com.google.cloud.firestore.DocumentSnapshot document : snapshot.getDocuments()) {
+                    if (referencesCargo(document.getData(), cargoId)) {
+                        document.getReference().delete().get();
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            System.err.println("[CARGO DELETE] Related record cleanup warning: " + ex.getMessage());
+        }
+    }
+
+    private void deleteCloudinaryDocuments(Map<String, Object> cargo) {
+        if (cargo == null) return;
+        Object rawDocuments = cargo.get("documents");
+        if (!(rawDocuments instanceof List<?> documents)) return;
+        for (Object rawDocument : documents) {
+            if (!(rawDocument instanceof Map<?, ?> rawMap)) continue;
+            Object publicId = rawMap.get("publicId");
+            Object resourceType = rawMap.get("resourceType");
+            if (publicId != null) {
+                com.projectui.service.CloudinaryService.deleteAsset(publicId.toString(),
+                        resourceType != null ? resourceType.toString() : "auto");
+            }
+        }
+    }
+
+    private static boolean referencesCargo(Object value, String cargoId) {
+        if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key = entry.getKey() != null ? entry.getKey().toString().toLowerCase() : "";
+                Object child = entry.getValue();
+                if (("cargoid".equals(key) || "cargorequestid".equals(key) || "requestid".equals(key)
+                        || "relatedcargoid".equals(key) || "shipmentcargoid".equals(key))
+                        && cargoId.equalsIgnoreCase(String.valueOf(child))) return true;
+                if (referencesCargo(child, cargoId)) return true;
+            }
+        } else if (value instanceof Iterable<?> iterable) {
+            for (Object child : iterable) if (referencesCargo(child, cargoId)) return true;
+        } else if (value != null) {
+            return cargoId.equalsIgnoreCase(String.valueOf(value));
+        }
+        return false;
+    }
+
+    public boolean deletePendingRequest(String cargoId) {
+        if (cargoId == null || cargoId.isBlank()) return false;
+        Map<String, Object> cargo = getCargo(cargoId.trim());
+        if (cargo == null || PaymentDao.isPaidCargo(cargo)) return false;
+        String status = String.valueOf(cargo.getOrDefault("status", ""));
+        if (!(status.toLowerCase().contains("pending") || status.equalsIgnoreCase("Registered")
+                || status.equalsIgnoreCase("Documents Uploaded") || status.equalsIgnoreCase("Booked"))) return false;
+
+        return deleteCargo(cargoId);
+    }
+
     public boolean updateCargoPaymentStatus(String cargoId, String paymentStatus, String paymentId, String orderId, double amount, String receiptNo) {
+        return updateCargoPaymentStatus(cargoId, paymentStatus, paymentId, orderId, amount, receiptNo, null);
+    }
+
+    public boolean updateCargoPaymentStatus(String cargoId, String paymentStatus, String paymentId, String orderId, double amount, String receiptNo, String paymentPurpose) {
         if (cargoId == null) return false;
         Map<String, Object> cargo = localCargoStore.get(cargoId);
         if (cargo == null) {
@@ -698,6 +902,7 @@ public class CargoDao extends Dao {
         if (orderId != null) cargo.put("razorpayOrderId", orderId);
         if (amount > 0) cargo.put("paymentAmount", amount);
         if (receiptNo != null) cargo.put("receiptNumber", receiptNo);
+        if (paymentPurpose != null && !paymentPurpose.isBlank()) cargo.put("paymentPurpose", paymentPurpose);
         cargo.put("paidAt", nowStr);
         cargo.put("updatedAt", nowStr);
         notifyListeners();
@@ -712,9 +917,64 @@ public class CargoDao extends Dao {
         return true;
     }
 
+    public boolean clearCargoPayment(String cargoId) {
+        if (cargoId == null || cargoId.isBlank()) return false;
+        Map<String, Object> cargo = localCargoStore.get(cargoId);
+        if (cargo == null) {
+            cargo = getCargo(cargoId);
+        }
+        if (cargo != null) {
+            cargo.put("paymentStatus", "PAYMENT PENDING");
+            cargo.remove("razorpayPaymentId");
+            cargo.remove("paymentId");
+            cargo.remove("paymentAmount");
+            cargo.remove("receiptNumber");
+            cargo.remove("paidAt");
+            String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm"));
+            cargo.put("updatedAt", nowStr);
+            notifyListeners();
+
+            try {
+                Firestore db = db();
+                if (db != null) {
+                    Map<String, Object> updates = new HashMap<>();
+                    updates.put("paymentStatus", "PAYMENT PENDING");
+                    updates.put("razorpayPaymentId", com.google.cloud.firestore.FieldValue.delete());
+                    updates.put("paymentId", com.google.cloud.firestore.FieldValue.delete());
+                    updates.put("paymentAmount", com.google.cloud.firestore.FieldValue.delete());
+                    updates.put("receiptNumber", com.google.cloud.firestore.FieldValue.delete());
+                    updates.put("paidAt", com.google.cloud.firestore.FieldValue.delete());
+                    updates.put("updatedAt", nowStr);
+                    db.collection("cargos").document(cargoId).update(updates);
+                }
+            } catch (Exception ignored) {}
+            return true;
+        }
+        return false;
+    }
+
+    public void clearCargoPaymentByPaymentId(String paymentId) {
+        if (paymentId == null || paymentId.isBlank()) return;
+        for (Map<String, Object> cargo : localCargoStore.values()) {
+            if (cargo == null) continue;
+            Object pObj = cargo.get("paymentId") != null ? cargo.get("paymentId") : cargo.get("razorpayPaymentId");
+            String payId = pObj != null ? pObj.toString() : "";
+            if (paymentId.equalsIgnoreCase(payId)) {
+                Object cObj = cargo.get("cargoId");
+                String cId = cObj != null ? cObj.toString() : "";
+                if (!cId.isEmpty()) {
+                    clearCargoPayment(cId);
+                }
+            }
+        }
+    }
+
     public boolean confirmDelivery(String cargoId, String confirmedBy, String notes) {
         if (cargoId == null || cargoId.isBlank()) return false;
         Map<String, Object> cargo = localCargoStore.get(cargoId);
+        if (cargo == null) {
+            cargo = getCargo(cargoId);
+        }
         if (cargo == null) return false;
 
         String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm"));
@@ -724,6 +984,59 @@ public class CargoDao extends Dao {
         cargo.put("deliveredBy", confirmedBy != null ? confirmedBy : "Importer");
         if (notes != null) cargo.put("deliveryNotes", notes);
         cargo.put("updatedAt", nowStr);
+        localCargoStore.put(cargoId, cargo);
+        notifyListeners();
+
+        try {
+            Firestore db = db();
+            if (db != null) {
+                db.collection("cargos").document(cargoId).set(cargo, com.google.cloud.firestore.SetOptions.merge());
+            }
+        } catch (Exception ignored) {}
+
+        // Preserve container booking relationship and mark booking as Delivered
+        try {
+            ContainerDao cDao = new ContainerDao();
+            Map<String, Object> booking = cDao.getBookingByCargoId(cargoId);
+            if (booking != null) {
+                String bId = (String) booking.get("bookingId");
+                booking.put("status", "Delivered");
+                booking.put("deliveryStatus", "Delivered");
+                booking.put("deliveredAt", nowStr);
+                booking.put("deliveredBy", confirmedBy != null ? confirmedBy : "Importer");
+                booking.put("updatedAt", nowStr);
+                ContainerDao.notifyListeners();
+                Firestore db = db();
+                if (db != null && bId != null) {
+                    db.collection("container_bookings").document(bId).set(booking, com.google.cloud.firestore.SetOptions.merge());
+                }
+            }
+        } catch (Exception ignored) {}
+
+        return true;
+    }
+
+    public boolean linkContainerToCargo(String cargoId, String bookingId, String containerNo) {
+        if (cargoId == null || cargoId.isBlank()) return false;
+        Map<String, Object> cargo = localCargoStore.get(cargoId);
+        if (cargo == null) {
+            cargo = getCargo(cargoId);
+        }
+        if (cargo == null) return false;
+
+        if (bookingId != null && !bookingId.isBlank()) {
+            cargo.put("bookingId", bookingId.trim());
+            cargo.put("containerBookingId", bookingId.trim());
+        }
+        if (containerNo != null && !containerNo.isBlank()) {
+            cargo.put("containerNo", containerNo.trim());
+            cargo.put("containerNumber", containerNo.trim());
+            cargo.put("assignedContainer", containerNo.trim());
+            cargo.put("containerId", containerNo.trim());
+        }
+        String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm"));
+        cargo.put("updatedAt", nowStr);
+        localCargoStore.put(cargoId, cargo);
         notifyListeners();
 
         try {
@@ -774,7 +1087,7 @@ public class CargoDao extends Dao {
         if (c == null || filter == null || filter.isBlank()) return false;
         String f = filter.trim().toLowerCase();
 
-        String impId = getTrimmedLower(c, "importerId", "importerUid", "importerUserId", "userId");
+        String impId = getTrimmedLower(c, "importerId", "importerUid", "importerUserId");
         if (!impId.isEmpty() && (impId.equals(f) || f.equals(impId))) return true;
 
         String impEmail = getTrimmedLower(c, "importerEmail");
@@ -801,7 +1114,7 @@ public class CargoDao extends Dao {
         String uComp = getTrimmedLower(u, "company", "organization");
 
         if (!uUid.isEmpty()) {
-            String cId = getTrimmedLower(c, "importerId", "importerUid", "importerUserId", "userId");
+            String cId = getTrimmedLower(c, "importerId", "importerUid", "importerUserId");
             if (!cId.isEmpty() && (cId.equals(uUid) || cId.equalsIgnoreCase(uUid))) return true;
         }
 
@@ -835,6 +1148,9 @@ public class CargoDao extends Dao {
         List<Map<String, Object>> res = new ArrayList<>();
         if (exporterUser == null || exporterUser.isEmpty()) {
             return res;
+        }
+        if (localCargoStore.isEmpty()) {
+            getAllCargos();
         }
 
         for (Map<String, Object> c : localCargoStore.values()) {

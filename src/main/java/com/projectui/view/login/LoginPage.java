@@ -145,8 +145,8 @@ public class LoginPage extends Application {
                 } catch (Exception ignored) {}
                 stage = primaryStage;
                 stage.setTitle("Dock Tech - Smart Maritime Operations");
-                stage.setMinWidth(1100);
-                stage.setMinHeight(700);
+                stage.setMinWidth(960);
+                stage.setMinHeight(600);
                 showLoginScene();
                 stage.setMaximized(true);
                 stage.show();
@@ -223,38 +223,64 @@ public class LoginPage extends Application {
                 if (cssUrl == null)
                         return;
 
-                if (target instanceof Scene scene) {
-                        if (!scene.getStylesheets().contains(cssUrl)) {
-                                scene.getStylesheets().add(cssUrl);
-                        }
-                } else if (target instanceof Parent parent) {
-                        if (!parent.getStylesheets().contains(cssUrl)) {
-                                parent.getStylesheets().add(cssUrl);
-                        }
-                        if (parent.getScene() != null && !parent.getScene().getStylesheets().contains(cssUrl)) {
-                                parent.getScene().getStylesheets().add(cssUrl);
-                        }
-                } else if (target instanceof javafx.stage.Window window) {
-                        if (window.getScene() != null && !window.getScene().getStylesheets().contains(cssUrl)) {
-                                window.getScene().getStylesheets().add(cssUrl);
-                        }
-                        window.sceneProperty().addListener((obs, oldScene, newScene) -> {
-                                if (newScene != null && !newScene.getStylesheets().contains(cssUrl)) {
-                                        newScene.getStylesheets().add(cssUrl);
+                if (!javafx.application.Platform.isFxApplicationThread()) {
+                        javafx.application.Platform.runLater(() -> applyInvisibleScrollbar(target));
+                        return;
+                }
+
+                try {
+                        if (target instanceof Scene scene) {
+                                if (!scene.getStylesheets().contains(cssUrl)) {
+                                        scene.getStylesheets().add(cssUrl);
                                 }
-                        });
-                } else if (target instanceof DialogPane dialogPane) {
-                        if (!dialogPane.getStylesheets().contains(cssUrl)) {
-                                dialogPane.getStylesheets().add(cssUrl);
+                                scene.rootProperty().addListener((obs, oldR, newR) -> {
+                                        if (newR != null && !scene.getStylesheets().contains(cssUrl)) {
+                                                scene.getStylesheets().add(cssUrl);
+                                        }
+                                });
+                        } else if (target instanceof javafx.stage.Window window) {
+                                if (window.getScene() != null) {
+                                        applyInvisibleScrollbar(window.getScene());
+                                }
+                                window.sceneProperty().addListener((obs, oldScene, newScene) -> {
+                                        if (newScene != null) {
+                                                applyInvisibleScrollbar(newScene);
+                                        }
+                                });
+                        } else if (target instanceof DialogPane dialogPane) {
+                                if (!dialogPane.getStylesheets().contains(cssUrl)) {
+                                        dialogPane.getStylesheets().add(cssUrl);
+                                }
+                                if (dialogPane.getScene() != null) {
+                                        applyInvisibleScrollbar(dialogPane.getScene());
+                                }
+                        } else if (target instanceof Dialog<?> dialog) {
+                                DialogPane pane = dialog.getDialogPane();
+                                if (pane != null) {
+                                        applyInvisibleScrollbar(pane);
+                                }
+                        } else if (target instanceof javafx.scene.Node node) {
+                                if (node.getScene() != null) {
+                                        applyInvisibleScrollbar(node.getScene());
+                                }
+                                node.sceneProperty().addListener((obs, oldS, newS) -> {
+                                        if (newS != null) {
+                                                applyInvisibleScrollbar(newS);
+                                        }
+                                });
+                                if (node instanceof Parent parent) {
+                                        if (!parent.getStylesheets().contains(cssUrl)) {
+                                                parent.getStylesheets().add(cssUrl);
+                                        }
+                                }
+                                if (node instanceof javafx.scene.web.WebView webView) {
+                                        try {
+                                                webView.getEngine().setUserStyleSheetLocation(cssUrl);
+                                        } catch (Exception ignored) {
+                                        }
+                                }
                         }
-                        if (dialogPane.getScene() != null && !dialogPane.getScene().getStylesheets().contains(cssUrl)) {
-                                dialogPane.getScene().getStylesheets().add(cssUrl);
-                        }
-                } else if (target instanceof Dialog<?> dialog) {
-                        DialogPane pane = dialog.getDialogPane();
-                        if (pane != null) {
-                                applyInvisibleScrollbar(pane);
-                        }
+                } catch (Exception ignored) {
                 }
         }
 
@@ -288,11 +314,16 @@ public class LoginPage extends Application {
                 overlay.prefWidthProperty().bind(root.widthProperty());
                 overlay.prefHeightProperty().bind(root.heightProperty());
 
+                ScrollPane scrollPane = new ScrollPane(layout);
+                scrollPane.setFitToWidth(true);
+                scrollPane.setFitToHeight(true);
+                scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent;");
+
                 if (!root.getChildren().contains(overlay)) {
                         root.getChildren().add(overlay);
                 }
-                if (!root.getChildren().contains(layout)) {
-                        root.getChildren().add(layout);
+                if (!root.getChildren().contains(scrollPane)) {
+                        root.getChildren().add(scrollPane);
                 }
 
                 return root;
@@ -412,7 +443,7 @@ public class LoginPage extends Application {
 
                 title.setStyle(
                                 "-fx-text-fill:white;" +
-                                                "-fx-font-size:42px;" +
+                                                "-fx-font-size:36px;" +
                                                 "-fx-font-weight:bold;" +
                                                 "-fx-line-spacing:2px;");
 
@@ -507,12 +538,16 @@ public class LoginPage extends Application {
 
                 Button support = createFooterLink("Help & Support");
                 Button privacy = createFooterLink("Privacy Policy");
+                Button aboutUs = createFooterLink("About Us");
+                aboutUs.setOnAction(e -> new AboutUsPage().show(stage));
 
                 Label separator = label(
                                 "|", "rgba(190,220,240,0.35)", 11, false);
+                Label separator2 = label(
+                                "|", "rgba(190,220,240,0.35)", 11, false);
 
                 HBox footer = new HBox(
-                                15, support, separator, privacy);
+                                15, support, separator, privacy, separator2, aboutUs);
                 footer.setAlignment(Pos.CENTER);
 
                 card.getChildren().addAll(

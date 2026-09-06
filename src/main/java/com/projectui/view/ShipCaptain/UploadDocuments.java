@@ -101,7 +101,7 @@ public class UploadDocuments {
     }
 
     public Scene getScene() {
-        return new Scene(getRoot(), 1280, 800);
+        return new Scene(getRoot());
     }
 
     private HBox buildKpiRow() {
@@ -148,11 +148,11 @@ public class UploadDocuments {
         vGrid.setHgap(16);
         vGrid.setVgap(10);
 
-        String shipName = ship != null ? ship.getShipName() : "AFRAPEARL II";
+        String shipName = ship != null && ship.getShipName() != null ? ship.getShipName() : "";
         String shipType = ship != null && ship.getShipType() != null ? ship.getShipType() : "Tanker";
         String voyId = "VOY-" + (ship != null && ship.getShipId() != null ? ship.getShipId() : "2026") + "-E";
-        String origin = ship != null && ship.getArrival() != null && !ship.getArrival().isBlank() ? "Port of Chennai" : "Port of Mumbai";
-        String dest = ship != null && ship.getDeparture() != null && !ship.getDeparture().isBlank() ? ship.getDeparture() : "Port of Singapore";
+        String origin = CaptainSessionService.getAssignedVoyageOrigin();
+        String dest = CaptainSessionService.getAssignedVoyageDestination();
         String berth = ship != null && ship.getBerth() != null && !ship.getBerth().isBlank() ? ship.getBerth() : "Berth B04";
         String status = ship != null && ship.getStatus() != null ? ship.getStatus() : "At Berth";
         String captain = CaptainSessionService.getCaptainName();
@@ -278,7 +278,7 @@ public class UploadDocuments {
                         Platform.runLater(() -> {
                             String cloudUrl = (meta != null && meta.cloudinaryUrl != null && !meta.cloudinaryUrl.isBlank())
                                     ? meta.cloudinaryUrl
-                                    : "https://res.cloudinary.com/snmxmesm/raw/upload/docktech_port_documents/sample_document.pdf";
+                                    : "";
                             String fPath = uploadTarget != null ? uploadTarget.getAbsolutePath() : null;
 
                             CaptainSessionService.addDocument(docId, finalDocName, docType, size, "Pending Review", cloudUrl, fPath);
@@ -390,7 +390,7 @@ public class UploadDocuments {
 
         TableColumn<Map<String, String>, String> colVessel = new TableColumn<>("Vessel / Voyage");
         colVessel.setMinWidth(140);
-        colVessel.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getOrDefault("vessel", "AFRAPEARL II") + " (" + d.getValue().getOrDefault("voyage", "VOY-1092") + ")"));
+            colVessel.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getOrDefault("vessel", "") + " (" + d.getValue().getOrDefault("voyage", "") + ")"));
 
         TableColumn<Map<String, String>, String> colUploader = new TableColumn<>("Uploaded By");
         colUploader.setMinWidth(120);

@@ -17,9 +17,11 @@ import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.application.Platform;
 import javafx.util.Duration;
 import java.time.format.DateTimeFormatter;
 import javafx.scene.Node;
+import javafx.scene.layout.StackPane;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -163,9 +165,18 @@ public class DashboardLayoutHelper {
             }
         };
 
-        Button profile = profileBtn != null ? profileBtn : new Button(initials);
-        profile.setText(initials);
-        profile.setStyle("-fx-background-color:" + BLUE + "; -fx-text-fill:white; -fx-font-size:14; -fx-font-weight:bold; -fx-background-radius:999; -fx-min-width:38; -fx-min-height:38; -fx-pref-width:38; -fx-pref-height:38; -fx-cursor:hand;");
+        Button profile = profileBtn != null ? profileBtn : new Button();
+        Node avatarGraphic = com.projectui.service.UserProfileImageManager.createAvatarNode(38, finalInitials, finalEmail);
+        profile.setGraphic(avatarGraphic);
+        profile.setText("");
+        profile.setStyle("-fx-background-color:transparent; -fx-padding:0; -fx-cursor:hand; -fx-min-width:38; -fx-min-height:38; -fx-pref-width:38; -fx-pref-height:38;");
+
+        // Dynamic reactive avatar update listener
+        com.projectui.service.UserProfileImageManager.addAvatarChangeListener(() -> {
+            Platform.runLater(() -> {
+                profile.setGraphic(com.projectui.service.UserProfileImageManager.createAvatarNode(38, finalInitials, finalEmail));
+            });
+        });
 
         profile.setOnAction(evt -> {
             Popup popup = new Popup();
@@ -174,8 +185,8 @@ public class DashboardLayoutHelper {
             VBox box = new VBox(8);
             box.setStyle("-fx-background-color:white; -fx-padding:14; -fx-background-radius:10; -fx-effect: dropshadow(gaussian, rgba(14,30,70,0.12), 8, 0.5, 0, 3);");
 
-            Label bigAvatar = new Label(finalInitials);
-            bigAvatar.setStyle("-fx-background-color:" + BLUE + "; -fx-text-fill:white; -fx-font-size:18; -fx-font-weight:bold; -fx-alignment:center; -fx-min-width:48; -fx-min-height:48; -fx-background-radius:999;");
+            Node bigAvatarNode = com.projectui.service.UserProfileImageManager.createAvatarNode(48, finalInitials, finalEmail);
+            StackPane bigAvatar = new StackPane(bigAvatarNode);
             Label nameLbl = new Label(finalName);
             nameLbl.setStyle("-fx-text-fill:#0f172a; -fx-font-size:15; -fx-font-weight:bold;");
             Label roleLbl = new Label(finalRole);
@@ -248,25 +259,58 @@ public class DashboardLayoutHelper {
         modalHeader.getChildren().addAll(titleLabel, topSpacer, closeX);
 
         // Profile Avatar & Main Info Header Card
-        VBox profileBanner = new VBox(12);
+        VBox profileBanner = new VBox(10);
         profileBanner.setAlignment(Pos.CENTER);
-        profileBanner.setPadding(new Insets(20));
+        profileBanner.setPadding(new Insets(18));
         profileBanner.setStyle("-fx-background-color: #F8FAFC; -fx-background-radius: 14px; -fx-border-color: #E2E8F0; -fx-border-radius: 14px;");
 
-        Label avatarCircle = new Label(initialsVal != null && !initialsVal.isBlank() ? initialsVal : "DT");
-        avatarCircle.setStyle(
-                "-fx-background-color: " + BLUE + ";" +
-                "-fx-text-fill: white;" +
-                "-fx-font-size: 24px;" +
+        StackPane avatarContainer = new StackPane(com.projectui.service.UserProfileImageManager.createAvatarNode(72, initialsVal, emailVal));
+
+        Button changePhotoBtn = new Button("📷  Change Profile Photo");
+        changePhotoBtn.setStyle(
+                "-fx-background-color: #EFF6FF;" +
+                "-fx-text-fill: " + BLUE + ";" +
+                "-fx-font-size: 11px;" +
                 "-fx-font-weight: bold;" +
-                "-fx-alignment: center;" +
-                "-fx-min-width: 68px;" +
-                "-fx-min-height: 68px;" +
-                "-fx-pref-width: 68px;" +
-                "-fx-pref-height: 68px;" +
-                "-fx-background-radius: 999px;" +
-                "-fx-effect: dropshadow(three-pass-box, rgba(11,99,255,0.25), 8, 0, 0, 3);"
+                "-fx-padding: 5 12;" +
+                "-fx-background-radius: 6;" +
+                "-fx-border-color: #BFDBFE;" +
+                "-fx-border-radius: 6;" +
+                "-fx-cursor: hand;"
         );
+
+        Label uploadStatusLbl = new Label("");
+        uploadStatusLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #16a34a; -fx-font-weight: bold;");
+        uploadStatusLbl.setVisible(false);
+        uploadStatusLbl.managedProperty().bind(uploadStatusLbl.visibleProperty());
+
+        changePhotoBtn.setOnAction(e -> {
+            changePhotoBtn.setDisable(true);
+            changePhotoBtn.setText("⏳ Uploading...");
+            com.projectui.service.UserProfileImageManager.chooseAndUploadProfilePicture(
+                    popup,
+                    emailVal,
+                    uidVal,
+                    () -> {
+                        changePhotoBtn.setDisable(false);
+                        changePhotoBtn.setText("📷  Change Profile Photo");
+                        avatarContainer.getChildren().setAll(com.projectui.service.UserProfileImageManager.createAvatarNode(72, initialsVal, emailVal));
+                        uploadStatusLbl.setText("✓ Profile photo updated successfully!");
+                        uploadStatusLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #16a34a; -fx-font-weight: bold;");
+                        uploadStatusLbl.setVisible(true);
+                    },
+                    err -> {
+                        changePhotoBtn.setDisable(false);
+                        changePhotoBtn.setText("📷  Change Profile Photo");
+                        uploadStatusLbl.setText("⚠️ " + err);
+                        uploadStatusLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #ef4444; -fx-font-weight: bold;");
+                        uploadStatusLbl.setVisible(true);
+                    }
+            );
+        });
+
+        VBox avatarWithAction = new VBox(6, avatarContainer, changePhotoBtn, uploadStatusLbl);
+        avatarWithAction.setAlignment(Pos.CENTER);
 
         Label nameDisplay = new Label(nameVal);
         nameDisplay.setStyle("-fx-font-size: 19px; -fx-font-weight: bold; -fx-text-fill: #0F172A;");
@@ -281,7 +325,7 @@ public class DashboardLayoutHelper {
         statusBadge.setStyle("-fx-background-color: #DCFCE7; -fx-text-fill: #15803D; -fx-font-size: 12px; -fx-font-weight: bold; -fx-padding: 4px 12px; -fx-background-radius: 12px;");
 
         badgesBox.getChildren().addAll(roleBadge, statusBadge);
-        profileBanner.getChildren().addAll(avatarCircle, nameDisplay, badgesBox);
+        profileBanner.getChildren().addAll(avatarWithAction, nameDisplay, badgesBox);
 
         // Detailed Information Grid
         VBox infoGrid = new VBox(10);

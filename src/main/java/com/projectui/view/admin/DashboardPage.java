@@ -5,6 +5,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -42,6 +43,12 @@ public class DashboardPage extends AdminTheme {
     }
 
     private VBox pageContainer;
+    private GridPane kpiGrid;
+    private GridPane mainGrid;
+    private GridPane bottomGrid;
+
+        private final com.projectui.service.VesselManager vesselManager =
+            com.projectui.service.VesselManager.getInstance();
 
     public Parent getRoot() {
         return getRoot(() -> {}, () -> {}, () -> {}, () -> {});
@@ -54,12 +61,22 @@ public class DashboardPage extends AdminTheme {
         this.alertsAction = alertsAction;
         this.reportAction = reportAction;
         pageContainer = pageContent();
-        pageContainer.setSpacing(10);
+        pageContainer.setSpacing(18);
+        pageContainer.widthProperty().addListener((obs, oldWidth, newWidth) -> layoutResponsive(newWidth.doubleValue()));
         buildContent();
+        // First sync port_requests, then sync registered_ports from Firestore, then refresh dashboard stats.
         new com.projectui.dao.PortRequestDao().syncWithDatabase().whenComplete((list, err) -> {
-            javafx.application.Platform.runLater(() -> refreshData());
+            store.syncPortsFromFirestore(() -> {
+                javafx.application.Platform.runLater(() -> refreshData());
+            });
         });
-        return pageContainer;
+        ScrollPane scroller = new ScrollPane(pageContainer);
+        scroller.setFitToWidth(true);
+        scroller.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroller.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroller.setPannable(true);
+        scroller.setStyle("-fx-background-color:transparent; -fx-background:transparent; -fx-padding:0;");
+        return scroller;
     }
 
     public void refreshData() {
@@ -71,52 +88,113 @@ public class DashboardPage extends AdminTheme {
 
     private void buildContent() {
         int pendingInspections = store.pendingInspectionsCount();
-        HBox kpis = new HBox(12,
+        List<Node> kpiCards = List.of(
             kpiCard("⚓", "Total Ports", String.valueOf(store.totalPorts()), "All Registered", "#1d4ed8", "#eaf3ff"),
             kpiCard("⬟", "Active Ports", String.valueOf(store.activePorts()), "Operational", "#0f9f6e", "#e7f8ef"),
-            kpiCard("▴", "Active Vessels", String.valueOf(store.activeVessels()), "Currently in Port", "#6d4aff", "#f0edff"),
+            kpiCard("▴", "Active Vessels", String.valueOf(vesselManager.getActiveVesselCount()), "Currently in Indian Ocean", "#6d4aff", "#f0edff"),
             kpiCard("!", "Pending Inspections", String.valueOf(pendingInspections), "Require Attention", "#e43f5a", "#ffecef")
         );
-        kpis.getChildren().forEach(n -> {
-            HBox.setHgrow(n, Priority.ALWAYS);
-            if (n instanceof VBox) {
-                ((VBox)n).setMaxWidth(Double.MAX_VALUE);
-            }
-        });
 
-        HBox mainRow = new HBox(12);
+        kpiGrid = responsiveGrid();
+        addResponsiveChildren(kpiGrid, kpiCards);
+
+        List<Node> mainCards = new ArrayList<>();
         Region ops = portLocationMapCard();
         Region st = statusCard();
-        ops.prefWidthProperty().bind(mainRow.widthProperty().multiply(0.68));
-        st.prefWidthProperty().bind(mainRow.widthProperty().multiply(0.32));
-        HBox.setHgrow(ops, Priority.ALWAYS);
-        HBox.setHgrow(st, Priority.NEVER);
+        ops.setMinWidth(0);
+        ops.setMinHeight(420);
+        st.setMinWidth(0);
+        st.setMaxHeight(330);
         ops.setMaxWidth(Double.MAX_VALUE);
+        ops.setMaxHeight(Double.MAX_VALUE);
+        st.setMaxWidth(Double.MAX_VALUE);
         st.setMaxHeight(Double.MAX_VALUE);
-        mainRow.getChildren().addAll(ops, st);
+        mainCards.add(ops);
+        mainCards.add(st);
+        mainGrid = responsiveGrid();
+        addResponsiveChildren(mainGrid, mainCards);
 
-        HBox bottomRow = new HBox(12);
         Region alerts = alertsCard();
         Region recent = recentActivityCard();
         Region opsVessel = liveVesselMovementAndOperationsCard();
-        HBox.setHgrow(alerts, Priority.ALWAYS);
-        HBox.setHgrow(recent, Priority.ALWAYS);
-        HBox.setHgrow(opsVessel, Priority.ALWAYS);
         alerts.setMaxWidth(Double.MAX_VALUE);
         recent.setMaxWidth(Double.MAX_VALUE);
         opsVessel.setMaxWidth(Double.MAX_VALUE);
-        bottomRow.getChildren().addAll(alerts, recent, opsVessel);
-        bottomRow.getChildren().forEach(n -> HBox.setHgrow(n, Priority.ALWAYS));
+        alerts.setMinWidth(0);
+        recent.setMinWidth(0);
+        opsVessel.setMinWidth(0);
+        bottomGrid = responsiveGrid();
+        addResponsiveChildren(bottomGrid, List.of(alerts, recent, opsVessel));
 
         pageContainer.getChildren().addAll(
-            kpis,
-            mainRow,
-            bottomRow
+            kpiGrid,
+            mainGrid,
+            bottomGrid
         );
+        layoutResponsive(pageContainer.getWidth());
+    }
+
+    private GridPane responsiveGrid() {
+        GridPane grid = new GridPane();
+        grid.setHgap(18);
+        grid.setVgap(18);
+        grid.setMaxWidth(Double.MAX_VALUE);
+        return grid;
+    }
+
+    private void addResponsiveChildren(GridPane grid, List<Node> children) {
+        for (Node child : children) {
+            if (child instanceof Region region) {
+                region.setMinWidth(0);
+                region.setMaxWidth(Double.MAX_VALUE);
+                region.setMaxHeight(Double.MAX_VALUE);
+            }
+            GridPane.setHgrow(child, Priority.ALWAYS);
+            GridPane.setVgrow(child, Priority.ALWAYS);
+            GridPane.setFillWidth(child, true);
+            GridPane.setFillHeight(child, true);
+        }
+        grid.getProperties().put("responsiveChildren", children);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void layoutResponsive(double width) {
+        if (kpiGrid == null || mainGrid == null || bottomGrid == null) return;
+
+        boolean compact = width > 0 && width < 700;
+        boolean medium = width >= 700 && width < 1100;
+        layoutGrid(kpiGrid, (List<Node>) kpiGrid.getProperties().get("responsiveChildren"), compact ? 1 : (medium ? 2 : 4), 100.0);
+        layoutGrid(mainGrid, (List<Node>) mainGrid.getProperties().get("responsiveChildren"), compact ? 1 : 2, compact ? 100.0 : 72.0);
+        layoutGrid(bottomGrid, (List<Node>) bottomGrid.getProperties().get("responsiveChildren"), compact ? 1 : (medium ? 2 : 3), 100.0);
+    }
+
+    private void layoutGrid(GridPane grid, List<Node> children, int columns, double firstColumnPercent) {
+        if (children == null || columns < 1) return;
+        grid.getChildren().clear();
+        grid.getColumnConstraints().clear();
+        for (int column = 0; column < columns; column++) {
+            javafx.scene.layout.ColumnConstraints constraints = new javafx.scene.layout.ColumnConstraints();
+                double percent = columns == 2 && firstColumnPercent < 100.0
+                    ? (column == 0 ? firstColumnPercent : 100.0 - firstColumnPercent)
+                    : 100.0 / columns;
+                constraints.setPercentWidth(percent);
+            constraints.setMinWidth(0);
+            constraints.setHgrow(Priority.ALWAYS);
+            grid.getColumnConstraints().add(constraints);
+        }
+        for (int index = 0; index < children.size(); index++) {
+            Node child = children.get(index);
+            int column = index % columns;
+            int row = index / columns;
+            grid.add(child, column, row);
+        }
     }
 
     private Region portLocationMapCard() {
-        return new GeoTileMapCanvas(760, 245, false, addPortAction);
+        GeoTileMapCanvas map = new GeoTileMapCanvas(800, 360, false, addPortAction);
+        map.setMinWidth(0);
+        map.setMaxWidth(Double.MAX_VALUE);
+        return map;
     }
 
     private static String escapeJs(String str) {
@@ -148,8 +226,8 @@ public class DashboardPage extends AdminTheme {
     }
 
     private VBox darkMapInfoPanel(AdminDataStore.Port port) {
-        VBox panel = new VBox(6);
-        panel.setPrefWidth(240);
+        VBox panel = new VBox(7);
+        panel.setPrefWidth(370);
         panel.setPadding(new Insets(12));
         panel.setStyle("-fx-background-color:rgba(15,23,42,0.96); -fx-background-radius:12; -fx-border-color:#0284c7; -fx-border-radius:12; -fx-effect:dropshadow(gaussian, rgba(0,0,0,0.5), 14, 0, 0, 4);");
         updateMapInfo(panel, port);
@@ -654,7 +732,7 @@ public class DashboardPage extends AdminTheme {
         VBox card = new VBox(10);
         card.setPadding(new Insets(14));
         card.setStyle(cardStyle());
-        HBox top = cardHeader("Recent Activity", "View All Activity  →", reportAction);
+        HBox top = cardHeader("Recent Activity", "View All Activity  →", addUserAction);
         card.getChildren().add(top);
 
         int actCount = 0;
@@ -690,18 +768,18 @@ public class DashboardPage extends AdminTheme {
         HBox header = cardHeader("Live Vessel & Port Ops", "Reports Center  →", reportAction);
 
         // Vessel movement statistics from VesselManager
-        java.util.Collection<com.projectui.service.VesselData> vessels = com.projectui.service.VesselManager.getInstance().getAllVessels();
+        java.util.Collection<com.projectui.service.VesselData> vessels = vesselManager.getAllVessels();
         int inPort = 0, arriving = 0, departing = 0, inTransit = 0;
         for (com.projectui.service.VesselData v : vessels) {
-            String nav = v.navigationStatus != null ? v.navigationStatus.toLowerCase() : "";
-            double spd = v.speed;
-            if (nav.contains("moored") || nav.contains("docked") || nav.contains("port") || nav.contains("5")) {
+            if (v == null || !v.isValid()) continue;
+            String vesselStatus = com.projectui.service.VesselManager.categorizeStatus(v);
+            if ("Currently In Port".equals(vesselStatus)) {
                 inPort++;
-            } else if (nav.contains("anchor") || nav.contains("1") || spd <= 0.3) {
+            } else if ("Anchored".equals(vesselStatus)) {
                 inPort++;
-            } else if (nav.contains("arriving") || (v.destination != null && !v.destination.isBlank() && spd > 2.0 && spd < 10.0)) {
+            } else if ("Arriving".equals(vesselStatus)) {
                 arriving++;
-            } else if (nav.contains("departing") || (spd >= 10.0 && v.course > 180)) {
+            } else if ("Departing".equals(vesselStatus)) {
                 departing++;
             } else {
                 inTransit++;

@@ -38,6 +38,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class GeoTileMapCanvas extends StackPane {
 
     private static final List<GeoTileMapCanvas> instances = new CopyOnWriteArrayList<>();
+    private static GeoTileMapCanvas activeOverviewInstance;
 
     public static void refreshAllMapInstances() {
         for (GeoTileMapCanvas canvas : instances) {
@@ -83,16 +84,24 @@ public class GeoTileMapCanvas extends StackPane {
 
     private final VBox cardContainer = new VBox(10);
     private final Pane mapContainer = new Pane();
+    private volatile boolean disposed;
 
     public GeoTileMapCanvas(double width, double height, boolean isExpandedMode, Runnable onViewDetails) {
         this.canvasWidth = width;
         this.canvasHeight = height;
         this.isExpandedMode = isExpandedMode;
 
+        if (!isExpandedMode && activeOverviewInstance != null) {
+            activeOverviewInstance.dispose();
+        }
         instances.add(this);
+        if (!isExpandedMode) {
+            activeOverviewInstance = this;
+        }
 
         setPrefSize(width, height);
         setMinSize(width, height);
+        setMaxHeight(height + 60);
 
         canvas = new Canvas(width, height);
         gc = canvas.getGraphicsContext2D();
@@ -142,9 +151,11 @@ public class GeoTileMapCanvas extends StackPane {
         }
 
         mapContainer.setPrefSize(width, height);
+        mapContainer.setMinSize(0, height);
         mapContainer.setMaxWidth(Double.MAX_VALUE);
         mapContainer.setPrefHeight(height);
         mapContainer.setMaxHeight(height);
+        mapContainer.setClip(roundedClip(width, height));
         HBox.setHgrow(mapContainer, Priority.ALWAYS);
         mapContainer.setStyle("-fx-background-color:#07111a; -fx-background-radius:10; -fx-border-color:#1e293b; -fx-border-radius:10;");
 
@@ -169,7 +180,7 @@ public class GeoTileMapCanvas extends StackPane {
         controls.setLayoutX(12);
         controls.setLayoutY(16);
 
-        infoCard.setLayoutX(width - 260);
+        infoCard.setLayoutX(width - 240);
         infoCard.setLayoutY(16);
 
         mapContainer.getChildren().addAll(canvas, controls, infoCard);
@@ -188,10 +199,18 @@ public class GeoTileMapCanvas extends StackPane {
                 double w = newV.doubleValue() - 28;
                 canvas.setWidth(w);
                 mapContainer.setPrefWidth(w);
-                Rectangle origClip = new Rectangle(w, canvasHeight);
-                origClip.setArcWidth(16);
-                origClip.setArcHeight(16);
-                mapContainer.setClip(origClip);
+                mapContainer.setClip(roundedClip(w, canvasHeight));
+                infoCard.setLayoutX(w - 260);
+                redraw();
+            }
+        });
+
+        javafx.application.Platform.runLater(() -> {
+            if (getScene() != null && !isExpandedMode) {
+                double w = Math.max(100, getWidth() - 28);
+                canvas.setWidth(w);
+                mapContainer.setPrefWidth(w);
+                mapContainer.setClip(roundedClip(w, canvasHeight));
                 infoCard.setLayoutX(w - 260);
                 redraw();
             }
@@ -205,21 +224,36 @@ public class GeoTileMapCanvas extends StackPane {
         fetchLiveVessels();
     }
 
+    private Rectangle roundedClip(double width, double height) {
+        Rectangle clip = new Rectangle(width, height);
+        clip.setArcWidth(16);
+        clip.setArcHeight(16);
+        return clip;
+    }
+
+    private void dispose() {
+        disposed = true;
+        instances.remove(this);
+        if (activeOverviewInstance == this) {
+            activeOverviewInstance = null;
+        }
+        tileCache.clear();
+        ports.clear();
+        vessels.clear();
+        vesselMap.clear();
+    }
+
     private Button darkMapBtn(String text) {
         Button b = new Button(text);
         b.setStyle("-fx-background-color:rgba(15,29,48,0.92); -fx-text-fill:#38bdf8; -fx-font-size:12; -fx-font-weight:bold; -fx-background-radius:6; -fx-border-color:#1e293b; -fx-border-radius:6; -fx-min-width:30; -fx-min-height:30; -fx-padding:0; -fx-effect:dropshadow(gaussian, rgba(0,0,0,0.5), 6, 0, 0, 2); -fx-cursor:hand;");
         return b;
     }
 
-    private static Label legendBadge(String text, String color) {
-        Label l = new Label(text);
-        l.setStyle("-fx-text-fill:" + color + "; -fx-font-size:11; -fx-font-weight:bold;");
-        return l;
-    }
-
     public void reloadPorts() {
+        if (disposed) return;
         ports.clear();
         AdminDataStore store = AdminDataStore.getInstance();
+        store.recalculatePortVesselAndBerthCounts();
         if (store.ports != null) {
             for (AdminDataStore.Port p : store.ports) {
                 if (p.approvalStatus != null && !"APPROVED".equalsIgnoreCase(p.approvalStatus)) continue;
@@ -277,6 +311,7 @@ public class GeoTileMapCanvas extends StackPane {
 
     public void fetchLiveVessels() {
         vesselFinderService.start(updatedVessels -> {
+            if (disposed) return;
             if (vesselFinderService.isRateLimited()) {
                 if (liveBadge != null) {
                     liveBadge.setText("● AIS RATE LIMITED");
@@ -306,7 +341,7 @@ public class GeoTileMapCanvas extends StackPane {
     }
 
     public void processVesselUpdate(java.util.Collection<com.projectui.service.VesselData> updatedVessels) {
-        if (updatedVessels == null || updatedVessels.isEmpty()) return;
+        if (disposed || updatedVessels == null || updatedVessels.isEmpty()) return;
 
         // 1. Collect all strictly valid water vessels
         List<com.projectui.service.VesselData> validWaterVessels = new ArrayList<>();
@@ -387,6 +422,59 @@ public class GeoTileMapCanvas extends StackPane {
 
         // Remove markers not in current active subset
         vesselMap.keySet().removeIf(mmsi -> !activeMmsis.contains(mmsi));
+
+        // Ensure registered ships for active ports are also visible near their assigned ports
+        try {
+            List<com.projectui.model.Ship> regShips = new com.projectui.dao.ShipDAO().getShips();
+            if (regShips != null) {
+                for (com.projectui.model.Ship s : regShips) {
+                    if (s == null || s.getShipName() == null || s.getShipName().isBlank()) continue;
+                    for (PortMarker pm : ports) {
+                        if (pm == null) continue;
+                        AdminDataStore.Port tempPort = new AdminDataStore.Port(pm.name, pm.location, 12, 0, pm.status, "", "", "", "");
+                        tempPort.code = pm.code;
+                        tempPort.lat = pm.lat;
+                        tempPort.lng = pm.lng;
+                        if (AdminDataStore.isShipAssociatedWithPort(s, tempPort)) {
+                            long mmsi = 0;
+                            try {
+                                mmsi = Long.parseLong(s.getShipId().replaceAll("[^0-9]", ""));
+                            } catch (Exception ignored) {
+                                mmsi = Math.abs(s.getShipName().hashCode());
+                            }
+                            if (mmsi <= 0) mmsi = Math.abs(s.getShipName().hashCode());
+
+                            if (!vesselMap.containsKey(mmsi)) {
+                                double vLat = pm.lat;
+                                double vLng = pm.lng;
+                                if (pm.name != null && pm.name.toLowerCase().contains("mumbai")) {
+                                    vLat = 18.9100; vLng = 72.7800;
+                                } else if (pm.name != null && pm.name.toLowerCase().contains("goa")) {
+                                    vLat = 15.4100; vLng = 73.7600;
+                                } else {
+                                    vLng -= 0.05;
+                                }
+                                VesselMarker vm = new VesselMarker(
+                                        s.getShipName(), mmsi,
+                                        s.getImoNumber() != null ? s.getImoNumber() : "—",
+                                        "V-" + (mmsi % 9000 + 1000),
+                                        pm.name, vLat, vLng, 0.0, 90.0, 90.0,
+                                        s.getShipType() != null ? s.getShipType() : "Container / Cargo Ship",
+                                        s.getStatus() != null ? s.getStatus() : "At Berth",
+                                        java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))
+                                );
+                                vesselMap.put(mmsi, vm);
+                                com.projectui.service.VesselManager.getInstance().updateOrAddVessel(new com.projectui.service.VesselData(
+                                        mmsi, vm.imo, vm.name, vm.callSign, vLat, vLng, 0.0, 90.0, 90.0, pm.name, vm.navStat, vm.type, vm.lastUpdate
+                                ));
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
         vessels.clear();
         vessels.addAll(vesselMap.values());
 
@@ -588,6 +676,14 @@ public class GeoTileMapCanvas extends StackPane {
         double centerRad = Math.toRadians(centerLat);
         double centerPxY = (1.0 - Math.log(Math.tan(centerRad) + 1.0 / Math.cos(centerRad)) / Math.PI) / 2.0 * totalPx;
 
+        double minOffsetY = h / 2.0 - centerPxY;
+        double maxOffsetY = totalPx - h / 2.0 - centerPxY;
+        if (minOffsetY > maxOffsetY) {
+            offsetY = (minOffsetY + maxOffsetY) / 2.0;
+        } else {
+            offsetY = Math.max(minOffsetY, Math.min(maxOffsetY, offsetY));
+        }
+
         int minTx = (int) Math.floor((centerPxX - w / 2.0 - offsetX) / 256.0);
         int maxTx = (int) Math.floor((centerPxX + w / 2.0 - offsetX) / 256.0);
         int minTy = (int) Math.floor((centerPxY - h / 2.0 - offsetY) / 256.0);
@@ -595,11 +691,12 @@ public class GeoTileMapCanvas extends StackPane {
 
         for (int tx = minTx; tx <= maxTx; tx++) {
             for (int ty = minTy; ty <= maxTy; ty++) {
-                if (tx >= 0 && tx < n && ty >= 0 && ty < n) {
+                if (ty >= 0 && ty < n) {
+                    int wrappedTx = Math.floorMod(tx, n);
                     double tileScreenX = w / 2.0 + (tx * 256.0 - centerPxX) + offsetX;
                     double tileScreenY = h / 2.0 + (ty * 256.0 - centerPxY) + offsetY;
 
-                    String tileUrl = String.format("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/%d/%d/%d", zoom, ty, tx);
+                    String tileUrl = String.format("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/%d/%d/%d", zoom, ty, wrappedTx);
                     Image tileImg = tileCache.get(tileUrl);
                     if (tileImg == null) {
                         tileImg = new Image(tileUrl, true);
@@ -1216,6 +1313,7 @@ public class GeoTileMapCanvas extends StackPane {
         public double course;
         public double heading;
         public String type;
+        public String shipType;
         public String navStat;
         public String lastUpdate;
         public final List<double[]> trail = new ArrayList<>();
@@ -1234,6 +1332,7 @@ public class GeoTileMapCanvas extends StackPane {
             this.course = course;
             this.heading = heading;
             this.type = type;
+            this.shipType = type;
             this.navStat = navStat;
             this.lastUpdate = lastUpdate;
         }

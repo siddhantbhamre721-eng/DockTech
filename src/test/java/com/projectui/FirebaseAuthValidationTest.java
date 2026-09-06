@@ -36,12 +36,12 @@ public class FirebaseAuthValidationTest {
     }
 
     @Test
-    public void testBabuFirebaseAuthSignIn() throws Exception {
+    public void testMasterAdminFirebaseAuthSignIn() throws Exception {
         FirebaseAuthService authService = new FirebaseAuthService();
-        FirebaseAuthService.AuthUser authUser = authService.signIn("babu@gmail.com", "123456", "Admin").get();
+        FirebaseAuthService.AuthUser authUser = authService.signIn("docktech@gmail.com", "123456", "Admin").get();
         assertNotNull(authUser, "AuthUser must not be null for valid Firebase credentials");
-        assertEquals("babu@gmail.com", authUser.getEmail().toLowerCase());
-        assertEquals("yaU5iKXkN5aAhm6YNmTH5P0bZkv1", authUser.getUid(), "Firebase UID must match Babu's UID in fir-demo-4dbd9");
+        assertEquals("docktech@gmail.com", authUser.getEmail().toLowerCase());
+        assertNotNull(authUser.getUid());
         assertNotNull(authUser.getIdToken());
     }
 

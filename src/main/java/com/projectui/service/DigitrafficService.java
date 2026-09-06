@@ -81,24 +81,6 @@ public class DigitrafficService {
         }
     }
 
-    static {
-        // Seed default live AIS sample dataset for graceful offline fallback
-        seedDefaultVessels();
-    }
-
-    private static void seedDefaultVessels() {
-        List<VesselData> defaults = new ArrayList<>();
-        defaults.add(new VesselData(276798000L, "JAKOB PREI", 18.92, 72.82, 12.4, 215.0, "Mumbai Port", "9580431", "Hydrographic Research", "Live"));
-        defaults.add(new VesselData(255916099L, "BALTIC IRON", 13.08, 80.30, 14.2, 140.0, "Chennai Port", "1029106", "Cargo / Container", "Live"));
-        defaults.add(new VesselData(210388000L, "LAUNKALNE", 17.68, 83.25, 10.8, 85.0, "Vizag Outer Anchorage", "9504114", "General Cargo", "Live"));
-        defaults.add(new VesselData(636021661L, "PACIFIC DAWN", 22.50, 88.30, 8.5, 45.0, "Kolkata Dock Complex", "9811204", "Container Ship", "Live"));
-        defaults.add(new VesselData(273618490L, "CORAL QUEEN", 21.10, 72.60, 11.0, 180.0, "Hazira Terminal", "9456123", "Chemical Tanker", "Live"));
-        defaults.add(new VesselData(311000845L, "OCEAN STAR", 15.42, 73.78, 15.6, 290.0, "Mormugao Port", "9654321", "Bulk Carrier", "Live"));
-        defaults.add(new VesselData(419001234L, "INS VIKRANT SUPPORT", 11.93, 79.83, 9.2, 110.0, "Puducherry Port", "9123456", "Support Vessel", "Live"));
-        cachedVessels = defaults;
-        lastFetchTime = LocalDateTime.now();
-    }
-
     public static boolean isLive() {
         return isLive;
     }
@@ -155,7 +137,7 @@ public class DigitrafficService {
                         statusMessage = "● Live Marine Data";
                         System.out.println("[AIS] Connected successfully. Received " + parsed.size() + " live vessels.");
                     } else {
-                        System.out.println("[AIS] 0 vessels received from API stream, retaining live active fleet dataset.");
+                        System.out.println("[AIS] 0 vessels received from API stream.");
                     }
                     future.complete(cachedVessels);
                 } else {
@@ -263,10 +245,6 @@ public class DigitrafficService {
             pos += 13;
         }
 
-        // Include default seeded vessels for Indian maritime coastlines if not present
-        if (list.isEmpty()) {
-            list = cachedVessels;
-        }
         return list;
     }
 

@@ -1,1 +1,7 @@
 target/
+serviceAccountKey.json
+*serviceAccount*.json
+*service-account*.json
+*.pdf
+hs_err_pid*.log
+

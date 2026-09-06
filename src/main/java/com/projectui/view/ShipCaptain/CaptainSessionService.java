@@ -115,28 +115,7 @@ public class CaptainSessionService {
             }
         }
 
-        // If not in live AIS pool, synthesize a live VesselData from Ship record
-        long mmsi = 211280000L;
-        try {
-            if (!shipId.isBlank()) mmsi = Math.abs(Long.parseLong(shipId.replaceAll("\\D", "")));
-        } catch (Exception ignored) {}
-        if (mmsi == 0) mmsi = 211280000L + Math.abs(shipName.hashCode() % 899999);
-
-        return new VesselData(
-                mmsi,
-                !shipImo.isBlank() ? shipImo : "9234567",
-                !shipName.isBlank() ? shipName : "Assigned Vessel",
-                "V" + (mmsi % 8999 + 1000),
-                18.9439,
-                72.8354,
-                12.5,
-                184.0,
-                184.0,
-                ship.getDeparture() != null && !ship.getDeparture().isBlank() ? ship.getDeparture() : "Port of Singapore",
-                ship.getStatus() != null && !ship.getStatus().isBlank() ? ship.getStatus() : "At Berth",
-                ship.getShipType() != null && !ship.getShipType().isBlank() ? ship.getShipType() : "Container Vessel",
-                LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))
-        );
+        return null;
     }
 
     /**
@@ -155,6 +134,19 @@ public class CaptainSessionService {
         String shipId = (ship != null && ship.getShipId() != null) ? ship.getShipId().trim().toLowerCase() : "";
         String shipImo = (ship != null && ship.getImoNumber() != null) ? ship.getImoNumber().trim().toLowerCase() : "";
 
+        if (shipName.isBlank() && u != null) {
+            if (u.get("assignedShip") != null) shipName = u.get("assignedShip").toString().trim().toLowerCase();
+            else if (u.get("shipName") != null) shipName = u.get("shipName").toString().trim().toLowerCase();
+        }
+        if (shipId.isBlank() && u != null) {
+            if (u.get("assignedShipId") != null) shipId = u.get("assignedShipId").toString().trim().toLowerCase();
+            else if (u.get("shipId") != null) shipId = u.get("shipId").toString().trim().toLowerCase();
+        }
+        if (shipImo.isBlank() && u != null) {
+            if (u.get("shipImo") != null) shipImo = u.get("shipImo").toString().trim().toLowerCase();
+            else if (u.get("imoNumber") != null) shipImo = u.get("imoNumber").toString().trim().toLowerCase();
+        }
+
         for (Map<String, Object> c : allCargos) {
             if (c == null) continue;
             String cAssignedShipId = c.get("assignedShipId") != null ? c.get("assignedShipId").toString().trim().toLowerCase() : "";
@@ -165,6 +157,8 @@ public class CaptainSessionService {
 
             String cCapUid = c.get("assignedCaptainUid") != null ? c.get("assignedCaptainUid").toString().trim().toLowerCase() : "";
             String cCapEmail = c.get("assignedCaptainEmail") != null ? c.get("assignedCaptainEmail").toString().trim().toLowerCase() : "";
+            if (cCapUid.isBlank() && c.get("captainUid") != null) cCapUid = c.get("captainUid").toString().trim().toLowerCase();
+            if (cCapEmail.isBlank() && c.get("captainEmail") != null) cCapEmail = c.get("captainEmail").toString().trim().toLowerCase();
 
             boolean isMatch = (!shipId.isBlank() && !cAssignedShipId.isBlank() && cAssignedShipId.equals(shipId))
                     || (!shipName.isBlank() && !cShip.isBlank() && (cShip.equals(shipName) || cShip.contains(shipName) || shipName.contains(cShip)))
@@ -173,24 +167,66 @@ public class CaptainSessionService {
                     || (!capUid.isBlank() && !cCapUid.isBlank() && cCapUid.equals(capUid))
                     || (!capEmail.isBlank() && !cCapEmail.isBlank() && cCapEmail.equals(capEmail));
 
-            // If cargo has not been strictly assigned to another ship, check port route match
-            if (!isMatch && cShip.isBlank() && ship != null) {
-                String cOrigin = c.get("originPort") != null ? c.get("originPort").toString().toLowerCase() : "";
-                String cDest = c.get("destinationPort") != null ? c.get("destinationPort").toString().toLowerCase() : "";
-                String sArrival = ship.getArrival() != null ? ship.getArrival().toLowerCase() : "";
-                String sDep = ship.getDeparture() != null ? ship.getDeparture().toLowerCase() : "";
-                if ((!cOrigin.isBlank() && (sArrival.contains(cOrigin) || cOrigin.contains(sArrival))) ||
-                    (!cDest.isBlank() && (sDep.contains(cDest) || cDest.contains(sDep)))) {
-                    isMatch = true;
-                }
-            }
-
             if (isMatch) {
                 matched.add(c);
             }
         }
 
         return matched;
+    }
+
+    /**
+     * Resolves the destination port for the currently assigned shipment/cargo.
+     * Uses the existing cargo/request destination recorded for the assigned shipment.
+     * Falls back to ship default only if no assigned cargo exists.
+     */
+    public static String getAssignedVoyageDestination() {
+        List<Map<String, Object>> cargos = getAssignedCargos();
+        if (cargos != null) {
+            for (Map<String, Object> c : cargos) {
+                if (c == null) continue;
+                Object dest = c.get("destinationPort");
+                if (dest == null || dest.toString().isBlank()) dest = c.get("destination");
+                if (dest == null || dest.toString().isBlank()) dest = c.get("destPort");
+                if (dest != null && !dest.toString().isBlank() && !dest.toString().equalsIgnoreCase("—") && !dest.toString().equalsIgnoreCase("-")) {
+                    return dest.toString().trim();
+                }
+            }
+        }
+        Ship ship = getAssignedShip();
+        if (ship != null && ship.getDeparture() != null && !ship.getDeparture().isBlank() && !ship.getDeparture().equalsIgnoreCase("—") && !ship.getDeparture().equalsIgnoreCase("-")) {
+            return ship.getDeparture().trim();
+        }
+        VesselData v = getAssignedVesselData();
+        if (v != null && v.destination != null && !v.destination.isBlank()) {
+            return v.destination.trim();
+        }
+        return "Port of Singapore";
+    }
+
+    /**
+     * Resolves the origin port for the currently assigned shipment/cargo.
+     * Uses the existing cargo/request origin recorded for the assigned shipment.
+     * Falls back to ship default only if no assigned cargo exists.
+     */
+    public static String getAssignedVoyageOrigin() {
+        List<Map<String, Object>> cargos = getAssignedCargos();
+        if (cargos != null) {
+            for (Map<String, Object> c : cargos) {
+                if (c == null) continue;
+                Object orig = c.get("originPort");
+                if (orig == null || orig.toString().isBlank()) orig = c.get("origin");
+                if (orig == null || orig.toString().isBlank()) orig = c.get("departurePort");
+                if (orig != null && !orig.toString().isBlank() && !orig.toString().equalsIgnoreCase("—") && !orig.toString().equalsIgnoreCase("-")) {
+                    return orig.toString().trim();
+                }
+            }
+        }
+        Ship ship = getAssignedShip();
+        if (ship != null && ship.getArrival() != null && !ship.getArrival().isBlank() && !ship.getArrival().matches(".*\\d.*") && !ship.getArrival().equalsIgnoreCase("—")) {
+            return ship.getArrival().trim();
+        }
+        return "Port of Chennai";
     }
 
     /**
@@ -312,19 +348,19 @@ public class CaptainSessionService {
         Ship ship = getAssignedShip();
         VesselData v = getAssignedVesselData();
 
-        String shipName = ship != null ? ship.getShipName() : (v != null ? v.name : "AFRAPEARL II");
-        String shipId = ship != null && ship.getShipId() != null ? ship.getShipId() : (v != null ? String.valueOf(v.mmsi) : "SHP-2026");
-        String imo = ship != null && ship.getImoNumber() != null ? ship.getImoNumber() : (v != null ? v.imo : "9234567");
-        String mmsi = v != null ? String.valueOf(v.mmsi) : "211280000";
-        String location = v != null ? String.format("%.4f° N, %.4f° E", v.latitude, v.longitude) : "18.9439° N, 72.8354° E";
-        String latStr = v != null ? String.format("%.4f° N", v.latitude) : "18.9439° N";
-        String lonStr = v != null ? String.format("%.4f° E", v.longitude) : "72.8354° E";
-        String speed = v != null ? String.format("%.1f Knots", v.speed) : "12.5 Knots";
-        String heading = v != null ? String.format("%.1f°", v.heading) : "184.0°";
-        String navStatus = v != null && v.navigationStatus != null ? v.navigationStatus : "Underway using Engine";
-        String port = ship != null && ship.getBerth() != null ? ship.getBerth() : "Port of Mumbai";
-        String dest = ship != null && ship.getDeparture() != null ? ship.getDeparture() : "Port of Singapore";
-        String voyage = ship != null && ship.getShipId() != null ? "VOY-" + ship.getShipId() : "VOY-2026-08";
+        String shipName = ship != null ? ship.getShipName() : (v != null ? v.name : "");
+        String shipId = ship != null && ship.getShipId() != null ? ship.getShipId() : (v != null ? String.valueOf(v.mmsi) : "");
+        String imo = ship != null && ship.getImoNumber() != null ? ship.getImoNumber() : (v != null ? v.imo : "");
+        String mmsi = v != null ? String.valueOf(v.mmsi) : "";
+        String location = v != null ? String.format("%.4f° N, %.4f° E", v.latitude, v.longitude) : "";
+        String latStr = v != null ? String.format("%.4f° N", v.latitude) : "";
+        String lonStr = v != null ? String.format("%.4f° E", v.longitude) : "";
+        String speed = v != null ? String.format("%.1f Knots", v.speed) : "";
+        String heading = v != null ? String.format("%.1f°", v.heading) : "";
+        String navStatus = v != null && v.navigationStatus != null ? v.navigationStatus : "";
+        String port = ship != null && ship.getBerth() != null ? ship.getBerth() : getAssignedVoyageOrigin();
+        String dest = getAssignedVoyageDestination();
+        String voyage = ship != null && ship.getShipId() != null ? "VOY-" + ship.getShipId() : "";
         String incidentId = "SOS-" + (System.currentTimeMillis() % 100000);
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm:ss"));
 
@@ -407,8 +443,8 @@ public class CaptainSessionService {
     public static void addDocument(String docId, String name, String type, String size, String status, String url, String filePath) {
         List<Map<String, String>> list = getDocuments();
         Ship s = getAssignedShip();
-        String vName = s != null ? s.getShipName() : "AFRAPEARL II";
-        String voyId = "VOY-" + (s != null && s.getShipId() != null ? s.getShipId() : "2026") + "-E";
+        String vName = s != null && s.getShipName() != null ? s.getShipName() : "";
+        String voyId = s != null && s.getShipId() != null && !s.getShipId().isBlank() ? "VOY-" + s.getShipId() + "-E" : "";
 
         Map<String, String> doc = new HashMap<>();
         doc.put("docId", docId != null && !docId.isBlank() ? docId : "DOC-" + (System.currentTimeMillis() % 100000));

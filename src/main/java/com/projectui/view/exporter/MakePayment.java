@@ -66,7 +66,7 @@ public class MakePayment {
 
         root.setCenter(getScrollableContent());
 
-        scene = new Scene(root, 1550, 800);
+        scene = new Scene(root);
         com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
         return scene;
     }
@@ -160,7 +160,7 @@ public class MakePayment {
         methodSection.getChildren().addAll(methodTitle, paymentMethodCombo);
 
         // Action CTA & Success Alert
-        Button payButton = new Button("🔒  Proceed to Pay via Razorpay");
+        Button payButton = new Button("Proceed to Pay ₹ 0");
         payButton.setMaxWidth(Double.MAX_VALUE);
         payButton.setPrefHeight(44);
         payButton.setStyle(
@@ -262,8 +262,7 @@ public class MakePayment {
                     .setText("₹ " + String.format("%,.0f", breakdown.containerFreightFee + breakdown.portHandlingFee));
             ((Text) payableAmountTile.getChildren().get(1)).setText(totalStr);
 
-            payButton.setText("🔒 Proceed to Pay " + totalStr + " via Razorpay");
-            // payButton.setText("🔒 Proceed to Pay " + 100 + " via Razorpay");
+            payButton.setText("Proceed to Pay " + totalStr);
 
             detailsList.getChildren().clear();
             detailsList.getChildren().addAll(
@@ -322,7 +321,7 @@ public class MakePayment {
             webOverlay.setVisible(false);
             webOverlay.setManaged(false);
             payButton.setDisable(false);
-            payButton.setText("🔒  Proceed to Pay via Razorpay");
+            payButton.setText("Proceed to Pay " + ((Text) payableAmountTile.getChildren().get(1)).getText());
         });
 
         payButton.setOnAction(e -> {
@@ -358,7 +357,7 @@ public class MakePayment {
                 if (amt <= 0) {
                     System.err.println("[Razorpay] Unable to determine payment amount (amount <= 0).");
                     payButton.setDisable(false);
-                    payButton.setText("🔒  Proceed to Pay via Razorpay");
+                    payButton.setText("Proceed to Pay ₹ 0");
                     Alert errAlert = new Alert(Alert.AlertType.ERROR);
                     errAlert.setTitle("Invalid Payment Amount");
                     errAlert.setHeaderText("Unable to determine the payment amount");
@@ -369,7 +368,7 @@ public class MakePayment {
 
                 String receiptId = "RCPT-" + (System.currentTimeMillis() % 1000000);
                 payButton.setDisable(true);
-                payButton.setText("⏳  Opening Razorpay Checkout...");
+                payButton.setText("Proceed to Pay ₹ " + String.format("%,.0f", amt));
 
                 final String finalCId = cId;
                 final String finalCName = cName;
@@ -382,7 +381,7 @@ public class MakePayment {
                     System.err.println(
                             "[Razorpay] Error: Credentials not configured in ~/.docktech_razorpay.properties or environment variables.");
                     payButton.setDisable(false);
-                    payButton.setText("🔒  Proceed to Pay ₹ " + String.format("%,.0f", finalAmt) + " via Razorpay");
+                    payButton.setText("Proceed to Pay ₹ " + String.format("%,.0f", finalAmt));
                     Alert configAlert = new Alert(Alert.AlertType.WARNING);
                     configAlert.setTitle("Razorpay Configuration Required");
                     configAlert.setHeaderText("Razorpay API Credentials Not Found");
@@ -406,7 +405,7 @@ public class MakePayment {
                 } catch (Exception orderEx) {
                     System.err.println("[Razorpay] Order creation failed: " + orderEx.getMessage());
                     payButton.setDisable(false);
-                    payButton.setText("🔒  Proceed to Pay ₹ " + String.format("%,.0f", finalAmt) + " via Razorpay");
+                    payButton.setText("Proceed to Pay ₹ " + String.format("%,.0f", finalAmt));
                     Alert errAlert = new Alert(Alert.AlertType.ERROR);
                     errAlert.setTitle("Razorpay Order Creation Failed");
                     errAlert.setHeaderText("Could not create Razorpay Order");
@@ -431,6 +430,7 @@ public class MakePayment {
                                     + webView.getEngine().getLoadWorker().getException());
                         }
                     });
+                    com.projectui.view.login.LoginPage.applyInvisibleScrollbar(webView);
                     VBox.setVgrow(webView, Priority.ALWAYS);
                     if (webContainer.getChildren().size() > 1) {
                         webContainer.getChildren().set(1, webView);
@@ -461,7 +461,7 @@ public class MakePayment {
                                     String exporterName = c != null && c.get("exporter") != null ? c.get("exporter").toString()
                                             : (c != null && c.get("company") != null ? c.get("company").toString() : "Bharat Logistics & Freight Ltd.");
 
-                                    String txnId = "TXN-" + (System.currentTimeMillis() % 1000000);
+                                    String txnId = paymentId;
                                     String invId = "INV-" + (Math.abs(finalCId.hashCode()) % 89999 + 10000);
                                     String contNo = booking != null && booking.get("bookingId") != null
                                             ? booking.get("bookingId").toString()
@@ -573,8 +573,7 @@ public class MakePayment {
                                     webOverlay.setVisible(false);
                                     webOverlay.setManaged(false);
                                     payButton.setDisable(false);
-                                    payButton.setText("🔒  Proceed to Pay ₹ " + String.format("%,.0f", finalAmt)
-                                            + " via Razorpay");
+                                        payButton.setText("Proceed to Pay ₹ " + String.format("%,.0f", finalAmt));
                                     payButton.setStyle(
                                             "-fx-background-color: #16A34A; -fx-text-fill: white; -fx-font-size: 15px; -fx-font-weight: bold; -fx-background-radius: 9px; -fx-cursor: hand;");
 
@@ -589,7 +588,7 @@ public class MakePayment {
 
             } catch (Exception ex) {
                 payButton.setDisable(false);
-                payButton.setText("🔒  Proceed to Pay via Razorpay");
+                    payButton.setText("Proceed to Pay " + ((Text) payableAmountTile.getChildren().get(1)).getText());
                 Alert alert = new Alert(Alert.AlertType.ERROR);
                 alert.setTitle("Payment Error");
                 alert.setHeaderText("Order Creation Failed");

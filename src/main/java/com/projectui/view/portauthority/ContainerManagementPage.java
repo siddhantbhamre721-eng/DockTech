@@ -291,6 +291,7 @@ public class ContainerManagementPage {
         topBar.getChildren().addAll(titleBox, sp);
 
         requestsTable = new TableView<>();
+        requestsTable.getStylesheets().add(getClass().getResource("/table-headers.css").toExternalForm());
         requestsTable.setPrefHeight(220);
         requestsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         requestsTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");
@@ -486,6 +487,7 @@ public class ContainerManagementPage {
         topBar.getChildren().addAll(titleBox, sp, allocateNewBtn);
 
         allocationRequestsTable = new TableView<>();
+        allocationRequestsTable.getStylesheets().add(getClass().getResource("/table-headers.css").toExternalForm());
         allocationRequestsTable.setPrefHeight(230);
         allocationRequestsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         allocationRequestsTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");
@@ -693,6 +695,7 @@ public class ContainerManagementPage {
 
         // Table
         inventoryTable = new TableView<>();
+        inventoryTable.getStylesheets().add(getClass().getResource("/table-headers.css").toExternalForm());
         inventoryTable.setPrefHeight(280);
         inventoryTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         inventoryTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");
@@ -824,6 +827,7 @@ public class ContainerManagementPage {
         availableEmptyBanner.setManaged(false);
 
         availableTable = new TableView<>();
+        availableTable.getStylesheets().add(getClass().getResource("/table-headers.css").toExternalForm());
         availableTable.setPrefHeight(250);
         availableTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         availableTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");
@@ -881,6 +885,7 @@ public class ContainerManagementPage {
         rTop.getChildren().addAll(rIcon, rTitle, rSub);
 
         activeAllocationsTable = new TableView<>();
+        activeAllocationsTable.getStylesheets().add(getClass().getResource("/table-headers.css").toExternalForm());
         activeAllocationsTable.setPrefHeight(250);
         activeAllocationsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         activeAllocationsTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");
@@ -930,8 +935,16 @@ public class ContainerManagementPage {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty) setGraphic(null);
-                else setGraphic(bBox);
+                if (empty || getIndex() >= getTableView().getItems().size()) {
+                    setGraphic(null);
+                } else {
+                    Map<String, Object> alc = getTableView().getItems().get(getIndex());
+                    String st = getString(alc, "status", "");
+                    boolean isCompleted = "Delivered".equalsIgnoreCase(st) || "Completed".equalsIgnoreCase(st) || "Released".equalsIgnoreCase(st);
+                    rBtn.setVisible(!isCompleted);
+                    rBtn.setManaged(!isCompleted);
+                    setGraphic(bBox);
+                }
             }
         });
 
@@ -1054,28 +1067,57 @@ public class ContainerManagementPage {
         List<Map<String, Object>> availList = new ArrayList<>();
         List<Map<String, Object>> allocList = new ArrayList<>();
 
-        // 1. Separate fleet items by status
+        // 1. Separate fleet items by status and synchronize with real cargo states
         for (Map<String, Object> c : masterContainersList) {
-            String st = getString(c, "status", "");
+            String st = getString(c, "status", "Available");
             String bId = getString(c, "bookingId", "");
+            String cId = getString(c, "cargoId", "");
 
-            if (bId.startsWith("CONT-") || bId.startsWith("REQ-") || "Booked".equalsIgnoreCase(st) || "Pending".equalsIgnoreCase(st) || "Pending Approval".equalsIgnoreCase(st)) {
+            // Cross-check real cargo status from CargoDao for delivered/completed shipments
+            if (!cId.isEmpty()) {
+                Map<String, Object> linkedCargo = null;
+                for (Map<String, Object> mc : masterCargosList) {
+                    if (cId.equalsIgnoreCase(getString(mc, "cargoId", ""))) {
+                        linkedCargo = mc;
+                        break;
+                    }
+                }
+                if (linkedCargo == null) {
+                    linkedCargo = cargoDao.getCargo(cId);
+                }
+                if (linkedCargo != null) {
+                    String cargoStatus = getString(linkedCargo, "status", "");
+                    if ("Delivered".equalsIgnoreCase(cargoStatus) || "Completed".equalsIgnoreCase(cargoStatus)) {
+                        st = cargoStatus;
+                        c.put("status", cargoStatus);
+                        c.put("deliveryStatus", cargoStatus);
+                    }
+                }
+            }
+
+            // Historical and active container requests from shippers
+            if (bId.startsWith("CONT-") || bId.startsWith("REQ-") || "Booked".equalsIgnoreCase(st) || "Pending".equalsIgnoreCase(st) || "Pending Approval".equalsIgnoreCase(st) || "Approved".equalsIgnoreCase(st) || "Delivered".equalsIgnoreCase(st) || "Completed".equalsIgnoreCase(st)) {
                 shipperRequests.add(c);
             }
 
+            // Segregate based on real database status
             if ("Pending".equalsIgnoreCase(st) || "Booked".equalsIgnoreCase(st) || "Pending Approval".equalsIgnoreCase(st) || "Pending Allocation".equalsIgnoreCase(st)) {
                 cargoAllocationRequests.add(new HashMap<>(c));
             } else if ("Available".equalsIgnoreCase(st)) {
                 availList.add(new HashMap<>(c));
-            } else if ("Allocated".equalsIgnoreCase(st) || "In Transit".equalsIgnoreCase(st) || "Loaded".equalsIgnoreCase(st)) {
+            } else if ("Allocated".equalsIgnoreCase(st) || "In Transit".equalsIgnoreCase(st) || "Loaded".equalsIgnoreCase(st) || "Delivered".equalsIgnoreCase(st) || "Completed".equalsIgnoreCase(st) || "Released".equalsIgnoreCase(st)) {
                 allocList.add(new HashMap<>(c));
             }
         }
 
-        // 2. Incorporate cargo demands requiring container allocation
+        // 2. Incorporate non-completed cargo demands requiring container allocation
         for (Map<String, Object> cg : masterCargosList) {
             String cType = getString(cg, "cargoType", "");
             String cSt = getString(cg, "status", "");
+            if ("Delivered".equalsIgnoreCase(cSt) || "Completed".equalsIgnoreCase(cSt) || "Cancelled".equalsIgnoreCase(cSt) || "Rejected".equalsIgnoreCase(cSt)) {
+                continue;
+            }
+
             if (cType.toLowerCase().contains("container") || cType.toLowerCase().contains("general") || cType.toLowerCase().contains("machinery")) {
                 String cgId = (String) cg.get("cargoId");
                 boolean alreadyInAllocation = false;
@@ -1086,17 +1128,54 @@ public class ContainerManagementPage {
                     }
                 }
                 if (!alreadyInAllocation) {
+                    for (Map<String, Object> a : allocList) {
+                        if (cgId != null && cgId.equalsIgnoreCase(getString(a, "cargoId", ""))) {
+                            alreadyInAllocation = true;
+                            break;
+                        }
+                    }
+                }
+                if (!alreadyInAllocation) {
                     Map<String, Object> synthReq = new HashMap<>(cg);
-                    int hash = cgId != null ? Math.abs(cgId.hashCode()) : Math.abs(cg.hashCode());
-                    synthReq.put("bookingId", "REQ-" + (hash % 8999 + 1000));
+                    String cgBookingId = getString(cg, "bookingId", getString(cg, "containerBookingId", ""));
+                    if (!cgBookingId.isEmpty()) {
+                        synthReq.put("bookingId", cgBookingId);
+                    } else {
+                        int hash = cgId != null ? Math.abs(cgId.hashCode()) : Math.abs(cg.hashCode());
+                        synthReq.put("bookingId", "REQ-" + (hash % 8999 + 1000));
+                    }
                     synthReq.put("containerType", "20 ft Standard Dry");
                     synthReq.put("shipName", "MV " + activeViewingPort.replace("Port of ", "") + " Star");
+                    synthReq.put("status", "Pending Allocation");
                     cargoAllocationRequests.add(synthReq);
                 }
             }
         }
 
-        // 3. Synchronize each cargo allocation request with live allocations
+        // Preserve delivered cargo container history in Recent/Historical Allocations
+        for (Map<String, Object> cg : masterCargosList) {
+            String cSt = getString(cg, "status", "");
+            if ("Delivered".equalsIgnoreCase(cSt) || "Completed".equalsIgnoreCase(cSt)) {
+                String cgId = getString(cg, "cargoId", "");
+                boolean alreadyInAllocList = false;
+                for (Map<String, Object> a : allocList) {
+                    if (!cgId.isEmpty() && cgId.equalsIgnoreCase(getString(a, "cargoId", ""))) {
+                        alreadyInAllocList = true;
+                        break;
+                    }
+                }
+                if (!alreadyInAllocList) {
+                    Map<String, Object> delivAlloc = new HashMap<>(cg);
+                    String cNo = getString(cg, "containerNo", getString(cg, "bookingId", "CONT-" + (Math.abs(cgId.hashCode()) % 8999 + 1000)));
+                    delivAlloc.put("containerNo", cNo);
+                    delivAlloc.put("bookingId", getString(cg, "bookingId", cNo));
+                    delivAlloc.put("status", "Delivered");
+                    allocList.add(delivAlloc);
+                }
+            }
+        }
+
+        // 3. Synchronize cargo allocation requests with authentic live allocations
         for (Map<String, Object> req : cargoAllocationRequests) {
             int matchingAllocations = 0;
             for (Map<String, Object> a : allocList) {
@@ -1114,7 +1193,7 @@ public class ContainerManagementPage {
 
             if (allocated == 0) {
                 req.put("status", "Pending Allocation");
-            } else if (remaining == 0) {
+            } else if (remaining == 0 && allocated > 0) {
                 req.put("status", "Allocated");
             } else {
                 req.put("status", "Partially Allocated");
@@ -1168,12 +1247,22 @@ public class ContainerManagementPage {
     }
 
     private void updateKpiCounts(int availUnits, int allocUnits, List<Map<String, Object>> allocationRequests) {
-        int totalUnits = availUnits + allocUnits;
         int inTransitUnits = 0;
+        int activeAllocUnits = 0;
+        for (Map<String, Object> a : activeAllocationsList) {
+            String st = getString(a, "status", "");
+            if ("In Transit".equalsIgnoreCase(st)) {
+                inTransitUnits++;
+            } else if ("Allocated".equalsIgnoreCase(st) || "Loaded".equalsIgnoreCase(st)) {
+                activeAllocUnits++;
+            }
+        }
         for (Map<String, Object> c : masterContainersList) {
             String st = getString(c, "status", "");
-            if ("In Transit".equalsIgnoreCase(st)) inTransitUnits++;
+            if ("In Transit".equalsIgnoreCase(st) && inTransitUnits == 0) inTransitUnits++;
         }
+
+        int totalUnits = masterContainersList.size() > 0 ? masterContainersList.size() : (availUnits + activeAllocUnits + inTransitUnits);
 
         int pendingRequestsCount = 0;
         int totalRequiredUnits = 0;
@@ -1191,7 +1280,7 @@ public class ContainerManagementPage {
 
         if (totalContainersVal != null) totalContainersVal.setText(String.valueOf(totalUnits));
         if (availableVal != null) availableVal.setText(String.valueOf(availUnits));
-        if (allocatedVal != null) allocatedVal.setText(String.valueOf(allocUnits));
+        if (allocatedVal != null) allocatedVal.setText(String.valueOf(activeAllocUnits));
         if (inTransitVal != null) inTransitVal.setText(String.valueOf(inTransitUnits));
         if (pendingRequestsVal != null) pendingRequestsVal.setText(String.valueOf(pendingRequestsCount));
         if (requiredVal != null) requiredVal.setText(String.valueOf(totalRequiredUnits));
@@ -1274,23 +1363,30 @@ public class ContainerManagementPage {
     private boolean isBookingAssociatedWithPort(Map<String, Object> b, String portName) {
         if (b == null || portName == null) return false;
         String p = portName.toLowerCase();
+        String portField = getString(b, "port", "").toLowerCase();
         String pref = getString(b, "preferredPort", "").toLowerCase();
         String dest = getString(b, "destinationPort", "").toLowerCase();
         String orig = getString(b, "originPort", "").toLowerCase();
         String curr = getString(b, "currentPort", "").toLowerCase();
 
-        if (pref.contains(p) || dest.contains(p) || orig.contains(p) || curr.contains(p)) return true;
+        if (portField.contains(p) || pref.contains(p) || dest.contains(p) || orig.contains(p) || curr.contains(p)) return true;
+
+        String cId = getString(b, "cargoId", "");
+        if (!cId.isEmpty()) {
+            Map<String, Object> cg = cargoDao.getCargo(cId);
+            if (cg != null && isCargoAssociatedWithPort(cg, portName)) return true;
+        }
 
         if (p.contains("cochin") || p.contains("kochi")) {
-            return pref.contains("cochin") || pref.contains("kochi") || dest.contains("cochin") || orig.contains("cochin") || curr.contains("cochin");
+            return portField.contains("cochin") || portField.contains("kochi") || pref.contains("cochin") || pref.contains("kochi") || dest.contains("cochin") || orig.contains("cochin") || curr.contains("cochin");
         } else if (p.contains("mumbai")) {
-            return pref.contains("mumbai") || pref.contains("jnpt") || dest.contains("mumbai") || orig.contains("mumbai") || curr.contains("mumbai");
+            return portField.contains("mumbai") || portField.contains("jnpt") || pref.contains("mumbai") || pref.contains("jnpt") || dest.contains("mumbai") || orig.contains("mumbai") || curr.contains("mumbai");
         } else if (p.contains("chennai")) {
-            return pref.contains("chennai") || pref.contains("madras") || dest.contains("chennai") || orig.contains("chennai") || curr.contains("chennai");
+            return portField.contains("chennai") || portField.contains("madras") || pref.contains("chennai") || pref.contains("madras") || dest.contains("chennai") || orig.contains("chennai") || curr.contains("chennai");
         } else if (p.contains("vizag")) {
-            return pref.contains("vizag") || pref.contains("visakhapatnam") || dest.contains("vizag") || orig.contains("vizag");
+            return portField.contains("vizag") || portField.contains("visakhapatnam") || pref.contains("vizag") || pref.contains("visakhapatnam") || dest.contains("vizag") || orig.contains("vizag");
         } else if (p.contains("kolkata")) {
-            return pref.contains("kolkata") || pref.contains("calcutta") || dest.contains("kolkata") || orig.contains("kolkata");
+            return portField.contains("kolkata") || portField.contains("calcutta") || pref.contains("kolkata") || pref.contains("calcutta") || dest.contains("kolkata") || orig.contains("kolkata");
         }
         return true;
     }
@@ -1500,22 +1596,66 @@ public class ContainerManagementPage {
             String exporterName = targetReq != null ? getRequesterDisplay(targetReq) : "Global Logistics Ltd.";
             String customerType = targetReq != null ? getString(targetReq, "customerType", "Exporter") : "Exporter";
 
+            // If an authentic container booking already exists for this cargo in ContainerDao, use that booking ID
+            Map<String, Object> existingBooking = containerDao.getBookingByCargoId(cId);
+            if (existingBooking != null && existingBooking.get("bookingId") != null) {
+                rId = existingBooking.get("bookingId").toString();
+            }
+
             // 1. Update existing container booking in ContainerDao without creating duplicate records
-            String orig = targetReq != null ? getString(targetReq, "originPort", "—") : "—";
+            String orig = targetReq != null ? getString(targetReq, "originPort", activeViewingPort) : activeViewingPort;
             String finalDest = targetReq != null ? getString(targetReq, "destinationPort", dest) : dest;
 
             if (targetReq != null) {
                 targetReq.put("status", "Allocated");
+                targetReq.put("containerNo", cNo);
                 targetReq.put("containerNumber", cNo);
                 targetReq.put("assignedContainer", cNo);
                 targetReq.put("assignedShip", ship);
+                targetReq.put("shipName", ship);
                 targetReq.put("originPort", orig);
                 targetReq.put("destinationPort", finalDest);
             }
 
             containerDao.saveBooking(rId, cId, cName, "20 ft Standard Dry", "1", activeViewingPort, orig, finalDest, 0.0, "Allocated", customerType, exporterName);
 
-            // 2. Update persistent Cargo status in CargoDao
+            // Update container allocation fields in ContainerDao
+            Map<String, Object> updatedBooking = containerDao.getBooking(rId);
+            if (updatedBooking != null) {
+                updatedBooking.put("containerNo", cNo);
+                updatedBooking.put("containerNumber", cNo);
+                updatedBooking.put("assignedContainer", cNo);
+                updatedBooking.put("assignedShip", ship);
+                updatedBooking.put("shipName", ship);
+                updatedBooking.put("status", "Allocated");
+                updatedBooking.put("stagingLocation", yardField.getText().trim());
+                updatedBooking.put("location", yardField.getText().trim());
+                try {
+                    com.google.cloud.firestore.Firestore db = com.projectui.config.FirebaseConfig.getFirestore();
+                    if (db != null) {
+                        db.collection("container_bookings").document(rId).set(updatedBooking, com.google.cloud.firestore.SetOptions.merge());
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // Also update cNo if it exists as an available container in ContainerDao
+            Map<String, Object> yardCont = containerDao.getBooking(cNo);
+            if (yardCont != null && !cNo.equalsIgnoreCase(rId)) {
+                yardCont.put("status", "Allocated");
+                yardCont.put("cargoId", cId);
+                yardCont.put("cargoName", cName);
+                yardCont.put("assignedShip", ship);
+                yardCont.put("shipName", ship);
+                yardCont.put("updatedAt", LocalDateTime.now().toString());
+                try {
+                    com.google.cloud.firestore.Firestore db = com.projectui.config.FirebaseConfig.getFirestore();
+                    if (db != null) {
+                        db.collection("container_bookings").document(cNo).set(yardCont, com.google.cloud.firestore.SetOptions.merge());
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // 2. Update persistent Cargo status in CargoDao & link container
             if (cId != null && !cId.isBlank()) {
                 int rem = targetReq != null ? getRequestRemainingUnits(targetReq) : 1;
                 if (rem <= 1) {
@@ -1523,12 +1663,23 @@ public class ContainerManagementPage {
                 } else {
                     cargoDao.updateCargoStatus(cId, "Partially Allocated");
                 }
+                cargoDao.linkContainerToCargo(cId, rId, cNo);
             }
 
-            // 3. Refresh allocation UI data immediately
+            // 3. Update any payment associated with this cargo/booking
+            try {
+                com.projectui.dao.PaymentDao pDao = new com.projectui.dao.PaymentDao();
+                Map<String, Object> pay = pDao.getPaymentByCargoId(cId);
+                if (pay != null) {
+                    pay.put("containerNo", cNo);
+                    pDao.savePayment(pay);
+                }
+            } catch (Exception ignored) {}
+
+            // 4. Refresh allocation UI data immediately
             refreshContainerData();
 
-            // 4. Show rich, populated Allocation Confirmed popup
+            // 5. Show rich, populated Allocation Confirmed popup
             showAllocationConfirmedPopup(rId, cNo, cName, rId, exporterName, customerType, ship, finalDest, "Allocated");
         }
     }

@@ -98,7 +98,7 @@ public class ConfirmLoading {
     }
 
     public Scene getScene() {
-        return new Scene(getRoot(), 1280, 800);
+        return new Scene(getRoot());
     }
 
     private VBox buildEmptyState() {

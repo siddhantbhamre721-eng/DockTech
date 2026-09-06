@@ -10,6 +10,9 @@ import java.util.Map;
 
 import com.projectui.dao.CargoDao;
 import com.projectui.dao.ContainerDao;
+import com.projectui.dao.PaymentDao;
+import com.projectui.service.FreightCalculationService;
+import com.projectui.service.RazorpayService;
 import com.projectui.view.login.DashboardLayoutHelper;
 import com.projectui.view.login.LoginPage;
 
@@ -31,14 +34,19 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
+import javafx.scene.web.WebView;
+import javafx.stage.Stage;
 
 @SuppressWarnings({"unused", "unchecked"})
 public class ConfirmDelivery {
 
     private final CargoDao cargoDao = new CargoDao();
     private final ContainerDao containerDao = new ContainerDao();
+    private final PaymentDao paymentDao = new PaymentDao();
+    private final RazorpayService razorpayService = new RazorpayService();
 
     private final List<Map<String, Object>> eligibleShipments = new ArrayList<>();
     private Map<String, Object> selectedShipment = null;
@@ -76,7 +84,7 @@ public class ConfirmDelivery {
         CargoDao.addChangeListener(this::refreshData);
         refreshData();
 
-        Scene sc = new Scene(root, 1400, 800);
+        Scene sc = new Scene(root);
         LoginPage.applyInvisibleScrollbar(sc);
         return sc;
     }
@@ -267,8 +275,30 @@ public class ConfirmDelivery {
         String qty = str(c.get("quantity"), "1") + " Units";
         String rawWt = str(c.get("weight"), "—");
         String wt = rawWt.equals("—") || rawWt.contains("kg") ? rawWt : (rawWt + " kg");
-        String exp = str(c.get("exporterName"), str(c.get("exporter"), "—"));
-        String imp = getLoggedImporterName();
+        String exp = str(c.get("exporterName"), str(c.get("exporter"), str(c.get("exporterCompany"), str(c.get("shipper"), str(c.get("company"), str(c.get("customerName"), "—"))))));
+        if (exp.equals("—") || exp.isBlank() || exp.equalsIgnoreCase("Exporter")) {
+            String expUid = str(c.get("ownerUid"), str(c.get("exporterUid"), str(c.get("exporterId"), str(c.get("userId"), ""))));
+            String expEmail = str(c.get("ownerEmail"), str(c.get("exporterEmail"), ""));
+            if (!expUid.isBlank()) {
+                Map<String, Object> prof = com.projectui.dao.UserDao.getProfile(expUid);
+                if (prof != null) {
+                    Object pn = prof.get("name") != null ? prof.get("name") : (prof.get("fullName") != null ? prof.get("fullName") : prof.get("company"));
+                    if (pn != null && !pn.toString().isBlank()) {
+                        exp = pn.toString();
+                    }
+                }
+            }
+            if ((exp.equals("—") || exp.isBlank() || exp.equalsIgnoreCase("Exporter")) && !expEmail.isBlank()) {
+                Map<String, Object> prof = com.projectui.dao.UserDao.getProfile(expEmail);
+                if (prof != null) {
+                    Object pn = prof.get("name") != null ? prof.get("name") : (prof.get("fullName") != null ? prof.get("fullName") : prof.get("company"));
+                    if (pn != null && !pn.toString().isBlank()) {
+                        exp = pn.toString();
+                    }
+                }
+            }
+        }
+        String imp = str(c.get("importerName"), str(c.get("importer"), str(c.get("consignee"), str(c.get("importerCompany"), getLoggedImporterName()))));
         String orig = str(c.get("originPort"), "—");
         String dest = str(c.get("destinationPort"), "—");
         String vName = str(c.get("assignedVessel"), str(c.get("vesselName"), str(c.get("assignedShip"), "Not Assigned")));
@@ -313,7 +343,10 @@ public class ConfirmDelivery {
         // 3. Milestone Summary
         VBox milestoneBox = buildMilestoneBox(status);
 
-        // 4. Delivery Confirmation Form Card
+        // 4. Payment to Exporter
+        VBox paymentBox = buildExporterPaymentSection(c);
+
+        // 5. Delivery Confirmation Form Card
         VBox formCard = new VBox(12);
         formCard.setPadding(new Insets(16));
         formCard.setStyle("-fx-background-color:#ffffff; -fx-border-color:#cbd5e1; -fx-border-radius:8;");
@@ -349,14 +382,200 @@ public class ConfirmDelivery {
         confirmBtn.setStyle(isDelivered
                 ? "-fx-background-color:#dcfce7; -fx-text-fill:#16a34a; -fx-font-weight:bold; -fx-padding:10 20; -fx-background-radius:6;"
                 : "-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-weight:bold; -fx-padding:10 20; -fx-background-radius:6; -fx-cursor:hand;");
-        confirmBtn.setDisable(isDelivered);
+        confirmDeliveryBtn = confirmBtn;
+        confirmBtn.setDisable(isDelivered || !isCargoPaymentPaid(cId));
         confirmBtn.setOnAction(e -> handleConfirmDelivery(cId, imp));
 
         btnRow.getChildren().addAll(deliverySuccessMessage, spF, confirmBtn);
 
         formCard.getChildren().addAll(formTitle, chkAcceptanceSign, notesBox, btnRow);
 
-        deliveryDetailsContainer.getChildren().addAll(banner, metaBox, milestoneBox, formCard);
+        deliveryDetailsContainer.getChildren().addAll(banner, metaBox, milestoneBox, paymentBox, formCard);
+    }
+
+    private VBox buildExporterPaymentSection(Map<String, Object> cargo) {
+        String cargoId = str(cargo.get("cargoId"), "CGO-N/A");
+        String cargoName = str(cargo.get("cargoName"), "Consignment");
+        String exporterName = str(cargo.get("exporterName"), str(cargo.get("exporter"), str(cargo.get("exporterCompany"), "Exporter")));
+        Map<String, Object> booking = new ContainerDao().getBookingByCargoId(cargoId);
+        FreightCalculationService.PaymentBreakdown breakdown = FreightCalculationService.getInstance().calculatePaymentBreakdown(cargo, booking);
+        double amount = getPaymentAmount(cargo, breakdown);
+        Map<String, Object> existingPayment = getImporterExporterPayment(cargoId);
+        String paymentStatus = str(cargo.get("paymentStatus"), "PENDING");
+        if (existingPayment != null && isImporterExporterPayment(existingPayment)) {
+            paymentStatus = str(existingPayment.get("paymentStatus"), paymentStatus);
+        } else {
+            paymentStatus = "PENDING";
+        }
+        boolean isPaid = "PAID".equalsIgnoreCase(paymentStatus) || paymentStatus.toUpperCase().contains("PAID");
+
+        VBox section = new VBox(10);
+        section.setPadding(new Insets(16));
+        section.setStyle("-fx-background-color:#ffffff; -fx-border-color:#cbd5e1; -fx-border-radius:8;");
+
+        Label title = new Label("Payment to Exporter");
+        title.setStyle("-fx-font-size:14px; -fx-font-weight:bold; -fx-text-fill:#0f172a;");
+        GridPane details = new GridPane();
+        details.setHgap(24);
+        details.setVgap(8);
+        details.add(detailCell("Exporter Name", exporterName), 0, 0);
+        details.add(detailCell("Cargo / Consignment ID", cargoId), 1, 0);
+        details.add(detailCell("Cargo Name", cargoName), 0, 1);
+        details.add(detailCell("Payment Amount", "₹ " + String.format("%,.2f", amount)), 1, 1);
+        Label statusLabel = new Label(paymentStatus.toUpperCase());
+        statusLabel.setStyle(isPaid
+                ? "-fx-text-fill:#15803d; -fx-font-weight:bold;"
+                : "-fx-text-fill:#b45309; -fx-font-weight:bold;");
+        details.add(detailCell("Payment Status", ""), 0, 2);
+        details.add(statusLabel, 1, 2);
+        details.add(detailCell("Razorpay Payment Method", str(cargo.get("paymentMethod"), "Razorpay Standard Checkout (Cards / UPI / NetBanking)")), 0, 3, 2, 1);
+
+        Button payButton = new Button(isPaid ? "✓ Payment Complete" : "Proceed to Pay ₹" + String.format("%,.2f", amount));
+        payButton.setDisable(isPaid || amount <= 0);
+        payButton.setStyle(isPaid
+                ? "-fx-background-color:#dcfce7; -fx-text-fill:#15803d; -fx-font-weight:bold; -fx-padding:10 20; -fx-background-radius:6;"
+                : "-fx-background-color:#16a34a; -fx-text-fill:white; -fx-font-weight:bold; -fx-padding:10 20; -fx-background-radius:6; -fx-cursor:hand;");
+        Label paymentMessage = new Label(isPaid ? "Payment Verified Successfully. The exporter payment record is updated." : "Complete payment to the exporter before accepting delivery.");
+        paymentMessage.setWrapText(true);
+        paymentMessage.setStyle(isPaid
+                ? "-fx-text-fill:#15803d; -fx-font-size:12px; -fx-font-weight:bold;"
+                : "-fx-text-fill:#b45309; -fx-font-size:12px; -fx-font-weight:bold;");
+
+        payButton.setOnAction(event -> startImporterPayment(cargo, booking, amount, payButton, paymentMessage));
+        HBox actionRow = new HBox(12, paymentMessage, payButton);
+        actionRow.setAlignment(Pos.CENTER_RIGHT);
+        HBox.setHgrow(paymentMessage, Priority.ALWAYS);
+        section.getChildren().addAll(title, details, actionRow);
+        return section;
+    }
+
+    private void startImporterPayment(Map<String, Object> cargo, Map<String, Object> booking, double amount,
+            Button payButton, Label paymentMessage) {
+        String cargoId = str(cargo.get("cargoId"), "");
+        String cargoName = str(cargo.get("cargoName"), "Consignment");
+        if (cargoId.isBlank() || amount <= 0) return;
+        if (!razorpayService.hasValidCredentials()) {
+            showPaymentAlert("Razorpay Configuration Required", "Razorpay credentials are not configured.");
+            return;
+        }
+
+        payButton.setDisable(true);
+        String receiptNo = "RCT-" + (System.currentTimeMillis() % 1000000);
+        try {
+            String orderId = razorpayService.createOrder(amount, "INR", receiptNo, cargoName);
+            com.projectui.util.JavaFXModuleHelper.allowJavaFXWebAccess();
+            WebView checkoutView = new WebView();
+            checkoutView.getEngine().setJavaScriptEnabled(true);
+            Stage checkoutStage = new Stage();
+            checkoutStage.setTitle("Razorpay Payment");
+            checkoutStage.setScene(new Scene(checkoutView, 960, 680));
+            com.projectui.view.login.LoginPage.applyInvisibleScrollbar(checkoutStage);
+            com.projectui.view.login.LoginPage.applyInvisibleScrollbar(checkoutView);
+            checkoutStage.setOnCloseRequest(event -> razorpayService.cancelActiveCheckout());
+            razorpayService.startEmbeddedCheckout(amount, orderId, cargoName, str(cargo.get("destinationPort"), ""),
+                    checkoutUrl -> Platform.runLater(() -> {
+                        checkoutView.getEngine().load(checkoutUrl);
+                        checkoutStage.show();
+                    }), new RazorpayService.PaymentCallback() {
+                        @Override
+                        public void onSuccess(String verifiedOrderId, String paymentId, String signature) {
+                            Platform.runLater(() -> {
+                                checkoutStage.close();
+                                String paymentDate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm:ss"));
+                                Map<String, Object> paymentRecord = new HashMap<>();
+                                paymentRecord.put("paymentId", paymentId);
+                                paymentRecord.put("razorpayPaymentId", paymentId);
+                                paymentRecord.put("orderId", verifiedOrderId);
+                                paymentRecord.put("razorpayOrderId", verifiedOrderId);
+                                paymentRecord.put("signature", signature);
+                                paymentRecord.put("receiptNumber", receiptNo);
+                                paymentRecord.put("transactionId", paymentId);
+                                paymentRecord.put("cargoId", cargoId);
+                                paymentRecord.put("cargoName", cargoName);
+                                paymentRecord.put("cargoType", str(cargo.get("cargoType"), "General Cargo"));
+                                paymentRecord.put("originPort", str(cargo.get("originPort"), ""));
+                                paymentRecord.put("destinationPort", str(cargo.get("destinationPort"), ""));
+                                paymentRecord.put("importerName", str(cargo.get("importerName"), str(cargo.get("importer"), getLoggedImporterName())));
+                                paymentRecord.put("importerEmail", str(cargo.get("importerEmail"), ""));
+                                paymentRecord.put("importerUid", str(cargo.get("importerUid"), str(cargo.get("importerId"), "")));
+                                paymentRecord.put("exporterName", str(cargo.get("exporterName"), str(cargo.get("exporter"), "Exporter")));
+                                paymentRecord.put("exporterEmail", str(cargo.get("exporterEmail"), ""));
+                                paymentRecord.put("exporterUid", str(cargo.get("exporterUid"), str(cargo.get("ownerUid"), "")));
+                                paymentRecord.put("amount", amount);
+                                paymentRecord.put("paymentAmount", amount);
+                                paymentRecord.put("currency", "INR");
+                                paymentRecord.put("paymentStatus", "PAID");
+                                paymentRecord.put("paymentPurpose", "IMPORTER_TO_EXPORTER");
+                                paymentRecord.put("paymentMethod", "Razorpay Standard Checkout (Cards / UPI / NetBanking)");
+                                paymentRecord.put("paymentDate", paymentDate);
+                                paymentRecord.put("paidAt", paymentDate);
+                                paymentDao.savePayment(paymentRecord);
+                                cargoDao.updateCargoPaymentStatus(cargoId, "PAID", paymentId, verifiedOrderId, amount, receiptNo, "IMPORTER_TO_EXPORTER");
+                                paymentMessage.setText("Payment Verified Successfully. The exporter payment record is updated.");
+                                paymentMessage.setStyle("-fx-text-fill:#15803d; -fx-font-size:12px; -fx-font-weight:bold;");
+                                payButton.setText("✓ Payment Complete");
+                                payButton.setStyle("-fx-background-color:#dcfce7; -fx-text-fill:#15803d; -fx-font-weight:bold; -fx-padding:10 20; -fx-background-radius:6;");
+                                refreshData();
+                            });
+                        }
+
+                        @Override
+                        public void onFailure(String reason) {
+                            Platform.runLater(() -> {
+                                checkoutStage.close();
+                                payButton.setDisable(false);
+                                paymentMessage.setText(reason != null ? reason : "Payment was not completed. Complete payment before accepting delivery.");
+                                paymentMessage.setStyle("-fx-text-fill:#b91c1c; -fx-font-size:12px; -fx-font-weight:bold;");
+                            });
+                        }
+                    });
+        } catch (Exception ex) {
+            payButton.setDisable(false);
+            showPaymentAlert("Payment Could Not Start", ex.getMessage() != null ? ex.getMessage() : "Unable to create the Razorpay order.");
+        }
+    }
+
+    private double getPaymentAmount(Map<String, Object> cargo, FreightCalculationService.PaymentBreakdown breakdown) {
+        Object storedAmount = cargo.get("paymentAmount");
+        if (storedAmount != null) {
+            try {
+                double parsed = Double.parseDouble(storedAmount.toString().replace("₹", "").replace(",", "").trim());
+                if (parsed > 0) return parsed;
+            } catch (Exception ignored) {}
+        }
+        return breakdown != null ? breakdown.totalPayable : 0.0;
+    }
+
+    private boolean isCargoPaymentPaid(String cargoId) {
+        Map<String, Object> cargo = cargoDao.getCargo(cargoId);
+        if (cargo == null) return false;
+        Map<String, Object> payment = getImporterExporterPayment(cargoId);
+        if (payment == null || !isImporterExporterPayment(payment)) return false;
+        String status = str(payment.get("paymentStatus"), "");
+        String paymentId = payment != null ? str(payment.get("razorpayPaymentId"), "") : str(cargo.get("razorpayPaymentId"), "");
+        return "PAID".equalsIgnoreCase(status) && !paymentId.isBlank();
+    }
+
+    private boolean isImporterExporterPayment(Map<String, Object> payment) {
+        return payment != null && "IMPORTER_TO_EXPORTER".equalsIgnoreCase(str(payment.get("paymentPurpose"), ""));
+    }
+
+    private Map<String, Object> getImporterExporterPayment(String cargoId) {
+        for (Map<String, Object> payment : paymentDao.getAllPayments()) {
+            if (payment != null && cargoId.equalsIgnoreCase(str(payment.get("cargoId"), ""))
+                    && isImporterExporterPayment(payment)) {
+                return payment;
+            }
+        }
+        return null;
+    }
+
+    private void showPaymentAlert(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle(title);
+        alert.setHeaderText(title);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     private void handleConfirmDelivery(String cargoId, String importerName) {
@@ -374,6 +593,15 @@ public class ConfirmDelivery {
             alert.setTitle("Unauthorized Action");
             alert.setHeaderText("Delivery Confirmation Denied");
             alert.setContentText("You can only confirm delivery for shipments assigned directly to your account.");
+            alert.showAndWait();
+            return;
+        }
+
+        if (!isCargoPaymentPaid(cargoId)) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Payment Required");
+            alert.setHeaderText("Delivery Confirmation Blocked");
+            alert.setContentText("Complete payment to the exporter before accepting delivery.");
             alert.showAndWait();
             return;
         }

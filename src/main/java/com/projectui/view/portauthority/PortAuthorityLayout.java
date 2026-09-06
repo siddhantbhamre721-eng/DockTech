@@ -107,6 +107,8 @@ public class PortAuthorityLayout {
         // PORT AUTHORITY NAVIGATION ITEMS
         Button dashboard = createNavButton("Dashboard");
         Button ship = createNavButton("Ship Management");
+        Button manageCaptain = createNavButton("Manage Ship Captains");
+        Button manageOfficer = createNavButton("Manage Custom Officer");
         Button cargo = createNavButton("Cargo Management");
         Button container = createNavButton("Container Management");
         Button payments = createNavButton("Payments");
@@ -116,6 +118,8 @@ public class PortAuthorityLayout {
         navButtons.clear();
         navButtons.put("Dashboard", dashboard);
         navButtons.put("Ship Management", ship);
+        navButtons.put("Manage Ship Captains", manageCaptain);
+        navButtons.put("Manage Custom Officer", manageOfficer);
         navButtons.put("Cargo Management", cargo);
         navButtons.put("Container Management", container);
         navButtons.put("Payments", payments);
@@ -133,6 +137,18 @@ public class PortAuthorityLayout {
                 new ShipManagementPage().getRoot(),
                 "Ship Management",
                 "Dock Tech / Port Authority / Ship Management"
+        ));
+
+        manageCaptain.setOnAction(e -> setContent(
+            new ManageShipCaptainPage().getRoot(),
+            "Manage Ship Captains",
+            "Dock Tech / Port Authority / Manage Ship Captains"
+        ));
+
+        manageOfficer.setOnAction(e -> setContent(
+            new ManageCustomOfficerPage().getRoot(),
+            "Manage Custom Officer",
+            "Dock Tech / Port Authority / Manage Custom Officer"
         ));
 
         cargo.setOnAction(e -> setContent(
@@ -172,6 +188,8 @@ public class PortAuthorityLayout {
                 brandBox,
                 dashboard,
                 ship,
+                manageCaptain,
+                manageOfficer,
                 cargo,
                 container,
                 payments,

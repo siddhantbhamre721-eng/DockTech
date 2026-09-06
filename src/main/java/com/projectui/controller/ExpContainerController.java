@@ -39,6 +39,7 @@ public class ExpContainerController {
                 destinationPort, totalAmount, "Booked", customerType, userName);
         if (cargoId != null && !cargoId.isBlank()) {
             cargoDao.updateCargoStatus(cargoId, "Container Booked");
+            cargoDao.linkContainerToCargo(cargoId, bookingId, bookingId);
         }
         return bookingId;
     }

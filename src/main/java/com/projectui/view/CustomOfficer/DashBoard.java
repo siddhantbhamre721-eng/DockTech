@@ -142,15 +142,13 @@ public class DashBoard extends Application {
 
         navigateTo("Dashboard", createDashboardContent(), "Dock Tech / Custom Officer / Dashboard");
 
-        // Preserve window size and responsive behavior matching Admin Dashboard
+        // Responsive stage window listener
         root.sceneProperty().addListener((obsScene, oldScene, newScene) -> {
             if (newScene == null) return;
             newScene.windowProperty().addListener((obsWin, oldWin, newWin) -> {
                 if (newWin == null) return;
                 if (newWin instanceof Stage s) {
                     this.stage = s;
-                    root.prefWidthProperty().bind(s.widthProperty());
-                    root.prefHeightProperty().bind(s.heightProperty());
                 }
             });
         });
@@ -362,8 +360,15 @@ public class DashBoard extends Application {
         final String finalPhone = officerPhone;
         final String finalInitials = initials;
 
-        Button profile = new Button(initials);
-        profile.setStyle("-fx-background-color:#0F66D0; -fx-text-fill:white; -fx-font-size:14; -fx-font-weight:bold; -fx-background-radius:999; -fx-min-width:38; -fx-min-height:38; -fx-pref-width:38; -fx-pref-height:38; -fx-cursor:hand;");
+        Button profile = new Button();
+        profile.setGraphic(com.projectui.service.UserProfileImageManager.createAvatarNode(38, finalInitials, finalEmail));
+        profile.setStyle("-fx-background-color:transparent; -fx-padding:0; -fx-cursor:hand; -fx-min-width:38; -fx-min-height:38; -fx-pref-width:38; -fx-pref-height:38;");
+
+        com.projectui.service.UserProfileImageManager.addAvatarChangeListener(() -> {
+            javafx.application.Platform.runLater(() -> {
+                profile.setGraphic(com.projectui.service.UserProfileImageManager.createAvatarNode(38, finalInitials, finalEmail));
+            });
+        });
 
         profile.setOnAction(evt -> {
             // Build compact popup dropdown matching Admin implementation
@@ -374,8 +379,8 @@ public class DashBoard extends Application {
             box.setStyle("-fx-background-color:white; -fx-padding:14; -fx-background-radius:10; -fx-effect: dropshadow(gaussian, rgba(14,30,70,0.12), 8, 0.5, 0, 3);");
 
             // Header with circular avatar and labels
-            Label bigAvatar = new Label(finalInitials);
-            bigAvatar.setStyle("-fx-background-color:#0F66D0; -fx-text-fill:white; -fx-font-size:18; -fx-font-weight:bold; -fx-alignment:center; -fx-min-width:48; -fx-min-height:48; -fx-background-radius:999;");
+            Node bigAvatarNode = com.projectui.service.UserProfileImageManager.createAvatarNode(48, finalInitials, finalEmail);
+            StackPane bigAvatar = new StackPane(bigAvatarNode);
             Label nameLbl = new Label(finalName.isBlank() ? "Customs Officer" : finalName);
             nameLbl.setStyle("-fx-text-fill:#0f172a; -fx-font-size:15; -fx-font-weight:bold;");
             Label roleLbl = new Label("Customs Officer — " + activeAssignedPort);
@@ -732,7 +737,7 @@ public class DashBoard extends Application {
         searchField.textProperty().addListener((obs, o, n) -> applyTableFilters());
 
         statusFilterCombo = new ComboBox<>();
-        statusFilterCombo.getItems().addAll("All Statuses", "Pending", "Under Inspection", "Cleared", "Held", "Rejected");
+        statusFilterCombo.getItems().addAll("All Statuses", "Pending Verification", "Verified", "Pending Inspection", "Under Inspection", "Cleared", "Held", "Rejected");
         statusFilterCombo.setValue("All Statuses");
         statusFilterCombo.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#cbd5e1; -fx-border-radius:6; -fx-background-radius:6; -fx-font-size:12px;");
         statusFilterCombo.setOnAction(e -> applyTableFilters());
@@ -775,7 +780,7 @@ public class DashBoard extends Application {
                     Label badge = new Label(item);
                     if ("Verified".equalsIgnoreCase(item) || "Approved".equalsIgnoreCase(item)) {
                         badge.setStyle("-fx-background-color:#dcfce7; -fx-text-fill:#166534; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:12;");
-                    } else if ("Pending".equalsIgnoreCase(item)) {
+                    } else if ("Pending".equalsIgnoreCase(item) || "Pending Verification".equalsIgnoreCase(item) || "Pending Inspection".equalsIgnoreCase(item)) {
                         badge.setStyle("-fx-background-color:#fef3c7; -fx-text-fill:#92400e; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:12;");
                     } else {
                         badge.setStyle("-fx-background-color:#fee2e2; -fx-text-fill:#991b1b; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:12;");
@@ -800,7 +805,7 @@ public class DashBoard extends Application {
                     Label badge = new Label(item);
                     if ("Cleared".equalsIgnoreCase(item) || "Passed".equalsIgnoreCase(item)) {
                         badge.setStyle("-fx-background-color:#dcfce7; -fx-text-fill:#166534; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:12;");
-                    } else if ("Under Inspection".equalsIgnoreCase(item)) {
+                    } else if ("Under Inspection".equalsIgnoreCase(item) || "Pending Inspection".equalsIgnoreCase(item)) {
                         badge.setStyle("-fx-background-color:#e0f2fe; -fx-text-fill:#0369a1; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:12;");
                     } else if ("Pending".equalsIgnoreCase(item)) {
                         badge.setStyle("-fx-background-color:#fef3c7; -fx-text-fill:#92400e; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:12;");
@@ -1005,29 +1010,34 @@ public class DashBoard extends Application {
                 String id = c.get("cargoId") != null ? c.get("cargoId").toString() : "CGO-1000";
                 String name = c.get("cargoName") != null ? c.get("cargoName").toString() : "General Cargo";
                 String type = c.get("cargoType") != null ? c.get("cargoType").toString() : "Containerized";
-                String status = c.get("status") != null ? c.get("status").toString() : "Pending";
-                String cClearance = c.get("customsClearanceStatus") != null ? c.get("customsClearanceStatus").toString() : (c.get("customsStatus") != null ? c.get("customsStatus").toString() : "Pending");
+                String status = c.get("status") != null ? c.get("status").toString() : "";
+                String cClearance = c.get("customsClearanceStatus") != null ? c.get("customsClearanceStatus").toString() : (c.get("customsStatus") != null ? c.get("customsStatus").toString() : "");
+                String verifStatus = c.get("verificationStatus") != null ? c.get("verificationStatus").toString() : "Pending Verification";
+                String inspectStatus = c.get("inspectionStatus") != null ? c.get("inspectionStatus").toString() : "Pending Inspection";
 
-                String verifStatus = "Pending";
-                String inspectStatus = "Pending";
-
-                if ("Cleared".equalsIgnoreCase(cClearance) || "Cleared".equalsIgnoreCase(status) || "Approved".equalsIgnoreCase(status) || "Customs Cleared".equalsIgnoreCase(status)) {
+                boolean held = containsStatus("Held", status, cClearance, verifStatus, inspectStatus)
+                        || containsStatus("Rejected", status, cClearance, verifStatus, inspectStatus);
+                boolean cleared = containsStatus("Cleared", cClearance)
+                        || containsStatus("Approved", cClearance)
+                        || containsStatus("Passed", inspectStatus);
+                if (held) {
+                    verifStatus = "Held";
+                    inspectStatus = "Held";
+                    rejectedCargoCount++;
+                    liveNotificationList.add("Cargo Quarantined/Held: " + id + " (" + name + ")");
+                } else if (cleared && isVerifiedStatus(verifStatus)) {
                     verifStatus = "Verified";
                     inspectStatus = "Cleared";
                     approvedCargoCount++;
                     verifiedDocsCount++;
-                } else if ("In Transit".equalsIgnoreCase(status) || "Under Inspection".equalsIgnoreCase(status) || "Under Inspection".equalsIgnoreCase(cClearance)) {
+                } else if (isVerifiedStatus(verifStatus)) {
                     verifStatus = "Verified";
-                    inspectStatus = "Under Inspection";
+                    if ("Pending".equalsIgnoreCase(inspectStatus) || inspectStatus.isBlank()) inspectStatus = "Pending Inspection";
                     pendingCargoCount++;
-                } else if ("Rejected".equalsIgnoreCase(status) || "Held".equalsIgnoreCase(status) || "Held".equalsIgnoreCase(cClearance) || "Customs Held".equalsIgnoreCase(status)) {
-                    verifStatus = "Flagged";
-                    inspectStatus = "Held";
-                    rejectedCargoCount++;
-                    liveNotificationList.add("Cargo Quarantined/Held: " + id + " (" + name + ")");
+                    verifiedDocsCount++;
                 } else {
-                    verifStatus = "Pending";
-                    inspectStatus = "Pending";
+                    verifStatus = "Pending Verification";
+                    inspectStatus = "Pending Inspection";
                     pendingVerifCount++;
                 }
 
@@ -1209,6 +1219,16 @@ public class DashBoard extends Application {
     }
 
     private void updateCargoClearance(String cargoId, String newInspectionStatus, String newVerifStatus) {
+        Map<String, Object> cargo = cargoDao.getCargo(cargoId);
+        if (("Cleared".equalsIgnoreCase(newInspectionStatus) || "Passed".equalsIgnoreCase(newInspectionStatus))
+                && (cargo == null || !isVerifiedStatus(String.valueOf(cargo.get("verificationStatus"))))) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Verification Required");
+            alert.setHeaderText("Cargo cannot be cleared yet");
+            alert.setContentText("Required documents must be verified before physical clearance.");
+            alert.showAndWait();
+            return;
+        }
         cargoDao.updateInspectionStatus(cargoId, newInspectionStatus, officerName, "Updated from Customs Dashboard", null);
         if ("Cleared".equalsIgnoreCase(newInspectionStatus) || "Passed".equalsIgnoreCase(newInspectionStatus) || "Approved".equalsIgnoreCase(newInspectionStatus)) {
             cargoDao.updateCustomsClearance(cargoId, "Cleared", officerName, "Cleared from Customs Dashboard");
@@ -1221,6 +1241,17 @@ public class DashBoard extends Application {
         alert.setHeaderText("Cargo " + cargoId + " status updated");
         alert.setContentText("Cargo ID: " + cargoId + "\nInspection Status: " + newInspectionStatus + "\nVerification: " + newVerifStatus + "\nPort: " + activeAssignedPort);
         alert.showAndWait();
+    }
+
+    private boolean isVerifiedStatus(String value) {
+        return "Verified".equalsIgnoreCase(value) || "Approved".equalsIgnoreCase(value) || "Certified".equalsIgnoreCase(value);
+    }
+
+    private boolean containsStatus(String expected, String... values) {
+        for (String value : values) {
+            if (expected.equalsIgnoreCase(value) || (value != null && value.toLowerCase().contains(expected.toLowerCase()))) return true;
+        }
+        return false;
     }
 
     // =====================================================

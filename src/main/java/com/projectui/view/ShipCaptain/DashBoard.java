@@ -15,6 +15,7 @@ import javafx.animation.Timeline;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
@@ -66,8 +67,6 @@ public class DashBoard {
         this.stage = stage;
         Parent r = getRoot(stage, () -> new com.projectui.view.login.LoginPage().show(stage), "Dashboard");
         com.projectui.view.login.LoginPage.showRoot(stage, r);
-        if (stage.getWidth() < 1200) stage.setWidth(1280);
-        if (stage.getHeight() < 700) stage.setHeight(800);
         stage.setTitle("DockTech - Ship Captain Dashboard");
     }
 
@@ -104,15 +103,13 @@ public class DashBoard {
         root.setCenter(center);
         showPage(currentPage);
 
-        // Window resize responsive binding
+        // Window resize responsive listener
         root.sceneProperty().addListener((obsScene, oldScene, newScene) -> {
             if (newScene == null) return;
             newScene.windowProperty().addListener((obsWin, oldWin, newWin) -> {
                 if (newWin == null) return;
                 if (newWin instanceof Stage s) {
                     this.stage = s;
-                    root.prefWidthProperty().bind(s.widthProperty());
-                    root.prefHeightProperty().bind(s.heightProperty());
                 }
             });
         });
@@ -128,7 +125,7 @@ public class DashBoard {
     }
 
     public Scene getDashboardScene() {
-        return new Scene(getRoot(), 1280, 800);
+        return new Scene(getRoot());
     }
 
     // =====================================================
@@ -280,8 +277,18 @@ public class DashBoard {
             initials = (a + b).toUpperCase();
         }
 
-        Button profile = new Button(initials);
-        profile.setStyle("-fx-background-color:" + BLUE + "; -fx-text-fill:white; -fx-font-size:14; -fx-font-weight:bold; -fx-background-radius:999; -fx-min-width:38; -fx-min-height:38; -fx-pref-width:38; -fx-pref-height:38; -fx-cursor:hand;");
+        final String finalCapEmail = !capEmail.isBlank() ? capEmail : (!capUid.isBlank() ? capUid : "");
+        final String finalInitials = initials;
+
+        Button profile = new Button();
+        profile.setGraphic(com.projectui.service.UserProfileImageManager.createAvatarNode(38, finalInitials, finalCapEmail));
+        profile.setStyle("-fx-background-color:transparent; -fx-padding:0; -fx-cursor:hand; -fx-min-width:38; -fx-min-height:38; -fx-pref-width:38; -fx-pref-height:38;");
+
+        com.projectui.service.UserProfileImageManager.addAvatarChangeListener(() -> {
+            javafx.application.Platform.runLater(() -> {
+                profile.setGraphic(com.projectui.service.UserProfileImageManager.createAvatarNode(38, finalInitials, finalCapEmail));
+            });
+        });
 
         profile.setOnAction(evt -> {
             Window owner = profile.getScene() == null ? null : profile.getScene().getWindow();
@@ -338,12 +345,23 @@ public class DashBoard {
         Ship s = CaptainSessionService.getAssignedShip();
         String shipVal = s != null ? s.getShipName() : "Not Assigned";
 
+        String capInitials = "SC";
+        if (nameVal != null && !nameVal.trim().isEmpty()) {
+            String[] parts = nameVal.trim().split("\\s+");
+            String a = parts[0].substring(0, 1);
+            String b = parts.length > 1 ? parts[parts.length - 1].substring(0, 1) : "";
+            capInitials = (a + b).toUpperCase();
+        }
+
         Popup popup = new Popup();
         popup.setAutoHide(true);
 
         VBox box = new VBox(10);
         box.setPadding(new Insets(14, 16, 14, 16));
         box.setStyle("-fx-background-color:white; -fx-background-radius:12; -fx-border-color:#e2e8f0; -fx-border-radius:12; -fx-effect:dropshadow(gaussian, rgba(0,0,0,0.12), 16, 0, 0, 4);");
+
+        Node capAvatarNode = com.projectui.service.UserProfileImageManager.createAvatarNode(48, capInitials, emailVal);
+        StackPane bigAvatar = new StackPane(capAvatarNode);
 
         Label name = new Label(nameVal);
         name.setStyle("-fx-font-weight:bold; -fx-font-size:15; -fx-text-fill:#0f172a;");
@@ -352,7 +370,8 @@ public class DashBoard {
         Label shipLbl = new Label("Vessel: " + shipVal);
         shipLbl.setStyle("-fx-text-fill:" + BLUE + "; -fx-font-size:12; -fx-font-weight:bold;");
 
-        VBox headerBox = new VBox(2, name, email, shipLbl);
+        HBox headerBox = new HBox(10, bigAvatar, new VBox(2, name, email, shipLbl));
+        headerBox.setAlignment(Pos.CENTER_LEFT);
 
         Button viewProfile = new Button("👤  Profile & Vessel Details");
         viewProfile.setStyle("-fx-background-color:transparent; -fx-text-fill:#0f172a; -fx-font-size:14; -fx-alignment:center-left; -fx-padding:8 6; -fx-cursor:hand;");
@@ -508,7 +527,7 @@ public class DashBoard {
 
         String shipName = ship != null ? ship.getShipName() : "No Vessel Assigned";
         String status = ship != null ? (ship.getStatus() != null ? ship.getStatus() : (v != null ? v.navigationStatus : "At Berth")) : "Unassigned";
-        String destination = ship != null && ship.getDeparture() != null && !ship.getDeparture().isBlank() ? ship.getDeparture() : (v != null ? v.destination : "Port of Singapore");
+        String destination = CaptainSessionService.getAssignedVoyageDestination();
         String lastSync = v != null && v.timestamp != null ? v.timestamp : LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
 
         // Outer Greeting Banner Card
@@ -600,7 +619,7 @@ public class DashBoard {
     private HBox buildSummaryKpis(Ship ship, VesselData v, List<Map<String, Object>> cargos) {
         String status = ship.getStatus() != null ? ship.getStatus() : (v != null ? v.navigationStatus : "At Berth");
         String location = ship.getBerth() != null && !ship.getBerth().isBlank() ? ship.getBerth() : "Port of Mumbai";
-        String dest = ship.getDeparture() != null && !ship.getDeparture().isBlank() ? ship.getDeparture() : (v != null ? v.destination : "Port of Singapore");
+        String dest = CaptainSessionService.getAssignedVoyageDestination();
         String eta = ship.getArrival() != null && !ship.getArrival().isBlank() ? ship.getArrival() : "10:30 AM";
 
         int totalCargos = cargos.size();
@@ -711,13 +730,8 @@ public class DashBoard {
         GridPane g2 = new GridPane();
         g2.setHgap(16);
         g2.setVgap(10);
-        List<Map<String, Object>> cargos = CaptainSessionService.getAssignedCargos();
-        String origin = (!cargos.isEmpty() && cargos.get(0).get("originPort") != null && !cargos.get(0).get("originPort").toString().isBlank())
-                ? cargos.get(0).get("originPort").toString()
-                : (ship.getArrival() != null && !ship.getArrival().isBlank() ? ship.getArrival() : "Origin Port");
-        String dest = (!cargos.isEmpty() && cargos.get(0).get("destinationPort") != null && !cargos.get(0).get("destinationPort").toString().isBlank())
-                ? cargos.get(0).get("destinationPort").toString()
-                : (ship.getDeparture() != null && !ship.getDeparture().isBlank() ? ship.getDeparture() : (v != null && v.destination != null ? v.destination : "Destination Port"));
+        String origin = CaptainSessionService.getAssignedVoyageOrigin();
+        String dest = CaptainSessionService.getAssignedVoyageDestination();
         String berth = ship.getBerth() != null && !ship.getBerth().isBlank() ? ship.getBerth() : "Berth B04";
 
         g2.add(fieldCell("Origin Port", origin), 0, 0);
@@ -739,13 +753,8 @@ public class DashBoard {
         Label title = new Label("Voyage & Route Progress");
         title.setStyle("-fx-text-fill:#05070c; -fx-font-size:16; -fx-font-weight:bold;");
 
-        List<Map<String, Object>> cargos = CaptainSessionService.getAssignedCargos();
-        String origin = (!cargos.isEmpty() && cargos.get(0).get("originPort") != null && !cargos.get(0).get("originPort").toString().isBlank())
-                ? cargos.get(0).get("originPort").toString()
-                : (ship.getArrival() != null && !ship.getArrival().isBlank() ? ship.getArrival() : "Origin Port");
-        String dest = (!cargos.isEmpty() && cargos.get(0).get("destinationPort") != null && !cargos.get(0).get("destinationPort").toString().isBlank())
-                ? cargos.get(0).get("destinationPort").toString()
-                : (ship.getDeparture() != null && !ship.getDeparture().isBlank() ? ship.getDeparture() : (v != null && v.destination != null ? v.destination : "Destination Port"));
+        String origin = CaptainSessionService.getAssignedVoyageOrigin();
+        String dest = CaptainSessionService.getAssignedVoyageDestination();
         String currentLoc = ship.getBerth() != null && !ship.getBerth().isBlank() ? ship.getBerth() : "At Berth / Sea";
         String eta = ship.getArrival() != null && !ship.getArrival().isBlank() ? ship.getArrival() : "10:30 AM";
         String status = ship.getStatus() != null ? ship.getStatus() : (v != null ? v.navigationStatus : "At Berth");

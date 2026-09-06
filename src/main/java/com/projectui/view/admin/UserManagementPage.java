@@ -88,7 +88,7 @@ public class UserManagementPage extends AdminTheme {
                             if (key.isBlank() || seenKeys.contains(key)) continue;
 
                             String role = u.get("role") != null ? u.get("role").toString() : "Exporter";
-                            if ("Admin".equalsIgnoreCase(role) && !email.equalsIgnoreCase("babu@gmail.com") && !email.contains("admin")) {
+                            if (("Admin".equalsIgnoreCase(role) || "Master Admin".equalsIgnoreCase(role)) && !email.equalsIgnoreCase("docktech@gmail.com") && !email.equalsIgnoreCase("babu@gmail.com") && !email.contains("admin")) {
                                 role = "Exporter";
                             }
 
@@ -103,17 +103,19 @@ public class UserManagementPage extends AdminTheme {
                         }
                     }
 
-                    boolean hasBabu = false;
+                    boolean hasMasterAdmin = false;
                     for (AdminDataStore.UserAccount ua : users) {
-                        if (ua.email != null && ua.email.equalsIgnoreCase("babu@gmail.com")) {
-                            hasBabu = true;
-                            ua.name = "Babu";
-                            ua.role = "Admin";
+                        if (ua.email != null && (ua.email.equalsIgnoreCase("docktech@gmail.com") || ua.email.equalsIgnoreCase("babu@gmail.com"))) {
+                            hasMasterAdmin = true;
+                            if (ua.email.equalsIgnoreCase("docktech@gmail.com")) {
+                                ua.name = "Docktech";
+                                ua.role = "Master Admin";
+                            }
                             break;
                         }
                     }
-                    if (!hasBabu) {
-                        users.add(0, new AdminDataStore.UserAccount(com.projectui.dao.UserDao.BABU_UID, "Babu", "babu@gmail.com", "Admin", "Active", "01 Jan 2026, 09:00", "Just now"));
+                    if (!hasMasterAdmin) {
+                        users.add(0, new AdminDataStore.UserAccount("master-admin-docktech", "Docktech", "Docktech@gmail.com", "Master Admin", "Active", "01 Jan 2026, 09:00", "Just now"));
                     }
 
                     refreshTable();

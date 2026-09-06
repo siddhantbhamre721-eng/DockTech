@@ -73,7 +73,7 @@ public class DownloadInvoice {
         PaymentDao.addChangeListener(this::refreshData);
         refreshData();
 
-        Scene scene = new Scene(root, 1400, 800);
+        Scene scene = new Scene(root);
         LoginPage.applyInvisibleScrollbar(scene);
         return scene;
     }
@@ -443,6 +443,8 @@ public class DownloadInvoice {
 
         root.getChildren().addAll(hdr, new Separator(), grid, new Separator(), acts);
         Scene scene = new Scene(root);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(scene);
+        com.projectui.view.login.LoginPage.applyInvisibleScrollbar(dialog);
         dialog.setScene(scene);
         dialog.show();
     }

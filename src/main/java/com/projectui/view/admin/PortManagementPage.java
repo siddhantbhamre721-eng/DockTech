@@ -29,6 +29,7 @@ import javafx.scene.shape.ArcType;
 import javafx.scene.shape.Circle;
 
 import com.projectui.dao.UserDao;
+import com.projectui.view.login.LoginPage;
 
 public class PortManagementPage extends AdminTheme {
 
@@ -50,8 +51,9 @@ public class PortManagementPage extends AdminTheme {
     // Filter & Search Controls
     private TextField search;
     private ComboBox<String> statusFilter;
+    private Label showingLabel;
 
-    // Add / Edit Form Controls
+    // Edit Form Controls
     private TextField portName;
     private TextField location;
     private TextField portCodeField;
@@ -82,36 +84,19 @@ public class PortManagementPage extends AdminTheme {
     }
 
     public Parent getRoot() {
-        // Page Header Buttons
-        Button addQuickBtn = primaryButton("+  Add Port");
-        addQuickBtn.setOnAction(event -> startAdd());
-        addQuickBtn.setStyle("-fx-background-color:" + BLUE
-                + "; -fx-text-fill:white; -fx-font-size:14; -fx-font-weight:bold; -fx-padding:10 22; -fx-background-radius:8; -fx-cursor:hand;");
-
-        Button editQuickBtn = new Button("✎  Edit Port");
-        editQuickBtn.setStyle(
-                "-fx-background-color:#0aa05f; -fx-text-fill:white; -fx-font-size:14; -fx-font-weight:bold; -fx-padding:10 22; -fx-background-radius:8; -fx-cursor:hand;");
-        editQuickBtn.setOnAction(event -> {
-            if (editingIndex >= 0 && editingIndex < ports.size()) {
-                startEdit(editingIndex);
-            } else if (!ports.isEmpty()) {
-                startEdit(0);
-            }
-        });
-
         Label title = new Label("Port Management");
-        title.setStyle("-fx-text-fill:#05070c; -fx-font-size:26; -fx-font-weight:bold;");
+        title.setStyle("-fx-text-fill:#0a2540; -fx-font-size:24; -fx-font-weight:bold;");
         Label subtitle = new Label(
                 "Monitor and manage port operations, capacity, vessel traffic, berths and operational conditions.");
-        subtitle.setStyle("-fx-text-fill:#64748b; -fx-font-size:14;");
-        VBox titleCopy = new VBox(2, title, subtitle);
+        subtitle.setStyle("-fx-text-fill:#64748b; -fx-font-size:13;");
+        VBox titleCopy = new VBox(3, title, subtitle);
         Region titleSpace = new Region();
         HBox.setHgrow(titleSpace, Priority.ALWAYS);
-        HBox titleRow = new HBox(12, titleCopy, titleSpace, addQuickBtn, editQuickBtn);
+        HBox titleRow = new HBox(12, titleCopy, titleSpace);
         titleRow.setAlignment(Pos.CENTER_LEFT);
 
         VBox page = pageContent();
-        page.setSpacing(14);
+        page.setSpacing(16);
         page.setPadding(new Insets(16, 20, 20, 20));
 
         // 1. Top Summary Cards (6 KPIs)
@@ -131,35 +116,24 @@ public class PortManagementPage extends AdminTheme {
                 ((VBox) node).setMaxWidth(Double.MAX_VALUE);
         });
 
-        // 2. Main Section: Left Control Center Table (52%) + Right Add/Edit Panel (48%)
+        // 2. Main Section: Port Operations Control Center Card (Full width responsive)
         Region listCard = portListCard();
-        Region formCard = portFormCard();
-        HBox main = new HBox(14, listCard, formCard);
-        listCard.prefWidthProperty().bind(main.widthProperty().multiply(0.52));
-        formCard.prefWidthProperty().bind(main.widthProperty().multiply(0.48));
         HBox.setHgrow(listCard, Priority.ALWAYS);
-        HBox.setHgrow(formCard, Priority.ALWAYS);
 
         // 3. New Port Requests Section (Pending Admin Verification)
         VBox requestsCard = portRequestsCard();
 
-        // 4. Supporting Bottom Cards
-        HBox bottom = new HBox(12, operationalSummaryCard(), recentPortActivityCard(), capacityOverviewCard());
-        bottom.getChildren().forEach(node -> {
-            HBox.setHgrow(node, Priority.ALWAYS);
-            if (node instanceof VBox)
-                ((VBox) node).setMaxWidth(Double.MAX_VALUE);
+        page.getChildren().addAll(titleRow, stats, listCard, requestsCard);
+
+        // Load ports from Firestore on every page open so the table always reflects real data.
+        store.syncPortsFromFirestore(() -> {
+            refreshTable();
+            refreshStats();
         });
 
-        page.getChildren().addAll(titleRow, main, requestsCard);
-
+        // Also refresh the table immediately so the page doesn't appear blank while Firestore loads
         refreshTable();
         refreshStats();
-        if (startAddOnOpen) {
-            startAdd();
-        } else if (!ports.isEmpty()) {
-            startEdit(0);
-        }
 
         // Smooth ScrollPane wrapper
         ScrollPane scroller = new ScrollPane(page);
@@ -173,28 +147,30 @@ public class PortManagementPage extends AdminTheme {
     }
 
     // ==========================================
-    // PORT OPERATIONS CONTROL CENTER TABLE (LEFT)
+    // PORT OPERATIONS CONTROL CENTER TABLE
     // ==========================================
     private VBox portListCard() {
         search = new TextField();
-        search.setPromptText("⌕  Search ports by name, location, code...");
-        search.setPrefWidth(260);
+        search.setPromptText("Search ports by name, location, code...");
+        search.setPrefWidth(280);
         styleCustomField(search);
         search.textProperty().addListener((obs, oldValue, newValue) -> refreshTable());
 
         statusFilter = combo("Filter", "All Status", "Operational", "Busy", "High Congestion", "Maintenance", "Closed",
                 "Restricted");
-        statusFilter.setPrefWidth(140);
+        statusFilter.setPrefWidth(150);
         statusFilter.valueProperty().addListener((obs, oldValue, newValue) -> refreshTable());
 
         Button refresh = new Button("↻  Refresh");
         refresh.setStyle(
-                "-fx-background-color:#f1f5f9;" +
-                        "-fx-text-fill:#475569;" +
+                "-fx-background-color:#eff6ff;" +
+                        "-fx-text-fill:" + BLUE + ";" +
                         "-fx-font-size:13;" +
                         "-fx-font-weight:bold;" +
-                        "-fx-padding:8 14;" +
+                        "-fx-padding:8 16;" +
                         "-fx-background-radius:6;" +
+                        "-fx-border-color:#bfdbfe;" +
+                        "-fx-border-radius:6;" +
                         "-fx-cursor:hand;");
         refresh.setOnAction(event -> {
             refreshTable();
@@ -202,7 +178,7 @@ public class PortManagementPage extends AdminTheme {
         });
 
         Label title = new Label("Port Operations Control Center");
-        title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:18; -fx-font-weight:bold;");
+        title.setStyle("-fx-text-fill:#0a2540; -fx-font-size:18; -fx-font-weight:bold;");
 
         Label subtitle = new Label("Capacity, vessel traffic, berth usage and operating conditions");
         subtitle.setStyle("-fx-text-fill:#64748b; -fx-font-size:13;");
@@ -211,10 +187,10 @@ public class PortManagementPage extends AdminTheme {
         HBox.setHgrow(space, Priority.ALWAYS);
 
         HBox filters = new HBox(10, search, statusFilter, refresh);
-        filters.setAlignment(Pos.CENTER_LEFT);
+        filters.setAlignment(Pos.CENTER_RIGHT);
         HBox.setHgrow(search, Priority.ALWAYS);
 
-        HBox top = new HBox(14, new VBox(2, title, subtitle), space);
+        HBox top = new HBox(14, new VBox(2, title, subtitle), space, filters);
         top.setAlignment(Pos.CENTER_LEFT);
 
         // 7-column table layout using ColumnConstraints
@@ -225,33 +201,34 @@ public class PortManagementPage extends AdminTheme {
                 "-fx-background-color:white; -fx-border-color:#e2e8f0; -fx-border-radius:8; -fx-background-radius:8;");
 
         ColumnConstraints c1 = new ColumnConstraints();
-        c1.setPercentWidth(22); // Port
+        c1.setPercentWidth(24); // Port
         ColumnConstraints c2 = new ColumnConstraints();
-        c2.setPercentWidth(15); // Location
+        c2.setPercentWidth(18); // Location
         ColumnConstraints c3 = new ColumnConstraints();
-        c3.setPercentWidth(16); // Status
+        c3.setPercentWidth(14); // Status
         ColumnConstraints c4 = new ColumnConstraints();
         c4.setPercentWidth(10); // Vessels
         ColumnConstraints c5 = new ColumnConstraints();
-        c5.setPercentWidth(17); // Berth Usage
+        c5.setPercentWidth(14); // Berth Usage
         ColumnConstraints c6 = new ColumnConstraints();
         c6.setPercentWidth(10); // Capacity
         ColumnConstraints c7 = new ColumnConstraints();
         c7.setPercentWidth(10); // Action
         table.getColumnConstraints().setAll(c1, c2, c3, c4, c5, c6, c7);
 
-        Label showing = new Label("Showing " + ports.size() + " of " + ports.size() + " registered ports");
-        showing.setStyle("-fx-text-fill:#64748b; -fx-font-size:13;");
+        int totalCount = ports.size();
+        showingLabel = new Label("Showing " + totalCount + " of " + totalCount + " registered ports");
+        showingLabel.setStyle("-fx-text-fill:#64748b; -fx-font-size:13;");
         Region pagerSpace = new Region();
         HBox.setHgrow(pagerSpace, Priority.ALWAYS);
         Label pager = new Label("‹    1    ›");
         pager.setStyle("-fx-text-fill:" + BLUE + "; -fx-font-size:15; -fx-font-weight:bold;");
-        HBox footer = new HBox(8, showing, pagerSpace, pager);
+        HBox footer = new HBox(8, showingLabel, pagerSpace, pager);
         footer.setAlignment(Pos.CENTER_LEFT);
 
-        VBox card = new VBox(14, top, filters, table, footer);
-        card.setPadding(new Insets(18));
-        card.setStyle(cardStyle());
+        VBox card = new VBox(14, top, table, footer);
+        card.setPadding(new Insets(20));
+        card.setStyle("-fx-background-color:white; -fx-border-color:#dbeafe; -fx-border-radius:10; -fx-background-radius:10; -fx-effect:dropshadow(gaussian, rgba(15,23,42,0.06), 12, 0, 0, 3);");
         return card;
     }
 
@@ -443,6 +420,7 @@ public class PortManagementPage extends AdminTheme {
     // REFRESH TABLE & DATA
     // ==========================================
     private void refreshTable() {
+        store.recalculatePortVesselAndBerthCounts();
         table.getChildren().clear();
 
         // 7 Columns: Port, Location, Status, Vessels, Berth Usage, Capacity, Action
@@ -597,15 +575,6 @@ public class PortManagementPage extends AdminTheme {
             return;
         }
 
-        // Check duplicate port names for new port creations
-        if (editingIndex == -1) {
-            boolean isDuplicate = ports.stream().anyMatch(p -> p.name != null && p.name.equalsIgnoreCase(nameValue));
-            if (isDuplicate) {
-                formSubtitle.setText("⚠️ A port named '" + nameValue + "' already exists in the database.");
-                return;
-            }
-        }
-
         String latText = latField.getText().trim();
         String lngText = lngField.getText().trim();
 
@@ -703,6 +672,8 @@ public class PortManagementPage extends AdminTheme {
 
         root.getChildren().addAll(title, sub, listView, confirmBtn);
         Scene scene = new Scene(root, 540, 330);
+        LoginPage.applyInvisibleScrollbar(scene);
+        LoginPage.applyInvisibleScrollbar(modal);
         modal.setScene(scene);
         modal.showAndWait();
     }
@@ -751,19 +722,50 @@ public class PortManagementPage extends AdminTheme {
             location.setText(locationValue);
         }
 
+        final double savedLat = lat;
+        final double savedLng = lng;
+        final String savedPortCode = pCode;
+
         if (editingIndex >= 0 && editingIndex < ports.size()) {
             Port old = ports.get(editingIndex);
-            old.name = nameValue;
-            old.location = locationValue;
-            old.code = pCode;
-            old.berths = berths;
-            old.status = statusValue != null ? statusValue : "Operational";
-            old.capacity = capacityValue.isEmpty() ? "85%" : capacityValue;
-            old.maintenance = maintenanceValue.isEmpty() ? "Clear" : maintenanceValue;
-            old.lastUpdated = now();
-            old.lat = lat;
-            old.lng = lng;
-            formSubtitle.setText("✓ Port updated successfully!");
+            String oldCode = old.code;
+            Port updatedPort = new Port(nameValue, locationValue, savedPortCode, old.portAuthority, berths, old.vessels,
+                    statusValue != null ? statusValue : "Operational", old.cargo,
+                    capacityValue.isEmpty() ? "85%" : capacityValue,
+                    maintenanceValue.isEmpty() ? "Clear" : maintenanceValue, now(), savedLat, savedLng,
+                    old.approvalStatus);
+            java.util.Map<String, Object> data = buildPortFirestoreMap(updatedPort);
+            formSubtitle.setText("⏳ Saving to Firebase...");
+            saveBtn.setDisable(true);
+            java.util.concurrent.ForkJoinPool.commonPool().execute(() -> {
+                try {
+                    com.google.cloud.firestore.Firestore db = com.projectui.config.FirebaseConfig.getFirestore();
+                    if (db == null) {
+                        throw new IllegalStateException("Firebase is unavailable.");
+                    }
+                    if (oldCode != null && !oldCode.equalsIgnoreCase(savedPortCode)) {
+                        db.collection("registered_ports").document(oldCode.trim()).delete().get(5, java.util.concurrent.TimeUnit.SECONDS);
+                    }
+                    db.collection("registered_ports").document(savedPortCode.trim()).set(data).get(5, java.util.concurrent.TimeUnit.SECONDS);
+                    javafx.application.Platform.runLater(() -> {
+                        ports.set(editingIndex, updatedPort);
+                        formSubtitle.setText("✓ Port updated successfully in Firebase!");
+                        saveBtn.setDisable(false);
+                        AdminDataStore.clearDeletedPort(updatedPort.name, updatedPort.code);
+                        GeoTileMapCanvas.refreshAllMapInstances();
+                        DashboardPage.refreshAllDashboards();
+                        refreshTable();
+                        refreshStats();
+                    });
+                    System.out.println("[PortManagement] Port updated in Firestore: " + savedPortCode);
+                } catch (Exception ex) {
+                    System.err.println("[PortManagement] Firestore update error: " + ex.getMessage());
+                    javafx.application.Platform.runLater(() -> {
+                        formSubtitle.setText("⚠️ " + ex.getMessage());
+                        saveBtn.setDisable(false);
+                    });
+                }
+            });
         } else {
             // Check duplicate
             boolean duplicate = ports.stream().anyMatch(p -> p.name != null && p.name.equalsIgnoreCase(nameValue));
@@ -772,31 +774,82 @@ public class PortManagementPage extends AdminTheme {
                 return;
             }
 
-            AdminDataStore.clearDeletedPort(nameValue, pCode);
-            Port newPort = new Port(nameValue, locationValue, pCode, "Port Authority (" + nameValue + ")", berths, 0,
+            Port newPort = new Port(nameValue, locationValue, savedPortCode, "Port Authority (" + nameValue + ")", berths, 0,
                     statusValue != null ? statusValue : "Operational", "Containers",
                     capacityValue.isEmpty() ? "85%" : capacityValue,
-                    maintenanceValue.isEmpty() ? "Clear" : maintenanceValue, now(), lat, lng, "APPROVED");
-            ports.add(newPort);
-            editingIndex = ports.size() - 1;
-
-            formSubtitle.setText(
-                    "✓ Port '" + nameValue + "' created at Lat: " + String.format(java.util.Locale.US, "%.4f", lat)
-                            + ", Lng: " + String.format(java.util.Locale.US, "%.4f", lng) + "!");
-        }
-
-        GeoTileMapCanvas.refreshAllMapInstances();
-        refreshTable();
-        refreshStats();
-        if (editingIndex >= 0 && editingIndex < ports.size()) {
-            startEdit(editingIndex);
+                    maintenanceValue.isEmpty() ? "Clear" : maintenanceValue, now(), savedLat, savedLng, "APPROVED");
+            java.util.Map<String, Object> data = buildPortFirestoreMap(newPort);
+            formSubtitle.setText("⏳ Saving to Firebase...");
+            saveBtn.setDisable(true);
+            java.util.concurrent.ForkJoinPool.commonPool().execute(() -> {
+                try {
+                    com.google.cloud.firestore.Firestore db = com.projectui.config.FirebaseConfig.getFirestore();
+                    if (db == null) {
+                        throw new IllegalStateException("Firebase is unavailable.");
+                    }
+                    db.collection("registered_ports").document(savedPortCode.trim()).set(data).get(5, java.util.concurrent.TimeUnit.SECONDS);
+                    javafx.application.Platform.runLater(() -> {
+                        AdminDataStore.clearDeletedPort(newPort.name, newPort.code);
+                        ports.add(newPort);
+                        editingIndex = ports.size() - 1;
+                        formSubtitle.setText("✓ Port '" + nameValue + "' created at Lat: "
+                                + String.format(java.util.Locale.US, "%.4f", savedLat)
+                                + ", Lng: " + String.format(java.util.Locale.US, "%.4f", savedLng) + " — Saved to Firebase!");
+                        saveBtn.setDisable(false);
+                        GeoTileMapCanvas.refreshAllMapInstances();
+                        DashboardPage.refreshAllDashboards();
+                        refreshTable();
+                        refreshStats();
+                    });
+                    System.out.println("[PortManagement] New port saved to Firestore: " + savedPortCode);
+                } catch (Exception ex) {
+                    System.err.println("[PortManagement] Firestore create error: " + ex.getMessage());
+                    javafx.application.Platform.runLater(() -> {
+                        formSubtitle.setText("⚠️ " + ex.getMessage());
+                        saveBtn.setDisable(false);
+                    });
+                }
+            });
         }
     }
 
     // ==========================================
     // SUPPORTING BOTTOM CARDS
     // ==========================================
+
+    /**
+     * Converts a Port object into a Firestore document Map for the 'registered_ports' collection.
+     * Used by performPortSaveDirect() for both create and edit operations.
+     */
+    private java.util.Map<String, Object> buildPortFirestoreMap(Port port) {
+        java.util.Map<String, Object> data = new java.util.HashMap<>();
+        data.put("name", port.name);
+        data.put("portName", port.name);
+        data.put("location", port.location);
+        data.put("address", port.location);
+        data.put("code", port.code);
+        data.put("portCode", port.code);
+        data.put("portAuthority", port.portAuthority);
+        data.put("status", port.status);
+        data.put("cargo", port.cargo);
+        data.put("cargoType", port.cargo);
+        data.put("capacity", port.capacity);
+        data.put("maintenance", port.maintenance);
+        data.put("maintenanceInfo", port.maintenance);
+        data.put("berths", port.berths);
+        data.put("vessels", port.vessels);
+        data.put("lat", port.lat);
+        data.put("latitude", port.lat);
+        data.put("lng", port.lng);
+        data.put("longitude", port.lng);
+        data.put("lastUpdated", port.lastUpdated);
+        data.put("approvalStatus", port.approvalStatus != null ? port.approvalStatus : "APPROVED");
+        data.put("updatedAt", new java.text.SimpleDateFormat("dd MMM yyyy, HH:mm").format(new java.util.Date()));
+        return data;
+    }
+
     private VBox operationalSummaryCard() {
+
         VBox card = new VBox(14);
         card.setPadding(new Insets(16));
         card.setStyle(cardStyle());
@@ -984,8 +1037,18 @@ public class PortManagementPage extends AdminTheme {
 
                 // Update database status first (Requirement 1 & 2)
                 portRequestDao.updateRequestStatus(req.requestId, "APPROVED", null).whenComplete((dbSuccess, dbErr) -> {
+                    Exception registeredPortError = null;
+                    if (dbErr == null && Boolean.TRUE.equals(dbSuccess)) {
+                        try {
+                            // Approval must create/update the same registered_ports record consumed by every port view.
+                            store.persistApprovedPort(req);
+                        } catch (Exception ex) {
+                            registeredPortError = ex;
+                        }
+                    }
+                    final Exception persistenceError = registeredPortError;
                     javafx.application.Platform.runLater(() -> {
-                        if (dbErr != null || Boolean.FALSE.equals(dbSuccess)) {
+                        if (dbErr != null || Boolean.FALSE.equals(dbSuccess) || persistenceError != null) {
                             // On failure: keep request visible and show alert (Requirement 14)
                             req.status = "PENDING";
                             approveBtn.setText("✓ Approve & Create Port");
@@ -993,7 +1056,8 @@ public class PortManagementPage extends AdminTheme {
                             rejectBtn.setDisable(false);
                             javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
                                     javafx.scene.control.Alert.AlertType.ERROR, "Database Update Failed: "
-                                            + (dbErr != null ? dbErr.getMessage() : "Unknown error"));
+                                        + (dbErr != null ? dbErr.getMessage()
+                                            : persistenceError != null ? persistenceError.getMessage() : "Unknown error"));
                             alert.showAndWait();
                             return;
                         }
@@ -1029,6 +1093,7 @@ public class PortManagementPage extends AdminTheme {
                         refreshStats();
                         GeoTileMapCanvas.refreshAllMapInstances();
                         DashboardPage.refreshAllDashboards();
+                        store.syncPortsFromFirestore(GeoTileMapCanvas::refreshAllMapInstances);
                         renderPortRequests(container);
 
                         java.util.Map<String, Object> extraFields = new java.util.HashMap<>();
@@ -1081,26 +1146,30 @@ public class PortManagementPage extends AdminTheme {
                                     }
 
                                     String accId = (creds.get("id") != null && !creds.get("id").isBlank()) ? creds.get("id") : paEmail;
-                                    String tempPass = (creds.get("tempPassword") != null && !creds.get("tempPassword").isBlank()) ? creds.get("tempPassword") : "Pass#9821";
+                                    String tempPass = creds.get("tempPassword");
 
                                     System.out.println("[APPROVAL] Verified registered email recipient: " + paEmail);
 
-                                    emailService.sendPortAuthorityCredentialWebhook(
-                                            req.portName,
-                                            req.portCode,
-                                            req.requestId,
-                                            paName,
-                                            paEmail,
-                                            paEmail,
-                                            tempPass).whenComplete((sent, emailErr) -> javafx.application.Platform.runLater(() -> {
-                                        if (emailErr != null || sent == null || !sent) {
-                                            System.err.println("[APPROVAL] Delivery Error: Credential webhook delivery rejected for recipient: " + paEmail);
-                                            formSubtitle.setText("⚠️ Port Authority account created, but credential notification to " + paEmail + " failed.");
-                                        } else {
-                                            formSubtitle.setText("✓ Port Approved & Created! Credentials sent to: "
-                                                    + paEmail + " (ID: " + accId + ")");
-                                        }
-                                    }));
+                                    if (tempPass != null && !tempPass.isBlank()) {
+                                        emailService.sendPortAuthorityCredentialWebhook(
+                                                req.portName,
+                                                req.portCode,
+                                                req.requestId,
+                                                paName,
+                                                paEmail,
+                                                paEmail,
+                                                tempPass).whenComplete((sent, emailErr) -> javafx.application.Platform.runLater(() -> {
+                                            if (emailErr != null || sent == null || !sent) {
+                                                System.err.println("[APPROVAL] Delivery Error: Credential webhook delivery rejected for recipient: " + paEmail);
+                                                formSubtitle.setText("⚠️ Port Authority account created, but credential notification to " + paEmail + " failed.");
+                                            } else {
+                                                formSubtitle.setText("✓ Port Approved & Created! Credentials sent to: "
+                                                        + paEmail + " (ID: " + accId + ")");
+                                            }
+                                        }));
+                                    } else {
+                                        formSubtitle.setText("✓ Port Approved. Existing Port Authority account linked: " + paEmail + " (ID: " + accId + ")");
+                                    }
 
                                     String paUid = creds.get("uid") != null ? creds.get("uid") : ("usr_" + Math.abs(paEmail.toLowerCase().hashCode()));
                                     store.users.add(0, new AdminDataStore.UserAccount(paUid, paName,
@@ -1182,45 +1251,24 @@ public class PortManagementPage extends AdminTheme {
                     .connectTimeout(java.time.Duration.ofSeconds(15))
                     .build();
 
-            // Correct legacy cloud name "docktech" to active "snmxmesm"
-            String fixedUrl = trimmed.replace("res.cloudinary.com/docktech/", "res.cloudinary.com/snmxmesm/");
-
-            // Generate candidate URLs to try fetching
+            // Try the exact stored URL first
             List<String> candidates = new ArrayList<>();
-            candidates.add(fixedUrl);
+            candidates.add(trimmed);
 
-            // Cloudinary resource_type variants (/image/upload/ vs /raw/upload/)
-            if (fixedUrl.contains("/image/upload/")) {
-                candidates.add(fixedUrl.replace("/image/upload/", "/raw/upload/"));
-            } else if (fixedUrl.contains("/raw/upload/")) {
-                candidates.add(fixedUrl.replace("/raw/upload/", "/image/upload/"));
+            // Backward compatibility fallbacks for older test data
+            if (trimmed.contains("res.cloudinary.com/docktech/")) {
+                candidates.add(trimmed.replace("res.cloudinary.com/docktech/", "res.cloudinary.com/snmxmesm/"));
+                candidates.add(trimmed.replace("res.cloudinary.com/docktech/", "res.cloudinary.com/zab3bobe/"));
             }
-
-            // Version-stripped variants (/v1724800000/ or /v123456/ -> /)
-            String noVersionUrl = fixedUrl.replaceAll("/v[0-9]+/", "/");
-            if (!candidates.contains(noVersionUrl)) {
-                candidates.add(noVersionUrl);
-                if (noVersionUrl.contains("/image/upload/")) {
-                    candidates.add(noVersionUrl.replace("/image/upload/", "/raw/upload/"));
-                } else if (noVersionUrl.contains("/raw/upload/")) {
-                    candidates.add(noVersionUrl.replace("/raw/upload/", "/image/upload/"));
-                }
+            if (trimmed.contains("res.cloudinary.com/snmxmesm/")) {
+                candidates.add(trimmed.replace("res.cloudinary.com/snmxmesm/", "res.cloudinary.com/zab3bobe/"));
             }
-
-            // Add .pdf extension variants if missing
-            List<String> extCandidates = new ArrayList<>();
-            for (String c : candidates) {
-                if (!c.toLowerCase().endsWith(".pdf") && !c.toLowerCase().endsWith(".png") && !c.toLowerCase().endsWith(".jpg") && !c.toLowerCase().endsWith(".jpeg")) {
-                    extCandidates.add(c + ".pdf");
-                }
-            }
-            candidates.addAll(extCandidates);
 
             for (String candidate : candidates) {
                 try {
                     java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
                             .uri(java.net.URI.create(candidate))
-                            .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
                             .header("Accept", "application/pdf,application/octet-stream,image/*,*/*")
                             .timeout(java.time.Duration.ofSeconds(15))
                             .GET()
@@ -1230,6 +1278,8 @@ public class PortManagementPage extends AdminTheme {
                     if (resp.statusCode() == 200 && resp.body() != null && resp.body().length > 0) {
                         System.out.println("[DOCUMENT FETCH SUCCESS] Retrieved " + resp.body().length + " bytes from: " + candidate);
                         return resp.body();
+                    } else {
+                        System.err.println("[DOCUMENT FETCH STATUS] " + candidate + " -> HTTP " + resp.statusCode());
                     }
                 } catch (Exception ex) {
                     System.err.println("[DOCUMENT FETCH CANDIDATE FAILED] " + candidate + " -> " + ex.getMessage());
@@ -1264,11 +1314,23 @@ public class PortManagementPage extends AdminTheme {
         Region topSpace = new Region();
         HBox.setHgrow(topSpace, Priority.ALWAYS);
 
+        Button openInBrowserHeaderBtn = new Button("🌐 Open in Browser");
+        openInBrowserHeaderBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:5 10; -fx-background-radius:6; -fx-cursor:hand;");
+        openInBrowserHeaderBtn.setOnAction(e -> {
+            try {
+                if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+                    java.awt.Desktop.getDesktop().browse(new java.net.URI(url));
+                }
+            } catch (Exception ex) {
+                System.err.println("[BROWSE DOCUMENT ERROR] " + ex.getMessage());
+            }
+        });
+
         Button closeHeaderBtn = new Button("✕");
         closeHeaderBtn.setStyle("-fx-background-color:transparent; -fx-text-fill:#94a3b8; -fx-font-size:16px; -fx-font-weight:bold; -fx-cursor:hand;");
         closeHeaderBtn.setOnAction(e -> dialog.close());
 
-        HBox headerRow = new HBox(10, new VBox(4, titleLabel, fileLabel), topSpace, closeHeaderBtn);
+        HBox headerRow = new HBox(10, new VBox(4, titleLabel, fileLabel), topSpace, openInBrowserHeaderBtn, closeHeaderBtn);
         headerRow.setAlignment(Pos.CENTER_LEFT);
 
         StackPane viewerContainer = new StackPane();
@@ -1294,8 +1356,11 @@ public class PortManagementPage extends AdminTheme {
                     errBox.setAlignment(Pos.CENTER);
                     Label errIcon = new Label("⚠️");
                     errIcon.setStyle("-fx-font-size:44px;");
-                    Label errLbl = new Label("Unable to load document.");
+                    Label errLbl = new Label("Unable to load document preview from Cloudinary.");
                     errLbl.setStyle("-fx-text-fill:#ef4444; -fx-font-size:14px; -fx-font-weight:bold;");
+
+                    Label errDetailLbl = new Label("Source URL: " + url);
+                    errDetailLbl.setStyle("-fx-text-fill:#94a3b8; -fx-font-size:11px; -fx-wrap-text:true; -fx-max-width:550; -fx-text-alignment:center;");
 
                     Button retryBtn = new Button("🔄 Retry");
                     retryBtn.setStyle("-fx-background-color:#0b63ff; -fx-text-fill:white; -fx-font-size:12px; -fx-font-weight:bold; -fx-padding:8 16; -fx-background-radius:6; -fx-cursor:hand;");
@@ -1304,7 +1369,22 @@ public class PortManagementPage extends AdminTheme {
                         showDocumentViewerModal(docTitle, fileName, url);
                     });
 
-                    errBox.getChildren().addAll(errIcon, errLbl, retryBtn);
+                    Button openBrowserErrBtn = new Button("🌐 Open in Browser");
+                    openBrowserErrBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:12px; -fx-font-weight:bold; -fx-padding:8 16; -fx-background-radius:6; -fx-cursor:hand;");
+                    openBrowserErrBtn.setOnAction(ev -> {
+                        try {
+                            if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+                                java.awt.Desktop.getDesktop().browse(new java.net.URI(url));
+                            }
+                        } catch (Exception ex) {
+                            System.err.println("[BROWSE DOCUMENT ERROR] " + ex.getMessage());
+                        }
+                    });
+
+                    HBox errBtnRow = new HBox(10, retryBtn, openBrowserErrBtn);
+                    errBtnRow.setAlignment(Pos.CENTER);
+
+                    errBox.getChildren().addAll(errIcon, errLbl, errDetailLbl, errBtnRow);
                     viewerContainer.getChildren().add(errBox);
                 });
                 return;
@@ -1382,7 +1462,7 @@ public class PortManagementPage extends AdminTheme {
                 errBox.setAlignment(Pos.CENTER);
                 Label errIcon = new Label("⚠️");
                 errIcon.setStyle("-fx-font-size:44px;");
-                Label errLbl = new Label("Unable to load document.");
+                Label errLbl = new Label("Unable to render document preview.");
                 errLbl.setStyle("-fx-text-fill:#ef4444; -fx-font-size:14px; -fx-font-weight:bold;");
 
                 Button retryBtn = new Button("🔄 Retry");
@@ -1392,7 +1472,22 @@ public class PortManagementPage extends AdminTheme {
                     showDocumentViewerModal(docTitle, fileName, url);
                 });
 
-                errBox.getChildren().addAll(errIcon, errLbl, retryBtn);
+                Button openBrowserErrBtn = new Button("🌐 Open in Browser");
+                openBrowserErrBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:12px; -fx-font-weight:bold; -fx-padding:8 16; -fx-background-radius:6; -fx-cursor:hand;");
+                openBrowserErrBtn.setOnAction(ev -> {
+                    try {
+                        if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+                            java.awt.Desktop.getDesktop().browse(new java.net.URI(url));
+                        }
+                    } catch (Exception ex) {
+                        System.err.println("[BROWSE DOCUMENT ERROR] " + ex.getMessage());
+                    }
+                });
+
+                HBox errBtnRow = new HBox(10, retryBtn, openBrowserErrBtn);
+                errBtnRow.setAlignment(Pos.CENTER);
+
+                errBox.getChildren().addAll(errIcon, errLbl, errBtnRow);
                 viewerContainer.getChildren().add(errBox);
             });
         }).start();
@@ -1406,6 +1501,8 @@ public class PortManagementPage extends AdminTheme {
 
         rootNode.getChildren().addAll(headerRow, viewerContainer, btnBox);
         Scene scene = new Scene(rootNode, 740, 600);
+        LoginPage.applyInvisibleScrollbar(scene);
+        LoginPage.applyInvisibleScrollbar(dialog);
         dialog.setScene(scene);
         dialog.show();
     }
@@ -1604,29 +1701,20 @@ public class PortManagementPage extends AdminTheme {
     }
 
     private HBox createEditActionCell(int index) {
-        Button editBtn = new Button("✎ Edit");
+        Button editBtn = new Button("✎  Edit Port");
         editBtn.setStyle(
                 "-fx-background-color:#eff6ff;" +
                         "-fx-text-fill:" + BLUE + ";" +
-                        "-fx-font-size:13;" +
+                        "-fx-font-size:12;" +
                         "-fx-font-weight:bold;" +
-                        "-fx-padding:4 10;" +
+                        "-fx-padding:6 14;" +
                         "-fx-background-radius:6;" +
+                        "-fx-border-color:#bfdbfe;" +
+                        "-fx-border-radius:6;" +
                         "-fx-cursor:hand;");
-        editBtn.setOnAction(e -> startEdit(index));
+        editBtn.setOnAction(e -> openEditPortModal(index));
 
-        Button deleteBtn = new Button("🗑 Delete");
-        deleteBtn.setStyle(
-                "-fx-background-color:#fef2f2;" +
-                        "-fx-text-fill:#ef4444;" +
-                        "-fx-font-size:13;" +
-                        "-fx-font-weight:bold;" +
-                        "-fx-padding:4 10;" +
-                        "-fx-background-radius:6;" +
-                        "-fx-cursor:hand;");
-        deleteBtn.setOnAction(e -> confirmAndDeletePort(index));
-
-        HBox cell = new HBox(8, editBtn, deleteBtn);
+        HBox cell = new HBox(8, editBtn);
         cell.setAlignment(Pos.CENTER_LEFT);
         cell.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(cell, Priority.ALWAYS);
@@ -1634,6 +1722,163 @@ public class PortManagementPage extends AdminTheme {
         cell.setPadding(new Insets(0, 12, 0, 12));
         cell.setStyle("-fx-background-color:white; -fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0;");
         return cell;
+    }
+
+    public void openEditPortModal(int index) {
+        if (index < 0 || index >= ports.size()) return;
+        Port port = ports.get(index);
+        if (port == null) return;
+
+        Stage modal = new Stage();
+        modal.initModality(Modality.APPLICATION_MODAL);
+        modal.setTitle("Edit Port — " + port.name);
+        modal.setResizable(false);
+
+        VBox root = new VBox(14);
+        root.setPadding(new Insets(20, 24, 20, 24));
+        root.setStyle("-fx-background-color: #FFFFFF; -fx-background-radius: 12;");
+
+        // Header
+        Label modalTitle = new Label("Edit Port Facility");
+        modalTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #0F172A;");
+        Label modalSub = new Label("Update operational parameters and capacity details for " + port.name);
+        modalSub.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748B;");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button closeBtn = new Button("✕");
+        closeBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #64748B; -fx-font-size: 16px; -fx-font-weight: bold; -fx-cursor: hand;");
+        closeBtn.setOnAction(e -> modal.close());
+
+        HBox headerRow = new HBox(8, new VBox(2, modalTitle, modalSub), spacer, closeBtn);
+        headerRow.setAlignment(Pos.CENTER_LEFT);
+
+        // Fields
+        TextField nameField = new TextField(port.name != null ? port.name : "");
+        TextField locField = new TextField(port.location != null ? port.location : "");
+        TextField codeField = new TextField(port.code != null ? port.code : "");
+        TextField berthsField = new TextField(String.valueOf(port.berths));
+        TextField capField = new TextField(port.capacity != null ? port.capacity : "85%");
+        TextField maintField = new TextField(port.maintenance != null ? port.maintenance : "Clear");
+        TextField latField = new TextField(port.lat != 0.0 ? String.format(java.util.Locale.US, "%.4f", port.lat) : "");
+        TextField lngField = new TextField(port.lng != 0.0 ? String.format(java.util.Locale.US, "%.4f", port.lng) : "");
+
+        ComboBox<String> statusBox = new ComboBox<>();
+        statusBox.getItems().addAll("Operational", "Busy", "High Congestion", "Maintenance", "Closed", "Restricted");
+        statusBox.setValue(port.status != null ? port.status : "Operational");
+        statusBox.setMaxWidth(Double.MAX_VALUE);
+
+        styleCustomField(nameField);
+        styleCustomField(locField);
+        styleCustomField(codeField);
+        styleCustomField(berthsField);
+        styleCustomField(capField);
+        styleCustomField(maintField);
+        styleCustomField(latField);
+        styleCustomField(lngField);
+        styleCustomField(statusBox);
+
+        VBox gridFields = new VBox(10,
+                new HBox(10, labeledControl("Port Name *", nameField), labeledControl("Location *", locField)),
+                new HBox(10, labeledControl("Port Code *", codeField), labeledControl("Port Status *", statusBox)),
+                new HBox(10, labeledControl("Latitude (-90 to +90)", latField), labeledControl("Longitude (-180 to +180)", lngField)),
+                new HBox(10, labeledControl("Port Capacity (%) *", capField), labeledControl("Number of Berths *", berthsField)),
+                labeledControl("Maintenance Notices & Information", maintField)
+        );
+
+        gridFields.getChildren().forEach(node -> {
+            if (node instanceof HBox) {
+                HBox row = (HBox) node;
+                for (var child : row.getChildren()) {
+                    HBox.setHgrow(child, Priority.ALWAYS);
+                    if (child instanceof VBox) ((VBox) child).setMaxWidth(Double.MAX_VALUE);
+                }
+            }
+        });
+
+        Label feedbackLbl = new Label("");
+        feedbackLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: bold;");
+        feedbackLbl.setVisible(false);
+        feedbackLbl.managedProperty().bind(feedbackLbl.visibleProperty());
+
+        Button cancelBtn = new Button("Cancel");
+        cancelBtn.setStyle("-fx-background-color: #F1F5F9; -fx-text-fill: #475569; -fx-font-weight: bold; -fx-padding: 8 18; -fx-background-radius: 6; -fx-cursor: hand;");
+        cancelBtn.setOnAction(e -> modal.close());
+
+        Button saveBtn = new Button("💾  Save Changes");
+        saveBtn.setStyle("-fx-background-color: " + BLUE + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 20; -fx-background-radius: 6; -fx-cursor: hand;");
+        saveBtn.setOnAction(e -> {
+            String newName = nameField.getText().trim();
+            if (newName.isEmpty()) {
+                feedbackLbl.setText("⚠️ Please enter a valid Port Name.");
+                feedbackLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #ef4444; -fx-font-weight: bold;");
+                feedbackLbl.setVisible(true);
+                return;
+            }
+
+            int bCount = port.berths;
+            try {
+                if (!berthsField.getText().trim().isEmpty()) bCount = Integer.parseInt(berthsField.getText().trim());
+            } catch (Exception ignored) {}
+
+            double lat = port.lat;
+            double lng = port.lng;
+            try {
+                if (!latField.getText().trim().isEmpty()) lat = Double.parseDouble(latField.getText().trim());
+                if (!lngField.getText().trim().isEmpty()) lng = Double.parseDouble(lngField.getText().trim());
+            } catch (Exception ignored) {}
+
+            String oldCode = port.code;
+            String newCode = codeField.getText().trim().isEmpty() ? port.code : codeField.getText().trim();
+
+            port.name = newName;
+            port.location = locField.getText().trim().isEmpty() ? port.location : locField.getText().trim();
+            port.code = newCode;
+            port.berths = bCount;
+            port.capacity = capField.getText().trim().isEmpty() ? port.capacity : capField.getText().trim();
+            port.status = statusBox.getValue() != null ? statusBox.getValue() : "Operational";
+            port.maintenance = maintField.getText().trim().isEmpty() ? "Clear" : maintField.getText().trim();
+            port.lat = lat;
+            port.lng = lng;
+            port.lastUpdated = now();
+
+            // Persist changes to Firestore
+            java.util.Map<String, Object> data = buildPortFirestoreMap(port);
+            java.util.concurrent.ForkJoinPool.commonPool().execute(() -> {
+                try {
+                    com.google.cloud.firestore.Firestore db = com.projectui.config.FirebaseConfig.getFirestore();
+                    if (db != null) {
+                        if (oldCode != null && !oldCode.equalsIgnoreCase(newCode)) {
+                            db.collection("registered_ports").document(oldCode.trim()).delete().get(5, java.util.concurrent.TimeUnit.SECONDS);
+                        }
+                        db.collection("registered_ports").document(newCode.trim()).set(data).get(5, java.util.concurrent.TimeUnit.SECONDS);
+                    }
+                } catch (Exception ex) {
+                    System.err.println("[PortManagement] Modal Firestore update error: " + ex.getMessage());
+                }
+            });
+
+            store.recalculatePortVesselAndBerthCounts();
+            GeoTileMapCanvas.refreshAllMapInstances();
+            refreshTable();
+            refreshStats();
+
+            modal.close();
+        });
+
+        HBox btnRow = new HBox(10, feedbackLbl, new Region(), cancelBtn, saveBtn);
+        HBox.setHgrow(btnRow.getChildren().get(1), Priority.ALWAYS);
+        btnRow.setAlignment(Pos.CENTER_RIGHT);
+
+        root.getChildren().addAll(headerRow, gridFields, btnRow);
+        Scene scene = new Scene(root, 580, 560);
+        modal.setMinWidth(580);
+        modal.setMinHeight(560);
+        LoginPage.applyInvisibleScrollbar(scene);
+        LoginPage.applyInvisibleScrollbar(modal);
+        modal.setScene(scene);
+        modal.showAndWait();
     }
 
     private void confirmAndDeletePort(int index) {

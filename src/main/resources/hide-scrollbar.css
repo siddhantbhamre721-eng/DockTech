@@ -4,123 +4,283 @@
    across all JavaFX controls and web components, while keeping scrolling active.
    ========================================================================== */
 
-/* JavaFX ScrollBars */
-.scroll-bar {
-    -fx-pref-width: 0px !important;
-    -fx-pref-height: 0px !important;
-    -fx-max-width: 0px !important;
-    -fx-max-height: 0px !important;
-    -fx-min-width: 0px !important;
-    -fx-min-height: 0px !important;
-    -fx-opacity: 0 !important;
-    -fx-background-color: transparent !important;
-    -fx-padding: 0 !important;
-}
-
+/* 1. Universal JavaFX ScrollBar containers */
+.scroll-bar,
 .scroll-bar:vertical,
-.scroll-bar:horizontal {
-    -fx-pref-width: 0px !important;
-    -fx-pref-height: 0px !important;
-    -fx-max-width: 0px !important;
-    -fx-max-height: 0px !important;
-    -fx-min-width: 0px !important;
-    -fx-min-height: 0px !important;
-    -fx-opacity: 0 !important;
-    -fx-background-color: transparent !important;
-    -fx-padding: 0 !important;
+.scroll-bar:horizontal,
+.scroll-bar:focused,
+.scroll-pane > .scroll-bar,
+.scroll-pane > .scroll-bar:vertical,
+.scroll-pane > .scroll-bar:horizontal,
+.table-view .scroll-bar,
+.table-view > .virtual-flow > .scroll-bar,
+.table-view > .virtual-flow > .scroll-bar:vertical,
+.table-view > .virtual-flow > .scroll-bar:horizontal,
+.tree-table-view .scroll-bar,
+.tree-table-view > .virtual-flow > .scroll-bar,
+.tree-table-view > .virtual-flow > .scroll-bar:vertical,
+.tree-table-view > .virtual-flow > .scroll-bar:horizontal,
+.list-view .scroll-bar,
+.list-view > .virtual-flow > .scroll-bar,
+.list-view > .virtual-flow > .scroll-bar:vertical,
+.list-view > .virtual-flow > .scroll-bar:horizontal,
+.tree-view .scroll-bar,
+.tree-view > .virtual-flow > .scroll-bar,
+.tree-view > .virtual-flow > .scroll-bar:vertical,
+.tree-view > .virtual-flow > .scroll-bar:horizontal,
+.text-area .scroll-bar,
+.text-area .scroll-bar:vertical,
+.text-area .scroll-bar:horizontal,
+.combo-box-popup .scroll-bar,
+.combo-box-popup > .list-view > .virtual-flow > .scroll-bar,
+.choice-box-popup .scroll-bar,
+.choice-box-popup > .list-view > .virtual-flow > .scroll-bar,
+.dialog-pane .scroll-bar {
+    -fx-pref-width: 0px;
+    -fx-pref-height: 0px;
+    -fx-max-width: 0px;
+    -fx-max-height: 0px;
+    -fx-min-width: 0px;
+    -fx-min-height: 0px;
+    -fx-opacity: 0;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
 }
 
+/* 2. Vertical scrollbar dimensions & appearance */
+.scroll-bar:vertical,
+.scroll-pane > .scroll-bar:vertical,
+.table-view .scroll-bar:vertical,
+.table-view > .virtual-flow > .scroll-bar:vertical,
+.tree-table-view .scroll-bar:vertical,
+.tree-table-view > .virtual-flow > .scroll-bar:vertical,
+.list-view .scroll-bar:vertical,
+.list-view > .virtual-flow > .scroll-bar:vertical,
+.tree-view .scroll-bar:vertical,
+.tree-view > .virtual-flow > .scroll-bar:vertical,
+.text-area .scroll-bar:vertical {
+    -fx-pref-width: 0px;
+    -fx-max-width: 0px;
+    -fx-min-width: 0px;
+    -fx-opacity: 0;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+/* 3. Horizontal scrollbar dimensions & appearance */
+.scroll-bar:horizontal,
+.scroll-pane > .scroll-bar:horizontal,
+.table-view .scroll-bar:horizontal,
+.table-view > .virtual-flow > .scroll-bar:horizontal,
+.tree-table-view .scroll-bar:horizontal,
+.tree-table-view > .virtual-flow > .scroll-bar:horizontal,
+.list-view .scroll-bar:horizontal,
+.list-view > .virtual-flow > .scroll-bar:horizontal,
+.tree-view .scroll-bar:horizontal,
+.tree-view > .virtual-flow > .scroll-bar:horizontal,
+.text-area .scroll-bar:horizontal {
+    -fx-pref-height: 0px;
+    -fx-max-height: 0px;
+    -fx-min-height: 0px;
+    -fx-opacity: 0;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+/* 4. Scrollbar Tracks (normal, hover, pressed) */
 .scroll-bar .track,
-.scroll-bar .thumb,
-.scroll-bar .track-background,
-.scroll-bar .increment-button,
-.scroll-bar .decrement-button,
-.scroll-bar .increment-arrow,
-.scroll-bar .decrement-arrow,
+.scroll-bar > .track,
 .scroll-bar:vertical .track,
-.scroll-bar:vertical .thumb,
-.scroll-bar:vertical .track-background,
-.scroll-bar:vertical .increment-button,
-.scroll-bar:vertical .decrement-button,
-.scroll-bar:vertical .increment-arrow,
-.scroll-bar:vertical .decrement-arrow,
+.scroll-bar:vertical > .track,
 .scroll-bar:horizontal .track,
-.scroll-bar:horizontal .thumb,
+.scroll-bar:horizontal > .track,
+.scroll-bar .track:hover,
+.scroll-bar > .track:hover,
+.scroll-bar .track:pressed,
+.scroll-bar > .track:pressed,
+.scroll-bar .track-background,
+.scroll-bar > .track-background,
+.scroll-bar:vertical .track-background,
+.scroll-bar:vertical > .track-background,
 .scroll-bar:horizontal .track-background,
-.scroll-bar:horizontal .increment-button,
-.scroll-bar:horizontal .decrement-button,
-.scroll-bar:horizontal .increment-arrow,
-.scroll-bar:horizontal .decrement-arrow {
-    -fx-background-color: transparent !important;
-    -fx-background-radius: 0 !important;
-    -fx-padding: 0 !important;
-    -fx-pref-width: 0px !important;
-    -fx-pref-height: 0px !important;
-    -fx-max-width: 0px !important;
-    -fx-max-height: 0px !important;
-    -fx-min-width: 0px !important;
-    -fx-min-height: 0px !important;
-    -fx-opacity: 0 !important;
+.scroll-bar:horizontal > .track-background,
+.table-view .scroll-bar .track,
+.table-view > .virtual-flow > .scroll-bar .track,
+.table-view > .virtual-flow > .scroll-bar > .track,
+.tree-table-view .scroll-bar .track,
+.tree-table-view > .virtual-flow > .scroll-bar .track,
+.tree-table-view > .virtual-flow > .scroll-bar > .track,
+.list-view .scroll-bar .track,
+.list-view > .virtual-flow > .scroll-bar .track,
+.list-view > .virtual-flow > .scroll-bar > .track,
+.tree-view .scroll-bar .track,
+.tree-view > .virtual-flow > .scroll-bar .track,
+.tree-view > .virtual-flow > .scroll-bar > .track,
+.text-area .scroll-bar .track,
+.dialog-pane .scroll-bar .track {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-padding: 0;
+    -fx-pref-width: 0px;
+    -fx-pref-height: 0px;
+    -fx-max-width: 0px;
+    -fx-max-height: 0px;
+    -fx-min-width: 0px;
+    -fx-min-height: 0px;
+    -fx-opacity: 0;
 }
 
+/* 5. Scrollbar Thumbs (normal, hover, pressed) */
+.scroll-bar .thumb,
+.scroll-bar > .thumb,
+.scroll-bar:vertical .thumb,
+.scroll-bar:vertical > .thumb,
+.scroll-bar:horizontal .thumb,
+.scroll-bar:horizontal > .thumb,
+.scroll-bar .thumb:hover,
+.scroll-bar > .thumb:hover,
+.scroll-bar:vertical .thumb:hover,
+.scroll-bar:vertical > .thumb:hover,
+.scroll-bar:horizontal .thumb:hover,
+.scroll-bar:horizontal > .thumb:hover,
+.scroll-bar .thumb:pressed,
+.scroll-bar > .thumb:pressed,
+.scroll-bar:vertical .thumb:pressed,
+.scroll-bar:vertical > .thumb:pressed,
+.scroll-bar:horizontal .thumb:pressed,
+.scroll-bar:horizontal > .thumb:pressed,
+.table-view .scroll-bar .thumb,
+.table-view > .virtual-flow > .scroll-bar .thumb,
+.table-view > .virtual-flow > .scroll-bar > .thumb,
+.tree-table-view .scroll-bar .thumb,
+.tree-table-view > .virtual-flow > .scroll-bar .thumb,
+.tree-table-view > .virtual-flow > .scroll-bar > .thumb,
+.list-view .scroll-bar .thumb,
+.list-view > .virtual-flow > .scroll-bar .thumb,
+.list-view > .virtual-flow > .scroll-bar > .thumb,
+.tree-view .scroll-bar .thumb,
+.tree-view > .virtual-flow > .scroll-bar .thumb,
+.tree-view > .virtual-flow > .scroll-bar > .thumb,
+.text-area .scroll-bar .thumb,
+.dialog-pane .scroll-bar .thumb {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-padding: 0;
+    -fx-pref-width: 0px;
+    -fx-pref-height: 0px;
+    -fx-max-width: 0px;
+    -fx-max-height: 0px;
+    -fx-min-width: 0px;
+    -fx-min-height: 0px;
+    -fx-opacity: 0;
+}
+
+/* 6. Increment and Decrement Buttons */
+.scroll-bar .increment-button,
+.scroll-bar > .increment-button,
+.scroll-bar .decrement-button,
+.scroll-bar > .decrement-button,
+.scroll-bar:vertical .increment-button,
+.scroll-bar:vertical > .increment-button,
+.scroll-bar:vertical .decrement-button,
+.scroll-bar:vertical > .decrement-button,
+.scroll-bar:horizontal .increment-button,
+.scroll-bar:horizontal > .increment-button,
+.scroll-bar:horizontal .decrement-button,
+.scroll-bar:horizontal > .decrement-button,
+.scroll-bar .increment-button:hover,
+.scroll-bar > .increment-button:hover,
+.scroll-bar .decrement-button:hover,
+.scroll-bar > .decrement-button:hover,
+.scroll-bar .increment-button:pressed,
+.scroll-bar > .increment-button:pressed,
+.scroll-bar .decrement-button:pressed,
+.scroll-bar > .decrement-button:pressed {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-padding: 0;
+    -fx-pref-width: 0px;
+    -fx-pref-height: 0px;
+    -fx-min-width: 0px;
+    -fx-min-height: 0px;
+    -fx-max-width: 0px;
+    -fx-max-height: 0px;
+    -fx-opacity: 0;
+}
+
+/* 7. Increment and Decrement Arrows */
+.scroll-bar .increment-arrow,
+.scroll-bar > .increment-button > .increment-arrow,
+.scroll-bar .decrement-arrow,
+.scroll-bar > .decrement-button > .decrement-arrow,
+.scroll-bar:vertical .increment-arrow,
+.scroll-bar:vertical > .increment-button > .increment-arrow,
+.scroll-bar:vertical .decrement-arrow,
+.scroll-bar:vertical > .decrement-button > .decrement-arrow,
+.scroll-bar:horizontal .increment-arrow,
+.scroll-bar:horizontal > .increment-button > .increment-arrow,
+.scroll-bar:horizontal .decrement-arrow,
+.scroll-bar:horizontal > .decrement-button > .decrement-arrow {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-shape: " ";
+    -fx-padding: 0;
+    -fx-pref-width: 0px;
+    -fx-pref-height: 0px;
+    -fx-min-width: 0px;
+    -fx-min-height: 0px;
+    -fx-max-width: 0px;
+    -fx-max-height: 0px;
+    -fx-opacity: 0;
+}
+
+/* 8. Corners */
+.scroll-pane > .corner,
+.table-view > .virtual-flow > .corner,
+.tree-table-view > .virtual-flow > .corner,
+.list-view > .virtual-flow > .corner,
+.tree-view > .virtual-flow > .corner,
+.text-area .scroll-pane > .corner {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-opacity: 0;
+}
+
+/* 9. ScrollPanes */
 .scroll-pane {
     -fx-background-color: transparent;
 }
 
-.scroll-pane > .corner {
-    -fx-background-color: transparent !important;
-}
-
-.table-view .scroll-bar,
-.list-view .scroll-bar,
-.tree-view .scroll-bar,
-.text-area .scroll-bar,
-.combo-box-popup .scroll-bar,
-.choice-box-popup .scroll-bar {
-    -fx-pref-width: 0px !important;
-    -fx-pref-height: 0px !important;
-    -fx-max-width: 0px !important;
-    -fx-max-height: 0px !important;
-    -fx-min-width: 0px !important;
-    -fx-min-height: 0px !important;
-    -fx-opacity: 0 !important;
-    -fx-background-color: transparent !important;
-    -fx-padding: 0 !important;
-}
-
-.table-view .scroll-bar .track,
-.table-view .scroll-bar .thumb,
-.list-view .scroll-bar .track,
-.list-view .scroll-bar .thumb,
-.text-area .scroll-bar .track,
-.text-area .scroll-bar .thumb {
-    -fx-background-color: transparent !important;
-    -fx-opacity: 0 !important;
-}
-
-/* Standard Cross-Browser WebKit & Firefox CSS scrollbar hiding */
+/* 10. WebKit / Browser / WebView scrollbar hiding */
 * {
-    scrollbar-width: none !important;
-    -ms-overflow-style: none !important;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 
-*::-webkit-scrollbar {
-    display: none !important;
-    width: 0px !important;
-    height: 0px !important;
+::-webkit-scrollbar {
+    display: none;
+    width: 0px;
+    height: 0px;
+    background: transparent;
 }
 
-*::-webkit-scrollbar-track {
-    display: none !important;
-    background: transparent !important;
+::-webkit-scrollbar-track {
+    display: none;
+    background: transparent;
 }
 
-*::-webkit-scrollbar-thumb {
-    display: none !important;
-    background: transparent !important;
+::-webkit-scrollbar-thumb {
+    display: none;
+    background: transparent;
 }
 
-*::-webkit-scrollbar-corner {
-    display: none !important;
-    background: transparent !important;
+::-webkit-scrollbar-corner {
+    display: none;
+    background: transparent;
 }

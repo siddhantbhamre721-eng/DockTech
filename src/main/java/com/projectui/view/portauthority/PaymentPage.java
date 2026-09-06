@@ -114,10 +114,20 @@ public class PaymentPage {
             Map<String, Object> user = com.projectui.view.login.LoginPage.loggedInUser;
             if (user.get("assignedPort") != null && !user.get("assignedPort").toString().isBlank()) {
                 port = user.get("assignedPort").toString().trim();
-            } else if (user.get("company") != null && !user.get("company").toString().isBlank()) {
-                port = user.get("company").toString().trim();
             } else if (user.get("port") != null && !user.get("port").toString().isBlank()) {
                 port = user.get("port").toString().trim();
+            } else if (user.get("portName") != null && !user.get("portName").toString().isBlank()) {
+                port = user.get("portName").toString().trim();
+            } else if (user.get("assignedPortName") != null && !user.get("assignedPortName").toString().isBlank()) {
+                port = user.get("assignedPortName").toString().trim();
+            } else if (user.get("organization") != null && !user.get("organization").toString().isBlank()) {
+                port = user.get("organization").toString().trim();
+            } else if (user.get("company") != null && !user.get("company").toString().isBlank()) {
+                port = user.get("company").toString().trim();
+            } else if (user.get("name") != null && !user.get("name").toString().isBlank()) {
+                port = user.get("name").toString().trim();
+            } else if (user.get("email") != null && !user.get("email").toString().isBlank()) {
+                port = user.get("email").toString().trim();
             }
         }
 
@@ -302,6 +312,10 @@ public class PaymentPage {
 
         // Table
         paymentTable = new TableView<>();
+        var tableCss = getClass().getResource("/table-headers.css");
+        if (tableCss != null) {
+            paymentTable.getStylesheets().add(tableCss.toExternalForm());
+        }
         paymentTable.setPrefHeight(420);
         paymentTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         paymentTable.setStyle("-fx-background-color:transparent; -fx-border-color:transparent; -fx-font-size:12px;");
@@ -343,7 +357,32 @@ public class PaymentPage {
         colCargoId.setStyle("-fx-alignment:CENTER; -fx-font-size:11px; -fx-text-fill:#475569;");
 
         TableColumn<Map<String, Object>, String> colContainer = new TableColumn<>("Container(s)");
-        colContainer.setCellValueFactory(d -> new SimpleStringProperty(getString(d.getValue(), "containerNo", getString(d.getValue(), "bookingId", "—"))));
+        colContainer.setCellValueFactory(d -> {
+            Map<String, Object> val = d.getValue();
+            String cNo = getString(val, "containerNo", "");
+            if (cNo.isEmpty() || "—".equals(cNo) || "-".equals(cNo)) {
+                String bId = getString(val, "bookingId", "");
+                if (!bId.isEmpty() && !"—".equals(bId) && !"-".equals(bId)) {
+                    return new SimpleStringProperty(bId);
+                }
+                String cId = getString(val, "cargoId", "");
+                if (!cId.isEmpty()) {
+                    Map<String, Object> bk = containerDao.getBookingByCargoId(cId);
+                    if (bk != null) {
+                        String realId = getString(bk, "containerNo", getString(bk, "containerNumber", getString(bk, "assignedContainer", "")));
+                        if (realId.isEmpty() || "—".equals(realId) || "-".equals(realId)) {
+                            realId = getString(bk, "bookingId", "");
+                        }
+                        if (!realId.isEmpty() && !"—".equals(realId) && !"-".equals(realId)) {
+                            val.put("containerNo", realId);
+                            return new SimpleStringProperty(realId);
+                        }
+                    }
+                }
+                return new SimpleStringProperty("—");
+            }
+            return new SimpleStringProperty(cNo);
+        });
         colContainer.setStyle("-fx-alignment:CENTER; -fx-font-size:11px; -fx-text-fill:#0f172a; -fx-font-weight:bold;");
 
         TableColumn<Map<String, Object>, String> colAmount = new TableColumn<>("Amount");
@@ -367,16 +406,18 @@ public class PaymentPage {
         colUpdated.setStyle("-fx-alignment:CENTER; -fx-font-size:11px; -fx-text-fill:#94a3b8;");
 
         TableColumn<Map<String, Object>, String> colAction = new TableColumn<>("Action");
-        colAction.setPrefWidth(120);
+        colAction.setPrefWidth(185);
         colAction.setCellFactory(col -> new TableCell<>() {
             private final Button viewBtn = new Button("View");
             private final Button revBtn = new Button("Review");
-            private final HBox btnBox = new HBox(4, viewBtn, revBtn);
+            private final Button deleteBtn = new Button("Delete");
+            private final HBox btnBox = new HBox(4, viewBtn, revBtn, deleteBtn);
 
             {
                 btnBox.setAlignment(Pos.CENTER);
                 viewBtn.setStyle("-fx-background-color:#0284c7; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
                 revBtn.setStyle("-fx-background-color:#475569; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
+                deleteBtn.setStyle("-fx-background-color:#dc2626; -fx-text-fill:white; -fx-font-size:11px; -fx-font-weight:bold; -fx-background-radius:4; -fx-padding:3 6; -fx-cursor:hand;");
 
                 viewBtn.setOnAction(e -> {
                     Map<String, Object> pay = getTableView().getItems().get(getIndex());
@@ -386,6 +427,11 @@ public class PaymentPage {
                 revBtn.setOnAction(e -> {
                     Map<String, Object> pay = getTableView().getItems().get(getIndex());
                     showPaymentReviewDialog(pay);
+                });
+
+                deleteBtn.setOnAction(e -> {
+                    Map<String, Object> pay = getTableView().getItems().get(getIndex());
+                    confirmDeletePayment(pay);
                 });
             }
 
@@ -416,6 +462,34 @@ public class PaymentPage {
 
         container.getChildren().addAll(filterBar, paymentTable);
         return container;
+    }
+
+    private void confirmDeletePayment(Map<String, Object> payment) {
+        if (payment == null) return;
+        String paymentId = getString(payment, "paymentId", getString(payment, "razorpayPaymentId", ""));
+        if (paymentId.isBlank()) return;
+
+        Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmation.setTitle("Delete Payment");
+        confirmation.setHeaderText("Delete payment " + paymentId + "?");
+        confirmation.setContentText("Are you sure you want to delete this payment record? This action cannot be undone.");
+        confirmation.showAndWait().filter(ButtonType.OK::equals).ifPresent(ignored -> {
+            if (paymentDao.deletePayment(paymentId, payment)) {
+                paymentStore.remove(paymentId);
+                paymentStore.entrySet().removeIf(e -> 
+                    paymentId.equalsIgnoreCase(e.getKey()) ||
+                    paymentId.equalsIgnoreCase(getString(e.getValue(), "paymentId", "")) ||
+                    paymentId.equalsIgnoreCase(getString(e.getValue(), "razorpayPaymentId", ""))
+                );
+                refreshPaymentData();
+            } else {
+                Alert error = new Alert(Alert.AlertType.ERROR);
+                error.setTitle("Delete Payment");
+                error.setHeaderText("Payment was not deleted");
+                error.setContentText("The payment record could not be removed from the database.");
+                error.showAndWait();
+            }
+        });
     }
 
     private TableCell<Map<String, Object>, String> createStatusBadgeCell() {
@@ -462,6 +536,7 @@ public class PaymentPage {
     // =====================================================
     private void connectLiveServices() {
         PaymentDao.addChangeListener(this::refreshPaymentData);
+        CargoDao.addChangeListener(this::refreshPaymentData);
         refreshPaymentData();
 
         vesselFinderService.start(updatedVessels -> {
@@ -505,7 +580,7 @@ public class PaymentPage {
             for (Map<String, Object> p : daoPayments) {
                 if (p == null) continue;
                 String payId = getString(p, "paymentId", getString(p, "razorpayPaymentId", ""));
-                if (payId.isEmpty()) continue;
+                if (payId.isEmpty() || PaymentDao.isPaymentDeleted(payId, getString(p, "cargoId", ""))) continue;
 
                 if (!isAssociatedWithPort(p, activeViewingPort)) {
                     continue;
@@ -526,8 +601,39 @@ public class PaymentPage {
                 if (!record.containsKey("transactionId") || record.get("transactionId") == null) {
                     record.put("transactionId", getString(p, "razorpayPaymentId", payId));
                 }
-                if (!record.containsKey("containerNo") || record.get("containerNo") == null) {
-                    record.put("containerNo", "—");
+                String contVal = getString(record, "containerNo", "");
+                if (contVal.isEmpty() || "—".equals(contVal) || "-".equals(contVal) || "null".equalsIgnoreCase(contVal)) {
+                    String cId = getString(record, "cargoId", "");
+                    String bId = getString(record, "bookingId", "");
+                    Map<String, Object> booking = !cId.isEmpty() ? containerDao.getBookingByCargoId(cId) : null;
+                    if (booking == null && !bId.isEmpty()) {
+                        booking = containerDao.getBooking(bId);
+                    }
+                    if (booking != null) {
+                        String resolved = getString(booking, "containerNo", getString(booking, "containerNumber", getString(booking, "assignedContainer", "")));
+                        if (resolved.isEmpty() || "—".equals(resolved) || "-".equals(resolved)) {
+                            resolved = getString(booking, "bookingId", "");
+                        }
+                        if (!resolved.isEmpty() && !"—".equals(resolved) && !"-".equals(resolved)) {
+                            record.put("containerNo", resolved);
+                        } else {
+                            record.put("containerNo", "—");
+                        }
+                    } else if (!cId.isEmpty()) {
+                        Map<String, Object> cg = cargoDao.getCargo(cId);
+                        if (cg != null) {
+                            String cgCont = getString(cg, "containerNo", getString(cg, "bookingId", getString(cg, "containerId", "")));
+                            if (!cgCont.isEmpty() && !"—".equals(cgCont) && !"-".equals(cgCont)) {
+                                record.put("containerNo", cgCont);
+                            } else {
+                                record.put("containerNo", "—");
+                            }
+                        } else {
+                            record.put("containerNo", "—");
+                        }
+                    } else {
+                        record.put("containerNo", "—");
+                    }
                 }
                 if (!record.containsKey("containerType") || record.get("containerType") == null) {
                     record.put("containerType", "Standard Dry Container");
@@ -540,12 +646,42 @@ public class PaymentPage {
             }
         }
 
-        // 2. Also check any in-memory recorded payments in paymentStore that might not be in DAO list yet
+        // 2. Query real cargo records in CargoDao for any paid cargos for this port
+        List<Map<String, Object>> portCargos = cargoDao.getAllCargos();
+        if (portCargos != null) {
+            for (Map<String, Object> c : portCargos) {
+                if (c == null) continue;
+                if (isAssociatedWithPort(c, activeViewingPort) && PaymentDao.isPaidCargo(c)) {
+                    String cargoId = getString(c, "cargoId", "");
+                    String payId = getString(c, "razorpayPaymentId", getString(c, "paymentId", "PAY-" + cargoId.replace("CGO-", "")));
+                    if (PaymentDao.isPaymentDeleted(payId, cargoId)) continue;
+
+                    boolean alreadyIncluded = compiledPayments.stream().anyMatch(cp -> 
+                        (!payId.isEmpty() && payId.equalsIgnoreCase(getString(cp, "paymentId", ""))) ||
+                        (!cargoId.isEmpty() && cargoId.equalsIgnoreCase(getString(cp, "cargoId", "")))
+                    );
+
+                    if (!alreadyIncluded) {
+                        Map<String, Object> paymentRec = PaymentDao.buildPaymentRecordFromCargo(c);
+                        if (paymentRec != null) {
+                            compiledPayments.add(paymentRec);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Also check any in-memory recorded payments in paymentStore that might not be in DAO list yet
         for (Map<String, Object> p : paymentStore.values()) {
             if (p == null) continue;
             String payId = getString(p, "paymentId", "");
+            String cargoId = getString(p, "cargoId", "");
+            if (PaymentDao.isPaymentDeleted(payId, cargoId)) continue;
             if (!payId.isEmpty() && isAssociatedWithPort(p, activeViewingPort)) {
-                boolean exists = compiledPayments.stream().anyMatch(cp -> payId.equalsIgnoreCase(getString(cp, "paymentId", "")));
+                boolean exists = compiledPayments.stream().anyMatch(cp -> 
+                    (!payId.isEmpty() && payId.equalsIgnoreCase(getString(cp, "paymentId", ""))) ||
+                    (!cargoId.isEmpty() && cargoId.equalsIgnoreCase(getString(cp, "cargoId", "")))
+                );
                 if (!exists) {
                     compiledPayments.add(p);
                 }
@@ -774,11 +910,28 @@ public class PaymentPage {
         String shipName = "MV " + activeViewingPort.replace("Port of ", "") + " Star";
         VesselData matchedVessel = findMatchingVessel(shipName);
 
+        String detailContNo = getString(item, "containerNo", "");
+        if (detailContNo.isEmpty() || "—".equals(detailContNo) || "-".equals(detailContNo)) {
+            String bId = getString(item, "bookingId", "");
+            if (!bId.isEmpty() && !"—".equals(bId) && !"-".equals(bId)) {
+                detailContNo = bId;
+            } else {
+                String cId = getString(item, "cargoId", "");
+                if (!cId.isEmpty()) {
+                    Map<String, Object> bk = containerDao.getBookingByCargoId(cId);
+                    if (bk != null) {
+                        detailContNo = getString(bk, "containerNo", getString(bk, "bookingId", "—"));
+                    }
+                }
+            }
+        }
+        if (detailContNo.isEmpty()) detailContNo = "—";
+
         VBox g2Box = new VBox(3,
                 detailLine("Manifest Cargo ID", getString(item, "cargoId", "CGO-1024")),
                 detailLine("Manifest Cargo Name", getString(item, "cargoName", "Commercial Goods")),
                 detailLine("Cargo Quantity", getString(item, "quantity", "1 unit")),
-                detailLine("Container Unit ID", getString(item, "containerNo", "CONT-2045")),
+                detailLine("Container Unit ID", detailContNo),
                 detailLine("Container Type", getString(item, "containerType", "20 ft Standard Dry")),
                 detailLine("Assigned Vessel", shipName),
                 detailLine("Vessel IMO / MMSI", matchedVessel != null ? matchedVessel.imo + " / " + matchedVessel.mmsi : "9482103 / 265522510"),
