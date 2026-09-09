@@ -814,7 +814,7 @@ public class DashboardPage {
         ScrollPane scroller = new ScrollPane(alertsFeedBox);
         scroller.setFitToWidth(true);
         scroller.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroller.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroller.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scroller.setPannable(true);
         scroller.setPrefHeight(155);
         scroller.setMinHeight(155);

@@ -173,6 +173,10 @@ public class PortManagementPage extends AdminTheme {
                         "-fx-border-radius:6;" +
                         "-fx-cursor:hand;");
         refresh.setOnAction(event -> {
+            store.syncPortsFromFirestore(() -> {
+                refreshTable();
+                refreshStats();
+            });
             refreshTable();
             refreshStats();
         });
@@ -201,19 +205,19 @@ public class PortManagementPage extends AdminTheme {
                 "-fx-background-color:white; -fx-border-color:#e2e8f0; -fx-border-radius:8; -fx-background-radius:8;");
 
         ColumnConstraints c1 = new ColumnConstraints();
-        c1.setPercentWidth(24); // Port
+        c1.setPercentWidth(21); // Port
         ColumnConstraints c2 = new ColumnConstraints();
-        c2.setPercentWidth(18); // Location
+        c2.setPercentWidth(16); // Location
         ColumnConstraints c3 = new ColumnConstraints();
-        c3.setPercentWidth(14); // Status
+        c3.setPercentWidth(13); // Status
         ColumnConstraints c4 = new ColumnConstraints();
         c4.setPercentWidth(10); // Vessels
         ColumnConstraints c5 = new ColumnConstraints();
-        c5.setPercentWidth(14); // Berth Usage
+        c5.setPercentWidth(13); // Berth Usage
         ColumnConstraints c6 = new ColumnConstraints();
-        c6.setPercentWidth(10); // Capacity
+        c6.setPercentWidth(11); // Capacity
         ColumnConstraints c7 = new ColumnConstraints();
-        c7.setPercentWidth(10); // Action
+        c7.setPercentWidth(16); // Action (Edit + Delete)
         table.getColumnConstraints().setAll(c1, c2, c3, c4, c5, c6, c7);
 
         int totalCount = ports.size();
@@ -1707,19 +1711,32 @@ public class PortManagementPage extends AdminTheme {
                         "-fx-text-fill:" + BLUE + ";" +
                         "-fx-font-size:12;" +
                         "-fx-font-weight:bold;" +
-                        "-fx-padding:6 14;" +
+                        "-fx-padding:6 12;" +
                         "-fx-background-radius:6;" +
                         "-fx-border-color:#bfdbfe;" +
                         "-fx-border-radius:6;" +
                         "-fx-cursor:hand;");
         editBtn.setOnAction(e -> openEditPortModal(index));
 
-        HBox cell = new HBox(8, editBtn);
+        Button deleteBtn = new Button("🗑  Delete");
+        deleteBtn.setStyle(
+                "-fx-background-color:#fef2f2;" +
+                        "-fx-text-fill:#ef4444;" +
+                        "-fx-font-size:12;" +
+                        "-fx-font-weight:bold;" +
+                        "-fx-padding:6 12;" +
+                        "-fx-background-radius:6;" +
+                        "-fx-border-color:#fecaca;" +
+                        "-fx-border-radius:6;" +
+                        "-fx-cursor:hand;");
+        deleteBtn.setOnAction(e -> confirmAndDeletePort(index));
+
+        HBox cell = new HBox(6, editBtn, deleteBtn);
         cell.setAlignment(Pos.CENTER_LEFT);
         cell.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(cell, Priority.ALWAYS);
         cell.setMinHeight(52);
-        cell.setPadding(new Insets(0, 12, 0, 12));
+        cell.setPadding(new Insets(0, 10, 0, 10));
         cell.setStyle("-fx-background-color:white; -fx-border-color:#e5e7eb; -fx-border-width:0 0 1 0;");
         return cell;
     }
@@ -1887,9 +1904,9 @@ public class PortManagementPage extends AdminTheme {
         if (portToDelete == null) return;
 
         javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
-        alert.setTitle("Delete this port?");
-        alert.setHeaderText("Delete this port?");
-        alert.setContentText("This will remove the port and its associated operational data from the system. This action cannot be undone.");
+        alert.setTitle("Confirm Port Deletion");
+        alert.setHeaderText("Delete Port — " + portToDelete.name);
+        alert.setContentText("Are you sure you want to delete this port? This action cannot be undone.");
 
         javafx.scene.control.ButtonType cancelBtnType = new javafx.scene.control.ButtonType("Cancel", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
         javafx.scene.control.ButtonType deleteBtnType = new javafx.scene.control.ButtonType("Delete Port", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
@@ -1929,8 +1946,15 @@ public class PortManagementPage extends AdminTheme {
             }
 
             GeoTileMapCanvas.refreshAllMapInstances();
+            DashboardPage.refreshAllDashboards();
             refreshTable();
             refreshStats();
+            store.syncPortsFromFirestore(() -> {
+                refreshTable();
+                refreshStats();
+                GeoTileMapCanvas.refreshAllMapInstances();
+                DashboardPage.refreshAllDashboards();
+            });
         } catch (Exception ex) {
             showErrorAlert("Database Deletion Failed", "Failed to delete port from database: " + ex.getMessage() + "\nThe port remains visible.");
         }

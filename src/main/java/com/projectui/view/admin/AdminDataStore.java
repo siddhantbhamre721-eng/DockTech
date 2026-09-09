@@ -141,7 +141,8 @@ public class AdminDataStore {
     public int activePorts() {
         int count = 0;
         for (Port port : ports) {
-            if (("APPROVED".equalsIgnoreCase(port.approvalStatus) || port.approvalStatus == null)
+            if (port != null && !isPortDeleted(port.name, port.code)
+                    && ("APPROVED".equalsIgnoreCase(port.approvalStatus) || port.approvalStatus == null)
                     && "Operational".equalsIgnoreCase(port.status)) {
                 count++;
             }
@@ -152,7 +153,8 @@ public class AdminDataStore {
     public int totalPorts() {
         int count = 0;
         for (Port port : ports) {
-            if ("APPROVED".equalsIgnoreCase(port.approvalStatus) || port.approvalStatus == null) {
+            if (port != null && !isPortDeleted(port.name, port.code)
+                    && ("APPROVED".equalsIgnoreCase(port.approvalStatus) || port.approvalStatus == null)) {
                 count++;
             }
         }
@@ -429,7 +431,8 @@ public class AdminDataStore {
     public int maintenancePorts() {
         int count = 0;
         for (Port port : ports) {
-            if (("APPROVED".equalsIgnoreCase(port.approvalStatus) || port.approvalStatus == null)
+            if (port != null && !isPortDeleted(port.name, port.code)
+                    && ("APPROVED".equalsIgnoreCase(port.approvalStatus) || port.approvalStatus == null)
                     && "Maintenance".equalsIgnoreCase(port.status)) {
                 count++;
             }
@@ -442,7 +445,8 @@ public class AdminDataStore {
         if (liveCount > 0) return liveCount;
         int count = 0;
         for (Port port : ports) {
-            if ("APPROVED".equalsIgnoreCase(port.approvalStatus) || port.approvalStatus == null) {
+            if (port != null && !isPortDeleted(port.name, port.code)
+                    && ("APPROVED".equalsIgnoreCase(port.approvalStatus) || port.approvalStatus == null)) {
                 count += port.vessels;
             }
         }

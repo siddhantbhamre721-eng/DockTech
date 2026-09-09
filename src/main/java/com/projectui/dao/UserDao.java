@@ -535,8 +535,10 @@ public class UserDao extends Dao {
                         && !rStr.contains("exporter")
                         && !rStr.contains("importer");
             } else if (roleKeyword.equalsIgnoreCase("Officer") || roleKeyword.equalsIgnoreCase("Customs") || roleKeyword.equalsIgnoreCase("Custom")) {
-                roleMatches = (rStr.contains("officer") || rStr.contains("custom"))
-                        && !rStr.contains("port")
+                boolean isCustoms = rStr.contains("custom");
+                boolean isPortAuthority = rStr.contains("portauthority") || (rStr.contains("port") && !isCustoms && (rStr.contains("authority") || rStr.contains("manager") || rStr.contains("master")));
+                roleMatches = (isCustoms || rStr.contains("officer"))
+                        && !isPortAuthority
                         && !rStr.contains("admin")
                         && !rStr.contains("captain")
                         && !rStr.contains("exporter")
@@ -554,6 +556,7 @@ public class UserDao extends Dao {
             Object p = prof.get("assignedPort");
             if (p == null || p.toString().isBlank()) p = prof.get("port");
             if (p == null || p.toString().isBlank()) p = prof.get("portName");
+            if (p == null || p.toString().isBlank()) p = prof.get("location");
             String assignedPortStr = (p != null) ? p.toString().trim() : "";
 
             // Only filter out if user is explicitly assigned to a DIFFERENT specific port
@@ -827,24 +830,22 @@ public class UserDao extends Dao {
         update.put("updatedAt", nowStr);
 
         final String finalTargetId = resolveUserDocId(emailStr != null ? emailStr : ((docUid != null && !docUid.isBlank()) ? docUid : rawKey));
-        ForkJoinPool.commonPool().execute(() -> {
-            try {
-                Firestore db = new UserDao().db();
-                if (db != null && finalTargetId != null) {
-                    db.collection("users").document(finalTargetId).set(update, com.google.cloud.firestore.SetOptions.merge());
-                }
-            } catch (Exception ex) {
-                System.err.println("[UserDao assignOfficer Firestore DB Warning] " + ex.getMessage());
+        saveLocalDiskUser(targetProf);
+        try {
+            Firestore db = new UserDao().db();
+            if (db != null && finalTargetId != null) {
+                db.collection("users").document(finalTargetId).set(update, com.google.cloud.firestore.SetOptions.merge()).get(5, java.util.concurrent.TimeUnit.SECONDS);
             }
-
-            try {
-                if (finalTargetId != null && !finalTargetId.contains("@")) {
-                    writeFirestoreRest(finalTargetId, update);
-                }
-            } catch (Exception ex) {
-                System.err.println("[UserDao assignOfficer REST Warning] " + ex.getMessage());
-            }
-        });
+        } catch (Exception ex) {
+            ForkJoinPool.commonPool().execute(() -> {
+                try {
+                    Firestore db = new UserDao().db();
+                    if (db != null && finalTargetId != null) {
+                        db.collection("users").document(finalTargetId).set(update, com.google.cloud.firestore.SetOptions.merge());
+                    }
+                } catch (Exception ignored) {}
+            });
+        }
     }
 
     public static java.util.concurrent.CompletableFuture<Boolean> completeOfficerDuty(String uidOrEmail, String officerName, String remarks) {

@@ -36,6 +36,11 @@ public class ManageCustomOfficerPage {
     private Label activeDutiesVal;
     private Label completedDutiesVal;
 
+    // Header & Section Subtitle Labels
+    private Label pageSubLabel;
+    private Label officerSectionSubLabel;
+    private Label dutySectionSubLabel;
+
     // Header Freshness Labels
     private Label dataFreshnessBadge;
     private Label lastSyncLabel;
@@ -98,14 +103,32 @@ public class ManageCustomOfficerPage {
     }
 
     private String getDisplayPortName() {
-        if (activeViewingPort == null || activeViewingPort.isBlank()) {
-            return "PORT OF MUMBAI";
+        if (portFilter != null && portFilter.getValue() != null && !portFilter.getValue().equals("All Jurisdictions")) {
+            return formatPortName(portFilter.getValue());
         }
-        String up = activeViewingPort.toUpperCase().trim();
+        return "ALL PORTS & JURISDICTIONS";
+    }
+
+    private String formatPortName(String port) {
+        if (port == null || port.isBlank()) return "ALL PORTS & JURISDICTIONS";
+        String up = port.toUpperCase().trim();
         if (!up.startsWith("PORT OF ") && !up.contains("PORT")) {
             return "PORT OF " + up;
         }
         return up;
+    }
+
+    private void updateSubLabels() {
+        String disp = getDisplayPortName();
+        if (pageSubLabel != null) {
+            pageSubLabel.setText("Registered Customs Personnel & Duty Assignments for " + disp);
+        }
+        if (officerSectionSubLabel != null) {
+            officerSectionSubLabel.setText("Registered customs personnel and duty assignments for " + disp);
+        }
+        if (dutySectionSubLabel != null) {
+            dutySectionSubLabel.setText("Current customs officer assignments and operational duties for " + disp);
+        }
     }
 
     // =====================================================
@@ -140,7 +163,7 @@ public class ManageCustomOfficerPage {
         Label pageHeadingLabel = new Label("Manage Custom Officer");
         pageHeadingLabel.setStyle("-fx-text-fill:#0f172a; -fx-font-size:22px; -fx-font-weight:bold;");
 
-        Label pageSubLabel = new Label("Registered Customs Personnel & Duty Assignments for " + getDisplayPortName());
+        pageSubLabel = new Label("Registered Customs Personnel & Duty Assignments for " + getDisplayPortName());
         pageSubLabel.setStyle("-fx-text-fill:#64748b; -fx-font-size:13px;");
         titleBox.getChildren().addAll(pageHeadingLabel, pageSubLabel);
 
@@ -234,9 +257,9 @@ public class ManageCustomOfficerPage {
         Label title = new Label("REGISTERED CUSTOMS OFFICERS");
         title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:14px; -fx-font-weight:bold;");
 
-        Label sub = new Label("Registered customs personnel and duty assignments for " + getDisplayPortName());
-        sub.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px;");
-        titleBox.getChildren().addAll(title, sub);
+        officerSectionSubLabel = new Label("Registered customs personnel and duty assignments for " + getDisplayPortName());
+        officerSectionSubLabel.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px;");
+        titleBox.getChildren().addAll(title, officerSectionSubLabel);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -267,9 +290,11 @@ public class ManageCustomOfficerPage {
         statusFilter.setOnAction(e -> applyOfficerFilters());
 
         portFilter = new ComboBox<>();
-        portFilter.getItems().addAll("All Jurisdictions", activeViewingPort, "General Port Area");
-        portFilter.setValue("All Jurisdictions");
-        portFilter.setOnAction(e -> applyOfficerFilters());
+        populateDynamicPortFilter();
+        portFilter.setOnAction(e -> {
+            updateSubLabels();
+            applyOfficerFilters();
+        });
 
         assignmentFilter = new ComboBox<>();
         assignmentFilter.getItems().addAll("All Assignments", "Assigned", "Available");
@@ -334,8 +359,12 @@ public class ManageCustomOfficerPage {
         colStatus.setCellFactory(col -> createStatusBadgeCell());
 
         TableColumn<Map<String, Object>, String> colPort = new TableColumn<>("Port / Jurisdiction");
-        colPort.setPrefWidth(125);
-        colPort.setCellValueFactory(d -> new SimpleStringProperty(optString(d.getValue().get("assignedPort"), activeViewingPort)));
+        colPort.setPrefWidth(135);
+        colPort.setCellValueFactory(d -> {
+            Map<String, Object> val = d.getValue();
+            String p = optString(val.get("assignedPort"), optString(val.get("port"), optString(val.get("portName"), optString(val.get("location"), ""))));
+            return new SimpleStringProperty(p.isBlank() ? "General Port Area" : p);
+        });
         colPort.setStyle("-fx-font-size:11px; -fx-text-fill:#334155;");
 
         TableColumn<Map<String, Object>, String> colVessel = new TableColumn<>("Assigned Vessel");
@@ -451,9 +480,9 @@ public class ManageCustomOfficerPage {
         Label title = new Label("ACTIVE DUTY ASSIGNMENTS");
         title.setStyle("-fx-text-fill:#0f172a; -fx-font-size:13px; -fx-font-weight:bold;");
 
-        Label sub = new Label("Current customs officer assignments and operational duties for " + getDisplayPortName());
-        sub.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px;");
-        titleBox.getChildren().addAll(title, sub);
+        dutySectionSubLabel = new Label("Current customs officer assignments and operational duties for " + getDisplayPortName());
+        dutySectionSubLabel.setStyle("-fx-text-fill:#64748b; -fx-font-size:12px;");
+        titleBox.getChildren().addAll(title, dutySectionSubLabel);
 
         Region sp = new Region();
         HBox.setHgrow(sp, Priority.ALWAYS);
@@ -500,7 +529,7 @@ public class ManageCustomOfficerPage {
 
         TableColumn<Map<String, Object>, String> colLocation = new TableColumn<>("Location");
         colLocation.setPrefWidth(120);
-        colLocation.setCellValueFactory(d -> new SimpleStringProperty(optString(d.getValue().get("location"), activeViewingPort)));
+        colLocation.setCellValueFactory(d -> new SimpleStringProperty(optString(d.getValue().get("location"), optString(d.getValue().get("assignedPort"), "General Port Area"))));
         colLocation.setStyle("-fx-text-fill:#334155;");
 
         TableColumn<Map<String, Object>, String> colDutyStatus = new TableColumn<>("Duty Status");
@@ -528,7 +557,8 @@ public class ManageCustomOfficerPage {
                     Map<String, Object> record = getTableView().getItems().get(getIndex());
                     String uid = optString(record.get("uid"), "");
                     String duty = optString(record.get("duty"), "");
-                    UserDao.assignOfficerDuty(uid, duty, "Completed", activeViewingPort, "Port Authority (" + activeViewingPort + ")", "LOW", "Completed", "", "", "", "DUTY-DONE");
+                    String loc = optString(record.get("location"), activeViewingPort);
+                    UserDao.assignOfficerDuty(uid, duty, "Completed", loc, "Port Authority (" + loc + ")", "LOW", "Completed", "", "", "", "DUTY-DONE");
                     Platform.runLater(ManageCustomOfficerPage.this::refreshAllData);
                 });
             }
@@ -638,9 +668,53 @@ public class ManageCustomOfficerPage {
     }
 
     private void loadLiveOfficers() {
-        List<Map<String, Object>> offs = UserDao.getPersonnelForPort(activeViewingPort, "Officer");
+        List<Map<String, Object>> offs = UserDao.getPersonnelForPort(null, "Officer");
         masterOfficersList.setAll(offs);
+        populateDynamicPortFilter();
+        updateSubLabels();
         applyOfficerFilters();
+    }
+
+    private void populateDynamicPortFilter() {
+        if (portFilter == null) return;
+        String currentVal = portFilter.getValue();
+        List<String> items = new ArrayList<>();
+        items.add("All Jurisdictions");
+
+        try {
+            List<String> approved = com.projectui.view.admin.AdminDataStore.getInstance().getApprovedPortNames();
+            if (approved != null) {
+                for (String p : approved) {
+                    if (p != null && !p.isBlank() && !items.contains(p.trim())) {
+                        items.add(p.trim());
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        for (Map<String, Object> o : masterOfficersList) {
+            String p = optString(o.get("assignedPort"), optString(o.get("port"), optString(o.get("portName"), optString(o.get("location"), ""))));
+            if (!p.isBlank() && !items.contains(p.trim()) && !p.equalsIgnoreCase("Not Assigned") && !p.equalsIgnoreCase("General Port Area")) {
+                items.add(p.trim());
+            }
+        }
+
+        for (String defP : List.of("Port of Goa", "Port of Mumbai", "Port of Kolkata", "Port of Chennai", "Port of Vizag", "Port of Cochin", "Hazira Port", "Surat Port")) {
+            if (!items.contains(defP)) {
+                items.add(defP);
+            }
+        }
+
+        if (!items.contains("General Port Area")) {
+            items.add("General Port Area");
+        }
+
+        portFilter.getItems().setAll(items);
+        if (currentVal != null && items.contains(currentVal)) {
+            portFilter.setValue(currentVal);
+        } else {
+            portFilter.setValue("All Jurisdictions");
+        }
     }
 
     private void updateKpisAndDutySections() {
@@ -676,7 +750,7 @@ public class ManageCustomOfficerPage {
                 dRec.put("vesselName", optString(o.get("assignedShip"), "General Port Area"));
                 dRec.put("cargo", "Container Freight Unit");
                 dRec.put("voyage", "VYG-" + Math.abs(optString(o.get("name"), "").hashCode() % 900 + 100));
-                dRec.put("location", optString(o.get("assignedPort"), activeViewingPort));
+                dRec.put("location", optString(o.get("assignedPort"), optString(o.get("port"), optString(o.get("location"), "General Quayside"))));
                 dRec.put("dutyStatus", dutyStatus);
                 dRec.put("assignedDate", optString(o.get("updatedAt"), "Today"));
                 dRec.put("updatedAt", "Live DB");
@@ -761,8 +835,13 @@ public class ManageCustomOfficerPage {
                 if (!oStat.equalsIgnoreCase(stat)) return false;
             }
             if (port != null && !port.equals("All Jurisdictions")) {
-                String oPort = optString(o.get("assignedPort"), activeViewingPort);
-                if (!oPort.equalsIgnoreCase(port)) return false;
+                String oPort = optString(o.get("assignedPort"), optString(o.get("port"), optString(o.get("portName"), optString(o.get("location"), ""))));
+                if (!UserDao.normalizePort(oPort).equalsIgnoreCase(UserDao.normalizePort(port))
+                        && !oPort.equalsIgnoreCase(port)
+                        && !oPort.toLowerCase().contains(port.toLowerCase())
+                        && !port.toLowerCase().contains(oPort.toLowerCase())) {
+                    return false;
+                }
             }
             if (assign != null && !assign.equals("All Assignments")) {
                 String dutyStat = resolveDutyStatus(o);
@@ -841,8 +920,8 @@ public class ManageCustomOfficerPage {
     // =====================================================
     private void showRegisterOfficerDialog() {
         Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.setTitle("Register Customs Officer — " + activeViewingPort);
-        dialog.setHeaderText("Create Certified Customs Officer Account for " + getDisplayPortName());
+        dialog.setTitle("Register Customs Officer");
+        dialog.setHeaderText("Create Certified Customs Officer Account");
 
         ButtonType regType = new ButtonType("Register Officer", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(regType, ButtonType.CANCEL);
@@ -864,9 +943,23 @@ public class ManageCustomOfficerPage {
         deptCombo.getItems().addAll("Customs Border Control", "Cargo Inspection", "Maritime Compliance", "Tariff Enforcement");
         deptCombo.setValue("Customs Border Control");
 
-        TextField portField = new TextField(activeViewingPort);
-        portField.setEditable(false);
-        portField.setStyle("-fx-background-color:#f1f5f9;");
+        ComboBox<String> portCombo = new ComboBox<>();
+        List<String> availPorts = new ArrayList<>();
+        try {
+            List<String> dbPorts = com.projectui.view.admin.AdminDataStore.getInstance().getApprovedPortNames();
+            if (dbPorts != null) availPorts.addAll(dbPorts);
+        } catch (Exception ignored) {}
+        for (String p : List.of("Port of Goa", "Port of Mumbai", "Port of Kolkata", "Port of Chennai", "Port of Vizag", "Port of Cochin", "Hazira Port", "Surat Port")) {
+            if (!availPorts.contains(p)) availPorts.add(p);
+        }
+        portCombo.getItems().setAll(availPorts);
+        if (portFilter != null && portFilter.getValue() != null && !portFilter.getValue().equals("All Jurisdictions") && availPorts.contains(portFilter.getValue())) {
+            portCombo.setValue(portFilter.getValue());
+        } else if (activeViewingPort != null && availPorts.contains(activeViewingPort)) {
+            portCombo.setValue(activeViewingPort);
+        } else if (!availPorts.isEmpty()) {
+            portCombo.setValue(availPorts.get(0));
+        }
 
         form.add(new Label("Officer Name:"), 0, 0);
         form.add(nameField, 1, 0);
@@ -877,7 +970,7 @@ public class ManageCustomOfficerPage {
         form.add(new Label("Department:"), 0, 3);
         form.add(deptCombo, 1, 3);
         form.add(new Label("Port / Jurisdiction:"), 0, 4);
-        form.add(portField, 1, 4);
+        form.add(portCombo, 1, 4);
 
         dialog.getDialogPane().setContent(form);
 
@@ -889,6 +982,9 @@ public class ManageCustomOfficerPage {
             String email = emailField.getText().trim();
             String phone = phoneField.getText().trim();
             String dept = deptCombo.getValue();
+            String selectedPort = portCombo.getValue() != null && !portCombo.getValue().isBlank()
+                    ? portCombo.getValue().trim()
+                    : (activeViewingPort != null ? activeViewingPort : "Port of Mumbai");
 
             if (name.isEmpty() || email.isEmpty()) {
                 Alert alert = new Alert(Alert.AlertType.WARNING, "Officer Name and Email are required.");
@@ -899,10 +995,20 @@ public class ManageCustomOfficerPage {
 
             String uid = "UID-OFF-" + System.currentTimeMillis();
             Map<String, Object> extra = new HashMap<>();
-            extra.put("assignedPort", activeViewingPort);
+            extra.put("assignedPort", selectedPort);
+            extra.put("port", selectedPort);
+            extra.put("portName", selectedPort);
+            extra.put("location", selectedPort);
             extra.put("duty", "Customs Clearance & Inspection");
             extra.put("assignmentStatus", "Available");
             extra.put("assignedShip", "General Port Area");
+            extra.put("company", dept);
+            extra.put("organization", dept);
+            extra.put("department", dept);
+            extra.put("status", "Active");
+            extra.put("role", "Customs Officer");
+            extra.put("userRole", "Customs Officer");
+            extra.put("roleCode", "CUSTOMS_OFFICER");
 
             new UserDao().saveUserExtended(uid, email, name, dept, phone, "Customs Officer", "Active", extra)
                     .whenComplete((res, err) -> Platform.runLater(this::refreshAllData));
@@ -928,7 +1034,7 @@ public class ManageCustomOfficerPage {
         addDetailRow(g, r++, "User ID / UID:", optString(off.get("uid"), "—"), false);
         addDetailRow(g, r++, "Official Email:", optString(off.get("email"), "—"), false);
         addDetailRow(g, r++, "Authority / Dept:", optString(off.get("company"), optString(off.get("organization"), "Customs Border Control")), false);
-        addDetailRow(g, r++, "Port Jurisdiction:", optString(off.get("assignedPort"), activeViewingPort), false);
+        addDetailRow(g, r++, "Port Jurisdiction:", optString(off.get("assignedPort"), optString(off.get("port"), optString(off.get("portName"), optString(off.get("location"), "General Port Area")))), false);
         addDetailRow(g, r++, "Assigned Vessel:", optString(off.get("assignedShip"), "General Port Area"), true);
         addDetailRow(g, r++, "Current Duty:", optString(off.get("duty"), "Customs Inspection"), false);
         addDetailRow(g, r++, "Duty Status:", resolveDutyStatus(off), false);
@@ -961,12 +1067,31 @@ public class ManageCustomOfficerPage {
         statCombo.getItems().addAll("Active", "Pending", "Inactive");
         statCombo.setValue(optString(off.get("status"), "Active"));
 
+        ComboBox<String> portEditCombo = new ComboBox<>();
+        List<String> editPorts = new ArrayList<>();
+        try {
+            List<String> dbPorts = com.projectui.view.admin.AdminDataStore.getInstance().getApprovedPortNames();
+            if (dbPorts != null) editPorts.addAll(dbPorts);
+        } catch (Exception ignored) {}
+        for (String p : List.of("Port of Goa", "Port of Mumbai", "Port of Kolkata", "Port of Chennai", "Port of Vizag", "Port of Cochin", "Hazira Port", "Surat Port")) {
+            if (!editPorts.contains(p)) editPorts.add(p);
+        }
+        portEditCombo.getItems().setAll(editPorts);
+        String curPort = optString(off.get("assignedPort"), optString(off.get("port"), optString(off.get("location"), "Port of Mumbai")));
+        if (editPorts.contains(curPort)) {
+            portEditCombo.setValue(curPort);
+        } else if (!editPorts.isEmpty()) {
+            portEditCombo.setValue(editPorts.get(0));
+        }
+
         g.add(new Label("Officer Name:"), 0, 0);
         g.add(nameField, 1, 0);
         g.add(new Label("Department:"), 0, 1);
         g.add(deptCombo, 1, 1);
         g.add(new Label("Status:"), 0, 2);
         g.add(statCombo, 1, 2);
+        g.add(new Label("Port / Jurisdiction:"), 0, 3);
+        g.add(portEditCombo, 1, 3);
 
         d.getDialogPane().setContent(g);
 
@@ -977,10 +1102,17 @@ public class ManageCustomOfficerPage {
                 String newName = nameField.getText().trim();
                 String newDept = deptCombo.getValue();
                 String newStat = statCombo.getValue();
+                String newPort = portEditCombo.getValue();
 
                 Map<String, Object> extra = new HashMap<>(off);
                 extra.put("status", newStat);
                 extra.put("company", newDept);
+                if (newPort != null && !newPort.isBlank()) {
+                    extra.put("assignedPort", newPort);
+                    extra.put("port", newPort);
+                    extra.put("portName", newPort);
+                    extra.put("location", newPort);
+                }
 
                 new UserDao().saveUserExtended(uid, email, newName, newDept, "+91 9800000000", "Customs Officer", newStat, extra)
                         .whenComplete((v, err) -> Platform.runLater(this::refreshAllData));
@@ -1044,10 +1176,11 @@ public class ManageCustomOfficerPage {
                 String target = targetVessel.getText().trim();
                 String prio = priorityCombo.getValue();
                 String due = dueField.getText().trim();
+                String officerPort = optString(off.get("assignedPort"), optString(off.get("port"), optString(off.get("location"), activeViewingPort)));
 
                 UserDao.assignOfficerDuty(
-                        uid, duty, "Assigned", activeViewingPort,
-                        "Port Authority (" + activeViewingPort + ")",
+                        uid, duty, "Assigned", officerPort,
+                        "Port Authority (" + officerPort + ")",
                         prio, due, "SHP-OP", target, "", "DUTY-" + System.currentTimeMillis()
                 );
 
@@ -1055,7 +1188,7 @@ public class ManageCustomOfficerPage {
                 Notification notif = new Notification();
                 notif.setUserId(uid);
                 notif.setVesselName(target);
-                notif.setPort(activeViewingPort);
+                notif.setPort(officerPort);
                 notif.setTitle("🔔 New Customs Duty Assigned");
                 notif.setType("CUSTOMS_DUTY_ASSIGNED");
                 notif.setMessage("Duty: " + duty + "\nVessel/Area: " + target + "\nPriority: " + prio + "\nDue: " + due);

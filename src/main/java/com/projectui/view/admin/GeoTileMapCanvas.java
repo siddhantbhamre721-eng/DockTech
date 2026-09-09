@@ -256,6 +256,8 @@ public class GeoTileMapCanvas extends StackPane {
         store.recalculatePortVesselAndBerthCounts();
         if (store.ports != null) {
             for (AdminDataStore.Port p : store.ports) {
+                if (p == null) continue;
+                if (AdminDataStore.isPortDeleted(p.name, p.code)) continue;
                 if (p.approvalStatus != null && !"APPROVED".equalsIgnoreCase(p.approvalStatus)) continue;
                 if ("INACTIVE".equalsIgnoreCase(p.status) || "Closed".equalsIgnoreCase(p.status) || "Deactivated".equalsIgnoreCase(p.status)) continue;
 
@@ -757,15 +759,19 @@ public class GeoTileMapCanvas extends StackPane {
             gc.setLineWidth(isSel ? 2.5 : 1.5);
             gc.strokeOval(pos[0] - 7, pos[1] - 7, 14, 14);
 
+            String displayName = p.markerName();
+            double textWidth = displayName.length() * 6.0 + 16.0;
+            double pillWidth = Math.max(64.0, textWidth);
+
             gc.setFill(Color.web("rgba(15,23,42,0.92)"));
-            gc.fillRoundRect(pos[0] - 38, pos[1] - 25, 76, 16, 8, 8);
+            gc.fillRoundRect(pos[0] - (pillWidth / 2.0), pos[1] - 25, pillWidth, 16, 8, 8);
             gc.setStroke(pColor);
             gc.setLineWidth(1.0);
-            gc.strokeRoundRect(pos[0] - 38, pos[1] - 25, 76, 16, 8, 8);
+            gc.strokeRoundRect(pos[0] - (pillWidth / 2.0), pos[1] - 25, pillWidth, 16, 8, 8);
 
             gc.setFill(Color.WHITE);
             gc.setFont(javafx.scene.text.Font.font("system-ui", javafx.scene.text.FontWeight.BOLD, 9));
-            gc.fillText("⚓ " + p.shortName(), pos[0] - 31, pos[1] - 14);
+            gc.fillText("⚓ " + displayName, pos[0] - (pillWidth / 2.0) + 6, pos[1] - 14);
         }
 
         // Live AIS Vessels
@@ -1285,6 +1291,11 @@ public class GeoTileMapCanvas extends StackPane {
             this.maintenance = maintenance;
             this.portAuthority = portAuthority != null && !portAuthority.isBlank() ? portAuthority : "Port Authority (" + name + ")";
             this.lastUpdated = lastUpdated != null ? lastUpdated : "Just now";
+        }
+
+        public String markerName() {
+            if (name == null || name.isBlank()) return "PORT";
+            return name.trim().toUpperCase();
         }
 
         public String shortName() {

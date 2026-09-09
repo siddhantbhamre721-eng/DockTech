@@ -48,6 +48,10 @@ public class LoginPage extends Application {
         public static synchronized void initGlobalScrollbarHider() {
                 if (globalHiderInitialized)
                         return;
+                if (!javafx.application.Platform.isFxApplicationThread()) {
+                        javafx.application.Platform.runLater(LoginPage::initGlobalScrollbarHider);
+                        return;
+                }
                 globalHiderInitialized = true;
                 try {
                         javafx.collections.ObservableList<javafx.stage.Window> windows = javafx.stage.Window
@@ -206,6 +210,9 @@ public class LoginPage extends Application {
                         return cachedCssUrl;
                 try {
                         var resource = LoginPage.class.getResource("/hide-scrollbar.css");
+                        if (resource == null) {
+                                resource = LoginPage.class.getResource("/hide_scrollbar.css");
+                        }
                         if (resource != null) {
                                 cachedCssUrl = resource.toExternalForm();
                                 return cachedCssUrl;
@@ -238,6 +245,16 @@ public class LoginPage extends Application {
                                                 scene.getStylesheets().add(cssUrl);
                                         }
                                 });
+                                scene.getStylesheets().addListener((javafx.collections.ListChangeListener<String>) change -> {
+                                        if (!scene.getStylesheets().contains(cssUrl)) {
+                                                javafx.application.Platform.runLater(() -> {
+                                                        if (!scene.getStylesheets().contains(cssUrl)) {
+                                                                scene.getStylesheets().add(cssUrl);
+                                                        }
+                                                });
+                                        }
+                                });
+                                return;
                         } else if (target instanceof javafx.stage.Window window) {
                                 if (window.getScene() != null) {
                                         applyInvisibleScrollbar(window.getScene());
@@ -247,6 +264,7 @@ public class LoginPage extends Application {
                                                 applyInvisibleScrollbar(newScene);
                                         }
                                 });
+                                return;
                         } else if (target instanceof DialogPane dialogPane) {
                                 if (!dialogPane.getStylesheets().contains(cssUrl)) {
                                         dialogPane.getStylesheets().add(cssUrl);
@@ -254,18 +272,27 @@ public class LoginPage extends Application {
                                 if (dialogPane.getScene() != null) {
                                         applyInvisibleScrollbar(dialogPane.getScene());
                                 }
+                                dialogPane.sceneProperty().addListener((obs, oldS, newS) -> {
+                                        if (newS != null) {
+                                                applyInvisibleScrollbar(newS);
+                                        }
+                                });
+                                return;
                         } else if (target instanceof Dialog<?> dialog) {
                                 DialogPane pane = dialog.getDialogPane();
                                 if (pane != null) {
                                         applyInvisibleScrollbar(pane);
                                 }
+                                return;
                         } else if (target instanceof javafx.scene.Node node) {
                                 if (node.getScene() != null) {
-                                        applyInvisibleScrollbar(node.getScene());
+                                        if (!node.getScene().getStylesheets().contains(cssUrl)) {
+                                                node.getScene().getStylesheets().add(cssUrl);
+                                        }
                                 }
                                 node.sceneProperty().addListener((obs, oldS, newS) -> {
-                                        if (newS != null) {
-                                                applyInvisibleScrollbar(newS);
+                                        if (newS != null && !newS.getStylesheets().contains(cssUrl)) {
+                                                newS.getStylesheets().add(cssUrl);
                                         }
                                 });
                                 if (node instanceof Parent parent) {
@@ -940,7 +967,15 @@ public class LoginPage extends Application {
                         return "";
                 String cleaned = rawRole.trim().toLowerCase().replaceAll("[^a-z0-9]", "");
 
-                // 1. Port Authority
+                // 1. Admin / Master Admin (login "Admin" maps to "Master Admin" account role)
+                if (!cleaned.contains("port") && (cleaned.contains("admin") || cleaned.contains("administrator") || cleaned.contains("docktechadmin") || cleaned.contains("masteradmin"))) {
+                        return "Master Admin";
+                }
+                if (cleaned.equals("masteradmin") || cleaned.equals("admin") || cleaned.equals("docktechadmin")) {
+                        return "Master Admin";
+                }
+
+                // 2. Port Authority
                 if (cleaned.contains("portauthority")
                                 || cleaned.contains("portmanager")
                                 || cleaned.contains("portofficer")
@@ -956,29 +991,29 @@ public class LoginPage extends Application {
                         return "Port Authority";
                 }
 
-                // 2. Customs Officer
+                // 3. Customs Officer
                 if (cleaned.contains("custom") || cleaned.contains("customs") || cleaned.contains("customofficer") || cleaned.contains("customsofficer")) {
                         return "Customs Officer";
                 }
 
-                // 3. Ship Captain
-                if (cleaned.contains("captain") || cleaned.contains("shipcaptain") || cleaned.contains("master")) {
+                // 4. Ship Captain (exclude admin to prevent masteradmin collision)
+                if ((cleaned.contains("captain") || cleaned.contains("shipcaptain") || cleaned.contains("master")) && !cleaned.contains("admin")) {
                         return "Ship Captain";
                 }
 
-                // 4. Exporter
+                // 5. Exporter
                 if (cleaned.contains("exporter") || cleaned.contains("export") || cleaned.equals("exp")) {
                         return "Exporter";
                 }
 
-                // 5. Importer
+                // 6. Importer
                 if (cleaned.contains("importer") || cleaned.contains("import") || cleaned.equals("imp")) {
                         return "Importer";
                 }
 
-                // 6. Admin
-                if (cleaned.contains("admin") || cleaned.contains("administrator") || cleaned.contains("docktechadmin")) {
-                        return "Admin";
+                // 7. Admin / Master Admin fallback
+                if (cleaned.contains("admin") || cleaned.contains("administrator") || cleaned.contains("docktechadmin") || cleaned.contains("masteradmin")) {
+                        return "Master Admin";
                 }
 
                 return rawRole.trim();
@@ -1002,6 +1037,15 @@ public class LoginPage extends Application {
                         return true;
                 }
 
+                String sRaw = selected.trim();
+                String dRaw = database.trim();
+
+                // Admin in login dropdown maps to existing Master Admin account role
+                if ((sRaw.equalsIgnoreCase("Admin") || sRaw.equalsIgnoreCase("Master Admin") || sRaw.equalsIgnoreCase("Administrator"))
+                                && (dRaw.equalsIgnoreCase("Admin") || dRaw.equalsIgnoreCase("Master Admin") || dRaw.equalsIgnoreCase("Administrator") || dRaw.equalsIgnoreCase("Dock Tech Admin"))) {
+                        return true;
+                }
+
                 String normSelected = normalizeRole(selected);
                 String normDatabase = normalizeRole(database);
 
@@ -1009,14 +1053,14 @@ public class LoginPage extends Application {
                         return true;
                 }
 
-                if (selected.trim().equalsIgnoreCase(database.trim())) {
+                if (sRaw.equalsIgnoreCase(dRaw)) {
                         return true;
                 }
 
                 // Direct alphanumeric matching fallback
-                String s = selected.trim().toLowerCase().replaceAll("[^a-z0-9]", "");
-                String d = database.trim().toLowerCase().replaceAll("[^a-z0-9]", "");
-                return !s.isEmpty() && (s.equals(d) || (s.contains("export") && d.contains("export")) || (s.contains("import") && d.contains("import")));
+                String s = sRaw.toLowerCase().replaceAll("[^a-z0-9]", "");
+                String d = dRaw.toLowerCase().replaceAll("[^a-z0-9]", "");
+                return !s.isEmpty() && (s.equals(d) || (s.contains("admin") && d.contains("admin")) || (s.contains("export") && d.contains("export")) || (s.contains("import") && d.contains("import")));
         }
 
         // ================= ROLE-BASED DASHBOARD NAVIGATION =================
@@ -1033,7 +1077,8 @@ public class LoginPage extends Application {
                         }
 
                         String r = roleName.trim();
-                        if (r.equalsIgnoreCase("Admin") || r.equalsIgnoreCase("Administrator")
+                        if (r.equalsIgnoreCase("Admin") || r.equalsIgnoreCase("Master Admin")
+                                        || r.equalsIgnoreCase("Administrator")
                                         || r.equalsIgnoreCase("Dock Tech Admin")) {
                                 showAdmin();
                         } else if (r.equalsIgnoreCase("Custom Officer") || r.equalsIgnoreCase("Customs Officer")) {

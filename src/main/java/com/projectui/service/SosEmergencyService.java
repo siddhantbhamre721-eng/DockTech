@@ -527,8 +527,8 @@ public class SosEmergencyService extends Dao {
 
         String cleanRole = role.trim();
 
-        // 1. Admin sees all alerts. Port Authority and Customs Officer see alerts associated with their assigned port.
-        if ("Admin".equalsIgnoreCase(cleanRole)) {
+        // 1. Admin and Master Admin see all alerts. Port Authority and Customs Officer see alerts associated with their assigned port.
+        if ("Admin".equalsIgnoreCase(cleanRole) || "Master Admin".equalsIgnoreCase(cleanRole)) {
             return getAllAlerts();
         }
 
@@ -537,17 +537,53 @@ public class SosEmergencyService extends Dao {
             if (userProfile != null) {
                 if (userProfile.get("assignedPort") != null) userPort = userProfile.get("assignedPort").toString().trim();
                 if (userPort.isEmpty() && userProfile.get("port") != null) userPort = userProfile.get("port").toString().trim();
+                if (userPort.isEmpty() && userProfile.get("portName") != null) userPort = userProfile.get("portName").toString().trim();
+                if (userPort.isEmpty() && userProfile.get("jurisdiction") != null) userPort = userProfile.get("jurisdiction").toString().trim();
             }
             if (userPort.isEmpty()) {
                 return getAllAlerts();
             }
             String normUserPort = com.projectui.dao.UserDao.normalizePort(userPort).toLowerCase();
+            if (normUserPort.isBlank() || normUserPort.equalsIgnoreCase("all") || normUserPort.equalsIgnoreCase("all ports") || normUserPort.equalsIgnoreCase("not assigned")) {
+                return getAllAlerts();
+            }
+
             List<SosAlert> filtered = new ArrayList<>();
             for (SosAlert a : getAllAlerts()) {
                 if (a == null) continue;
                 String alertPort = a.getPort() != null ? a.getPort().trim() : "";
                 String normAlertPort = com.projectui.dao.UserDao.normalizePort(alertPort).toLowerCase();
-                if (alertPort.isEmpty() || normAlertPort.contains(normUserPort) || normUserPort.contains(normAlertPort)) {
+                String alertDest = a.getDestination() != null ? a.getDestination().trim() : "";
+                String normAlertDest = com.projectui.dao.UserDao.normalizePort(alertDest).toLowerCase();
+                String alertVessel = a.getVesselName() != null ? a.getVesselName().trim().toLowerCase() : "";
+
+                // Match against port, destination, or all-ports
+                boolean matches = alertPort.isEmpty()
+                        || normAlertPort.contains(normUserPort) || normUserPort.contains(normAlertPort)
+                        || normAlertDest.contains(normUserPort) || normUserPort.contains(normAlertDest)
+                        || normAlertPort.equalsIgnoreCase("all") || normAlertPort.equalsIgnoreCase("port authority")
+                        || alertPort.toLowerCase().contains(normUserPort) || userPort.toLowerCase().contains(alertPort.toLowerCase());
+
+                // Also check if the vessel is associated with this port in ShipDAO
+                if (!matches && !alertVessel.isEmpty()) {
+                    try {
+                        for (com.projectui.model.Ship s : new com.projectui.dao.ShipDAO().getShips()) {
+                            if (s != null && s.getShipName() != null && s.getShipName().equalsIgnoreCase(alertVessel)) {
+                                String sArr = s.getArrival() != null ? com.projectui.dao.UserDao.normalizePort(s.getArrival()).toLowerCase() : "";
+                                String sDep = s.getDeparture() != null ? com.projectui.dao.UserDao.normalizePort(s.getDeparture()).toLowerCase() : "";
+                                String sBerth = s.getBerth() != null ? com.projectui.dao.UserDao.normalizePort(s.getBerth()).toLowerCase() : "";
+                                if (sArr.contains(normUserPort) || normUserPort.contains(sArr)
+                                        || sDep.contains(normUserPort) || normUserPort.contains(sDep)
+                                        || sBerth.contains(normUserPort) || normUserPort.contains(sBerth)) {
+                                    matches = true;
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+
+                if (matches) {
                     filtered.add(a);
                 }
             }

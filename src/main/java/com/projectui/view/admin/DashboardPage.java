@@ -668,6 +668,7 @@ public class DashboardPage extends AdminTheme {
 
         VBox rows = new VBox(0);
         for (AdminDataStore.Port port : store.ports) {
+            if (port == null || AdminDataStore.isPortDeleted(port.name, port.code)) continue;
             if (port.approvalStatus != null && !"APPROVED".equalsIgnoreCase(port.approvalStatus)) continue;
             String congestion = congestionStatus(port);
             rows.getChildren().add(statusLine(port, markerLabel(port.status, congestion), statusColor(port.status, congestion)));
@@ -696,6 +697,7 @@ public class DashboardPage extends AdminTheme {
 
         int alertCount = 0;
         for (AdminDataStore.Port p : store.ports) {
+            if (p == null || AdminDataStore.isPortDeleted(p.name, p.code)) continue;
             if ("APPROVED".equalsIgnoreCase(p.approvalStatus)) {
                 if ("Busy".equalsIgnoreCase(p.status)) {
                     card.getChildren().add(alertLine("!", p.name, "High congestion watch active", "Live", "#e43f5a"));
@@ -737,6 +739,7 @@ public class DashboardPage extends AdminTheme {
 
         int actCount = 0;
         for (AdminDataStore.Port p : store.ports) {
+            if (p == null || AdminDataStore.isPortDeleted(p.name, p.code)) continue;
             if ("APPROVED".equalsIgnoreCase(p.approvalStatus) && actCount < 4) {
                 card.getChildren().add(activityLine("⚓", p.name, "Operational port status verified", p.lastUpdated != null ? p.lastUpdated : "Live", BLUE));
                 actCount++;
@@ -789,8 +792,8 @@ public class DashboardPage extends AdminTheme {
         // Port operations statistics from AdminDataStore
         int opPorts = store.activePorts();
         int maintPorts = store.maintenancePorts();
-        int busyPorts = (int) store.ports.stream().filter(p -> "Busy".equalsIgnoreCase(p.status) && "APPROVED".equalsIgnoreCase(p.approvalStatus)).count();
-        int inactivePorts = (int) store.ports.stream().filter(p -> "Inactive".equalsIgnoreCase(p.status)).count();
+        int busyPorts = (int) store.ports.stream().filter(p -> p != null && !AdminDataStore.isPortDeleted(p.name, p.code) && "Busy".equalsIgnoreCase(p.status) && "APPROVED".equalsIgnoreCase(p.approvalStatus)).count();
+        int inactivePorts = (int) store.ports.stream().filter(p -> p != null && !AdminDataStore.isPortDeleted(p.name, p.code) && "Inactive".equalsIgnoreCase(p.status)).count();
 
         VBox vSec = new VBox(6);
         Label vHeader = new Label("LIVE VESSEL MOVEMENT");
@@ -948,6 +951,8 @@ public class DashboardPage extends AdminTheme {
     private int countStatus(String value) {
         int count = 0;
         for (AdminDataStore.Port port : store.ports) {
+            if (port == null || AdminDataStore.isPortDeleted(port.name, port.code)) continue;
+            if (port.approvalStatus != null && !"APPROVED".equalsIgnoreCase(port.approvalStatus)) continue;
             if (value.equals(markerLabel(port.status, congestionStatus(port)))) {
                 count++;
             }
@@ -958,6 +963,8 @@ public class DashboardPage extends AdminTheme {
     private int countCongested() {
         int count = 0;
         for (AdminDataStore.Port port : store.ports) {
+            if (port == null || AdminDataStore.isPortDeleted(port.name, port.code)) continue;
+            if (port.approvalStatus != null && !"APPROVED".equalsIgnoreCase(port.approvalStatus)) continue;
             String label = markerLabel(port.status, congestionStatus(port));
             if ("Busy".equals(label) || "High Congestion".equals(label)) {
                 count++;
@@ -969,6 +976,8 @@ public class DashboardPage extends AdminTheme {
     private int countInactive() {
         int count = 0;
         for (AdminDataStore.Port port : store.ports) {
+            if (port == null || AdminDataStore.isPortDeleted(port.name, port.code)) continue;
+            if (port.approvalStatus != null && !"APPROVED".equalsIgnoreCase(port.approvalStatus)) continue;
             if ("Inactive".equals(markerLabel(port.status, congestionStatus(port)))) {
                 count++;
             }

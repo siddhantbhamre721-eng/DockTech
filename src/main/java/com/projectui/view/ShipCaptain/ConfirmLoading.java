@@ -77,8 +77,7 @@ public class ConfirmLoading {
                     buildKpiRow(cargos, containers, ship),
                     buildMainSection(cargos, containers, ship),
                     buildLoadingProgressAndStatusRow(cargos, containers, ship, v),
-                    buildVerificationAndReadinessRow(cargos, containers, ship)
-            );
+                    buildVerificationAndReadinessRow(cargos, containers, ship));
         }
 
         ScrollPane scroll = new ScrollPane(container);
@@ -133,22 +132,25 @@ public class ConfirmLoading {
                 if (c.get("weight") != null) {
                     totalWeight += Double.parseDouble(c.get("weight").toString().replaceAll("[^0-9.]", ""));
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
         int pending = totalCargos - loadedCount;
 
         String shipType = ship.getShipType() != null ? ship.getShipType() : "Vessel";
         boolean isTanker = shipType.toLowerCase().contains("tanker");
         String fourthCardTitle = isTanker ? "Liquid Tonnage (Est.)" : "Allocated Containers";
-        String fourthCardVal = isTanker ? String.format("%.0f Tons", totalWeight > 0 ? totalWeight : 1250.0) : String.valueOf(containers.size());
+        String fourthCardVal = isTanker ? String.format("%.0f Tons", totalWeight > 0 ? totalWeight : 1250.0)
+                : String.valueOf(containers.size());
         String fourthCardSub = isTanker ? "Bulk Compartment Load" : "Allocated Cargo Units";
 
         HBox row = new HBox(12,
-                kpiCard("▣", "Assigned Cargos", String.valueOf(totalCargos), "Total Manifest Items", "#1d4ed8", "#eaf3ff"),
+                kpiCard("▣", "Assigned Cargos", String.valueOf(totalCargos), "Total Manifest Items", "#1d4ed8",
+                        "#eaf3ff"),
                 kpiCard("✓", "Loaded & Verified", String.valueOf(loadedCount), "Completed Items", "#0f9f6e", "#e7f8ef"),
-                kpiCard("◷", "Pending Loading", String.valueOf(pending >= 0 ? pending : 0), "Awaiting Confirmation", "#d97706", "#fef3c7"),
-                kpiCard(isTanker ? "🛢" : "⬟", fourthCardTitle, fourthCardVal, fourthCardSub, "#6d4aff", "#f0edff")
-        );
+                kpiCard("◷", "Pending Loading", String.valueOf(pending >= 0 ? pending : 0), "Awaiting Confirmation",
+                        "#d97706", "#fef3c7"),
+                kpiCard(isTanker ? "🛢" : "⬟", fourthCardTitle, fourthCardVal, fourthCardSub, "#6d4aff", "#f0edff"));
         row.getChildren().forEach(n -> HBox.setHgrow(n, Priority.ALWAYS));
         return row;
     }
@@ -171,39 +173,50 @@ public class ConfirmLoading {
             tableCard.getChildren().addAll(tableTitle, noCargo);
         } else {
             cargoTable = new TableView<>();
+            var tableCss = getClass().getResource("/table-headers.css");
+            if (tableCss != null) {
+                cargoTable.getStylesheets().add(tableCss.toExternalForm());
+            }
             cargoTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
             cargoTable.setPrefHeight(260);
             cargoTable.setStyle("-fx-background-color:white; -fx-border-color:#e5e7eb; -fx-border-radius:6;");
 
             TableColumn<Map<String, Object>, String> colId = new TableColumn<>("Cargo ID");
-            colId.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getOrDefault("cargoId", "-").toString()));
+            colId.setCellValueFactory(
+                    data -> new SimpleStringProperty(data.getValue().getOrDefault("cargoId", "-").toString()));
 
             TableColumn<Map<String, Object>, String> colName = new TableColumn<>("Goods / Description");
-            colName.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getOrDefault("cargoName", "-").toString()));
+            colName.setCellValueFactory(
+                    data -> new SimpleStringProperty(data.getValue().getOrDefault("cargoName", "-").toString()));
 
             TableColumn<Map<String, Object>, String> colType = new TableColumn<>("Cargo Type");
-            colType.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getOrDefault("cargoType", "-").toString()));
+            colType.setCellValueFactory(
+                    data -> new SimpleStringProperty(data.getValue().getOrDefault("cargoType", "-").toString()));
 
             TableColumn<Map<String, Object>, String> colQty = new TableColumn<>("Quantity");
-            colQty.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getOrDefault("quantity", "1").toString()));
+            colQty.setCellValueFactory(
+                    data -> new SimpleStringProperty(data.getValue().getOrDefault("quantity", "1").toString()));
 
             TableColumn<Map<String, Object>, String> colWeight = new TableColumn<>("Weight (Tons)");
-            colWeight.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getOrDefault("weight", "-").toString()));
+            colWeight.setCellValueFactory(
+                    data -> new SimpleStringProperty(data.getValue().getOrDefault("weight", "-").toString()));
 
             TableColumn<Map<String, Object>, String> colOrigin = new TableColumn<>("Origin");
-            colOrigin.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getOrDefault("originPort", "—").toString()));
+            colOrigin.setCellValueFactory(
+                    data -> new SimpleStringProperty(data.getValue().getOrDefault("originPort", "—").toString()));
 
             TableColumn<Map<String, Object>, String> colDest = new TableColumn<>("Destination");
-            colDest.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getOrDefault("destinationPort", "—").toString()));
+            colDest.setCellValueFactory(
+                    data -> new SimpleStringProperty(data.getValue().getOrDefault("destinationPort", "—").toString()));
 
             TableColumn<Map<String, Object>, String> colStatus = new TableColumn<>("Loading Status");
-            colStatus.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getOrDefault("status", "Pending").toString()));
+            colStatus.setCellValueFactory(
+                    data -> new SimpleStringProperty(data.getValue().getOrDefault("status", "Pending").toString()));
 
             TableColumn<Map<String, Object>, String> colCustoms = new TableColumn<>("Customs Clearance");
             colCustoms.setCellValueFactory(data -> new SimpleStringProperty(
                     data.getValue().getOrDefault("customsClearanceStatus",
-                            data.getValue().getOrDefault("customsStatus", "Pending Clearance")).toString()
-            ));
+                            data.getValue().getOrDefault("customsStatus", "Pending Clearance")).toString()));
             colCustoms.setCellFactory(col -> new TableCell<>() {
                 @Override
                 protected void updateItem(String item, boolean empty) {
@@ -213,11 +226,14 @@ public class ConfirmLoading {
                         setText(null);
                     } else {
                         Label badge = new Label(item);
-                        boolean isCleared = "Cleared".equalsIgnoreCase(item) || "Approved".equalsIgnoreCase(item) || "Passed".equalsIgnoreCase(item) || "Customs Cleared".equalsIgnoreCase(item);
-                        boolean isHeld = "Held".equalsIgnoreCase(item) || "Rejected".equalsIgnoreCase(item) || "Flagged".equalsIgnoreCase(item) || "Customs Held".equalsIgnoreCase(item);
+                        boolean isCleared = "Cleared".equalsIgnoreCase(item) || "Approved".equalsIgnoreCase(item)
+                                || "Passed".equalsIgnoreCase(item) || "Customs Cleared".equalsIgnoreCase(item);
+                        boolean isHeld = "Held".equalsIgnoreCase(item) || "Rejected".equalsIgnoreCase(item)
+                                || "Flagged".equalsIgnoreCase(item) || "Customs Held".equalsIgnoreCase(item);
                         String color = isCleared ? "#16a34a" : (isHeld ? "#ef4444" : "#d97706");
                         String bg = isCleared ? "#dcfce7" : (isHeld ? "#fee2e2" : "#fef3c7");
-                        badge.setStyle("-fx-text-fill:" + color + "; -fx-background-color:" + bg + "; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:4;");
+                        badge.setStyle("-fx-text-fill:" + color + "; -fx-background-color:" + bg
+                                + "; -fx-font-size:11px; -fx-font-weight:bold; -fx-padding:3 8; -fx-background-radius:4;");
                         setGraphic(badge);
                         setAlignment(Pos.CENTER);
                         setText(null);
@@ -225,7 +241,8 @@ public class ConfirmLoading {
                 }
             });
 
-            cargoTable.getColumns().addAll(colId, colName, colType, colQty, colWeight, colOrigin, colDest, colCustoms, colStatus);
+            cargoTable.getColumns().addAll(colId, colName, colType, colQty, colWeight, colOrigin, colDest, colCustoms,
+                    colStatus);
             ObservableList<Map<String, Object>> list = FXCollections.observableArrayList(cargos);
             cargoTable.setItems(list);
 
@@ -254,30 +271,20 @@ public class ConfirmLoading {
         Label actionTitle = new Label("Verify & Confirm Cargo");
         actionTitle.setStyle("-fx-text-fill:#05070c; -fx-font-size:16; -fx-font-weight:bold;");
 
-        selectedCargoLabel.setText(selectedCargo != null ? "Selected: " + selectedCargo.getOrDefault("cargoId", "") : "Select a Cargo Item");
+        selectedCargoLabel.setText(selectedCargo != null ? "Selected: " + selectedCargo.getOrDefault("cargoId", "")
+                : "Select a Cargo Item");
         selectedCargoLabel.setStyle("-fx-text-fill:" + BLUE + "; -fx-font-size:14; -fx-font-weight:bold;");
 
-        selectedDetailsLabel.setText(selectedCargo != null ? selectedCargo.getOrDefault("cargoName", "") + " • " + selectedCargo.getOrDefault("weight", "") + " Tons" : "Click a table row to inspect and verify.");
+        selectedDetailsLabel.setText(
+                selectedCargo != null
+                        ? selectedCargo.getOrDefault("cargoName", "") + " • " + selectedCargo.getOrDefault("weight", "")
+                                + " Tons"
+                        : "Click a table row to inspect and verify.");
         selectedDetailsLabel.setStyle("-fx-text-fill:" + MUTED + "; -fx-font-size:12;");
 
         VBox selectInfoBox = new VBox(3, selectedCargoLabel, selectedDetailsLabel);
         selectInfoBox.setPadding(new Insets(8));
         selectInfoBox.setStyle("-fx-background-color:#f8fafc; -fx-border-color:#e2e8f0; -fx-border-radius:6;");
-
-        Label checkTitle = new Label("Readiness Checklist");
-        checkTitle.setStyle("-fx-text-fill:#1e293b; -fx-font-size:12; -fx-font-weight:bold;");
-
-        CheckBox cb1 = new CheckBox("Cargo manifest & quantity verified");
-        cb1.setSelected(true);
-        cb1.setStyle("-fx-font-size:12;");
-
-        CheckBox cb2 = new CheckBox("Compartment / container secured");
-        cb2.setSelected(true);
-        cb2.setStyle("-fx-font-size:12;");
-
-        CheckBox cb3 = new CheckBox("Berth & safety clearance confirmed");
-        cb3.setSelected(true);
-        cb3.setStyle("-fx-font-size:12;");
 
         Label statusTitle = new Label("Confirm Loading Condition");
         statusTitle.setStyle("-fx-text-fill:#1e293b; -fx-font-size:12; -fx-font-weight:bold;");
@@ -286,12 +293,14 @@ public class ConfirmLoading {
         loadStatusCombo.getItems().addAll("Loading In Progress", "Loading Completed", "Verified & Ready");
         loadStatusCombo.setValue("Loading Completed");
         loadStatusCombo.setMaxWidth(Double.MAX_VALUE);
-        loadStatusCombo.setStyle("-fx-background-color:white; -fx-border-color:#d1d5db; -fx-padding:7 12; -fx-font-size:13; -fx-background-radius:6;");
+        loadStatusCombo.setStyle(
+                "-fx-background-color:white; -fx-border-color:#d1d5db; -fx-padding:7 12; -fx-font-size:13; -fx-background-radius:6;");
 
         TextArea remarks = new TextArea();
         remarks.setPromptText("Enter optional captain confirmation notes...");
         remarks.setPrefRowCount(2);
-        remarks.setStyle("-fx-background-color:white; -fx-border-color:#d1d5db; -fx-padding:6; -fx-font-size:12; -fx-background-radius:6;");
+        remarks.setStyle(
+                "-fx-background-color:white; -fx-border-color:#d1d5db; -fx-padding:6; -fx-font-size:12; -fx-background-radius:6;");
 
         Label alert = new Label();
         alert.setVisible(false);
@@ -300,21 +309,29 @@ public class ConfirmLoading {
         alert.setPadding(new Insets(8, 12, 8, 12));
 
         Button confirmBtn = new Button("Confirm Cargo Loading");
-        confirmBtn.setStyle("-fx-background-color:" + BLUE + "; -fx-text-fill:white; -fx-font-size:13; -fx-font-weight:bold; -fx-padding:10 18; -fx-background-radius:6; -fx-cursor:hand;");
+        confirmBtn.setStyle("-fx-background-color:" + BLUE
+                + "; -fx-text-fill:white; -fx-font-size:13; -fx-font-weight:bold; -fx-padding:10 18; -fx-background-radius:6; -fx-cursor:hand;");
         confirmBtn.setMaxWidth(Double.MAX_VALUE);
 
         confirmBtn.setOnAction(e -> {
             String cId = selectedCargo != null ? (String) selectedCargo.get("cargoId") : null;
             String st = loadStatusCombo.getValue();
             String rem = remarks.getText().trim();
-            String cClearance = selectedCargo != null ? String.valueOf(selectedCargo.getOrDefault("customsClearanceStatus", selectedCargo.getOrDefault("customsStatus", "Pending Clearance"))) : "Pending Clearance";
+            String cClearance = selectedCargo != null
+                    ? String.valueOf(selectedCargo.getOrDefault("customsClearanceStatus",
+                            selectedCargo.getOrDefault("customsStatus", "Pending Clearance")))
+                    : "Pending Clearance";
 
-            boolean isCustomsCleared = "Cleared".equalsIgnoreCase(cClearance) || "Approved".equalsIgnoreCase(cClearance) || "Passed".equalsIgnoreCase(cClearance) || "Customs Cleared".equalsIgnoreCase(cClearance);
-            boolean isCustomsHeld = "Held".equalsIgnoreCase(cClearance) || "Rejected".equalsIgnoreCase(cClearance) || "Flagged".equalsIgnoreCase(cClearance) || "Customs Held".equalsIgnoreCase(cClearance);
+            boolean isCustomsCleared = "Cleared".equalsIgnoreCase(cClearance) || "Approved".equalsIgnoreCase(cClearance)
+                    || "Passed".equalsIgnoreCase(cClearance) || "Customs Cleared".equalsIgnoreCase(cClearance);
+            boolean isCustomsHeld = "Held".equalsIgnoreCase(cClearance) || "Rejected".equalsIgnoreCase(cClearance)
+                    || "Flagged".equalsIgnoreCase(cClearance) || "Customs Held".equalsIgnoreCase(cClearance);
 
             if (isCustomsHeld) {
-                alert.setText("⛔ Loading Blocked: Cargo " + (cId != null ? cId : "") + " is Held/Rejected by Customs. Clearance required.");
-                alert.setStyle("-fx-background-color:#fef2f2; -fx-text-fill:#991b1b; -fx-border-color:#fecaca; -fx-border-radius:6; -fx-font-weight:bold; -fx-font-size:12;");
+                alert.setText("⛔ Loading Blocked: Cargo " + (cId != null ? cId : "")
+                        + " is Held/Rejected by Customs. Clearance required.");
+                alert.setStyle(
+                        "-fx-background-color:#fef2f2; -fx-text-fill:#991b1b; -fx-border-color:#fecaca; -fx-border-radius:6; -fx-font-weight:bold; -fx-font-size:12;");
                 alert.setVisible(true);
                 alert.setManaged(true);
                 return;
@@ -323,11 +340,15 @@ public class ConfirmLoading {
             boolean ok = CaptainSessionService.confirmLoading(cId, st, rem);
             if (ok) {
                 if (!isCustomsCleared) {
-                    alert.setText("✓ Loading updated (" + st + "). ⚠️ Notice: Departure blocked until Customs Officer clears shipment.");
-                    alert.setStyle("-fx-background-color:#fffbeb; -fx-text-fill:#92400e; -fx-border-color:#fde68a; -fx-border-radius:6; -fx-font-weight:bold; -fx-font-size:12;");
+                    alert.setText("✓ Loading updated (" + st
+                            + "). ⚠️ Notice: Departure blocked until Customs Officer clears shipment.");
+                    alert.setStyle(
+                            "-fx-background-color:#fffbeb; -fx-text-fill:#92400e; -fx-border-color:#fde68a; -fx-border-radius:6; -fx-font-weight:bold; -fx-font-size:12;");
                 } else {
-                    alert.setText("✓ Loading confirmed & Customs Cleared for " + (cId != null ? cId : "vessel") + " (" + st + "). Ready for departure.");
-                    alert.setStyle("-fx-background-color:#ecfdf5; -fx-text-fill:#065f46; -fx-border-color:#a7f3d0; -fx-border-radius:6; -fx-font-weight:bold; -fx-font-size:12;");
+                    alert.setText("✓ Loading confirmed & Customs Cleared for " + (cId != null ? cId : "vessel") + " ("
+                            + st + "). Ready for departure.");
+                    alert.setStyle(
+                            "-fx-background-color:#ecfdf5; -fx-text-fill:#065f46; -fx-border-color:#a7f3d0; -fx-border-radius:6; -fx-font-weight:bold; -fx-font-size:12;");
                 }
                 alert.setVisible(true);
                 alert.setManaged(true);
@@ -337,20 +358,18 @@ public class ConfirmLoading {
         actionCard.getChildren().addAll(
                 actionTitle,
                 selectInfoBox,
-                checkTitle,
-                cb1, cb2, cb3,
                 statusTitle,
                 loadStatusCombo,
                 remarks,
                 alert,
-                confirmBtn
-        );
+                confirmBtn);
 
         row.getChildren().addAll(tableCard, actionCard);
         return row;
     }
 
-    private HBox buildLoadingProgressAndStatusRow(List<Map<String, Object>> cargos, List<Map<String, Object>> containers, Ship ship, VesselData v) {
+    private HBox buildLoadingProgressAndStatusRow(List<Map<String, Object>> cargos,
+            List<Map<String, Object>> containers, Ship ship, VesselData v) {
         HBox row = new HBox(14);
 
         int totalCargos = cargos.size();
@@ -365,7 +384,8 @@ public class ConfirmLoading {
                 if (c.get("weight") != null) {
                     totalWeight += Double.parseDouble(c.get("weight").toString().replaceAll("[^0-9.]", ""));
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
         int pending = totalCargos - loadedCount;
         double pct = totalCargos > 0 ? ((double) loadedCount / totalCargos) : 1.0;
@@ -380,7 +400,7 @@ public class ConfirmLoading {
         pTitle.setStyle("-fx-text-fill:#05070c; -fx-font-size:16; -fx-font-weight:bold;");
 
         HBox pTop = new HBox();
-        Label pPct = new Label("Loading Progress: " + (int)(pct * 100) + "%");
+        Label pPct = new Label("Loading Progress: " + (int) (pct * 100) + "%");
         pPct.setStyle("-fx-text-fill:" + BLUE + "; -fx-font-size:14; -fx-font-weight:bold;");
         Region sp = new Region();
         HBox.setHgrow(sp, Priority.ALWAYS);
@@ -397,8 +417,8 @@ public class ConfirmLoading {
                 miniStat("Loaded Cargo", loadedCount + " Items"),
                 miniStat("Pending Cargo", (pending >= 0 ? pending : 0) + " Items"),
                 miniStat("Total Weight", String.format("%.0f Tons", totalWeight > 0 ? totalWeight : 850.0)),
-                miniStat("Remaining Tonnage", String.format("%.0f Tons", totalWeight > 0 && totalCargos > 0 ? (totalWeight * (1 - pct)) : 0.0))
-        );
+                miniStat("Remaining Tonnage", String.format("%.0f Tons",
+                        totalWeight > 0 && totalCargos > 0 ? (totalWeight * (1 - pct)) : 0.0)));
 
         progressCard.getChildren().addAll(pTitle, pTop, bar, pStats);
 
@@ -417,8 +437,10 @@ public class ConfirmLoading {
 
         String shipType = ship.getShipType() != null ? ship.getShipType() : "Container Vessel";
         String berth = ship.getBerth() != null && !ship.getBerth().isBlank() ? ship.getBerth() : "Berth B04";
-        String loadState = loadedCount == totalCargos && totalCargos > 0 ? "Loading Completed" : "Loading In Progress (" + (int)(pct * 100) + "%)";
-        String lastUpdate = v != null && v.timestamp != null ? v.timestamp : LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+        String loadState = loadedCount == totalCargos && totalCargos > 0 ? "Loading Completed"
+                : "Loading In Progress (" + (int) (pct * 100) + "%)";
+        String lastUpdate = v != null && v.timestamp != null ? v.timestamp
+                : LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
         String captain = CaptainSessionService.getCaptainName();
 
         vGrid.add(fieldCell("Assigned Vessel", ship.getShipName()), 0, 0);
@@ -434,7 +456,8 @@ public class ConfirmLoading {
         return row;
     }
 
-    private HBox buildVerificationAndReadinessRow(List<Map<String, Object>> cargos, List<Map<String, Object>> containers, Ship ship) {
+    private HBox buildVerificationAndReadinessRow(List<Map<String, Object>> cargos,
+            List<Map<String, Object>> containers, Ship ship) {
         HBox row = new HBox(14);
 
         int totalCargos = cargos.size();
@@ -461,10 +484,14 @@ public class ConfirmLoading {
 
         VBox verList = new VBox(8,
                 statusItem("▣", "Total Assigned Manifest Items", totalCargos + " Items Registered", "#1d4ed8"),
-                statusItem("✓", "Verified & Confirmed Cargo", loadedCount + " of " + totalCargos + " Verified", "#0f9f6e"),
-                statusItem("◷", "Pending Captain Verification", (pending >= 0 ? pending : 0) + " Items Awaiting Inspection", "#d97706"),
-                statusItem(isTanker ? "🛢" : "⬟", isTanker ? "Tank Compartment Allocation" : "Allocated Container Units", isTanker ? "Liquid Compartments Secured" : containers.size() + " Containers Assigned", "#6d4aff")
-        );
+                statusItem("✓", "Verified & Confirmed Cargo", loadedCount + " of " + totalCargos + " Verified",
+                        "#0f9f6e"),
+                statusItem("◷", "Pending Captain Verification",
+                        (pending >= 0 ? pending : 0) + " Items Awaiting Inspection", "#d97706"),
+                statusItem(isTanker ? "🛢" : "⬟",
+                        isTanker ? "Tank Compartment Allocation" : "Allocated Container Units",
+                        isTanker ? "Liquid Compartments Secured" : containers.size() + " Containers Assigned",
+                        "#6d4aff"));
 
         verCard.getChildren().addAll(verTitle, verList);
 
@@ -478,11 +505,14 @@ public class ConfirmLoading {
         rTitle.setStyle("-fx-text-fill:#05070c; -fx-font-size:16; -fx-font-weight:bold;");
 
         VBox rList = new VBox(8,
-                statusItem("✓", "Cargo Assigned & Logged", totalCargos > 0 ? "Manifest linked to vessel voyage" : "Awaiting voyage manifest", totalCargos > 0 ? "#0f9f6e" : "#64748b"),
+                statusItem("✓", "Cargo Assigned & Logged",
+                        totalCargos > 0 ? "Manifest linked to vessel voyage" : "Awaiting voyage manifest",
+                        totalCargos > 0 ? "#0f9f6e" : "#64748b"),
                 statusItem("✓", "Port & Customs Manifest Clearance", "Duty and cargo declaration approved", "#0f9f6e"),
-                statusItem("✓", "Berth Allocation & Crane Operation", "Assigned berth operational for loading", "#0f9f6e"),
-                statusItem("✓", "Vessel Safety & Loading Confirmation", "Vessel certified and ready for outbound transit", "#0f9f6e")
-        );
+                statusItem("✓", "Berth Allocation & Crane Operation", "Assigned berth operational for loading",
+                        "#0f9f6e"),
+                statusItem("✓", "Vessel Safety & Loading Confirmation",
+                        "Vessel certified and ready for outbound transit", "#0f9f6e"));
 
         readyCard.getChildren().addAll(rTitle, rList);
 
@@ -491,19 +521,25 @@ public class ConfirmLoading {
     }
 
     private void updateActionPanel(Map<String, Object> cargo) {
-        if (cargo == null || selectedCargoLabel == null || selectedDetailsLabel == null) return;
+        if (cargo == null || selectedCargoLabel == null || selectedDetailsLabel == null)
+            return;
         String id = cargo.getOrDefault("cargoId", "").toString();
         String name = cargo.getOrDefault("cargoName", "").toString();
         String weight = cargo.getOrDefault("weight", "").toString();
         String type = cargo.getOrDefault("cargoType", "").toString();
         String orig = cargo.getOrDefault("originPort", "—").toString();
         String dest = cargo.getOrDefault("destinationPort", "—").toString();
-        String cClearance = cargo.getOrDefault("customsClearanceStatus", cargo.getOrDefault("customsStatus", "Pending Clearance")).toString();
-        String cOfficer = cargo.getOrDefault("assignedCustomsOfficerName", cargo.getOrDefault("assignedCustomsOfficer", "")).toString();
+        String cClearance = cargo
+                .getOrDefault("customsClearanceStatus", cargo.getOrDefault("customsStatus", "Pending Clearance"))
+                .toString();
+        String cOfficer = cargo
+                .getOrDefault("assignedCustomsOfficerName", cargo.getOrDefault("assignedCustomsOfficer", ""))
+                .toString();
         String custInfo = " • Customs: " + cClearance + (!cOfficer.isBlank() ? " (" + cOfficer + ")" : "");
 
         selectedCargoLabel.setText("Selected: " + id);
-        selectedDetailsLabel.setText(name + " • " + weight + " Tons (" + type + ") • " + orig + " ➔ " + dest + custInfo);
+        selectedDetailsLabel
+                .setText(name + " • " + weight + " Tons (" + type + ") • " + orig + " ➔ " + dest + custInfo);
     }
 
     private HBox statusItem(String icon, String title, String sub, String color) {
@@ -538,7 +574,9 @@ public class ConfirmLoading {
 
     private VBox kpiCard(String icon, String title, String value, String sub, String accentColor, String bgColor) {
         Label iconLbl = new Label(icon);
-        iconLbl.setStyle("-fx-font-size:16; -fx-text-fill:" + accentColor + "; -fx-font-weight:bold; -fx-background-color:" + bgColor + "; -fx-background-radius:6; -fx-padding:6 10;");
+        iconLbl.setStyle(
+                "-fx-font-size:16; -fx-text-fill:" + accentColor + "; -fx-font-weight:bold; -fx-background-color:"
+                        + bgColor + "; -fx-background-radius:6; -fx-padding:6 10;");
 
         Label t = new Label(title);
         t.setStyle("-fx-text-fill:" + MUTED + "; -fx-font-size:13; -fx-font-weight:bold;");

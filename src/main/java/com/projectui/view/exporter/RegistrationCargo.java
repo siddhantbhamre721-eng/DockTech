@@ -18,9 +18,6 @@ import javafx.scene.image.ImageView;
 
 import java.util.Random;
 import java.util.Map;
-import java.util.LinkedHashMap;
-import com.projectui.view.login.LoginPage;
-import com.projectui.view.login.DashboardLayoutHelper;
 
 import com.projectui.controller.ExpCargoController;
 
@@ -110,7 +107,8 @@ public class RegistrationCargo {
                 scrollPane.setFitToHeight(false);
                 scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
                 scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-                scrollPane.setStyle("-fx-background-color: transparent; -fx-background: " + BG + "; -fx-border-color:transparent;");
+                scrollPane.setStyle("-fx-background-color: transparent; -fx-background: " + BG
+                                + "; -fx-border-color:transparent;");
                 return scrollPane;
         }
 
@@ -330,9 +328,9 @@ public class RegistrationCargo {
 
                 quantity.setPromptText("Enter quantity");
 
-                weight = new TextField("1200");
+                weight = new TextField("120");
 
-                weight.setPromptText("Weight in kg");
+                weight.setPromptText("Weight in Tons");
 
                 cargoValue = new TextField();
 
@@ -396,7 +394,7 @@ public class RegistrationCargo {
 
                 addField(form, "Quantity", quantity, 0, 1);
 
-                addField(form, "Weight (kg)", weight, 1, 1);
+                addField(form, "Weight (tons)", weight, 1, 1);
 
                 addField(form, "Origin Port", originPort, 0, 2);
 
@@ -757,7 +755,8 @@ public class RegistrationCargo {
 
         private void registerCargo() {
 
-                if (registrationInProgress) return;
+                if (registrationInProgress)
+                        return;
 
                 if (cargoName.getText().trim().isEmpty()) {
 
@@ -875,19 +874,39 @@ public class RegistrationCargo {
 
                                                 double calcVal = 0;
                                                 try {
-                                                        calcVal = Double.parseDouble(cargoValue.getText().replaceAll("[^0-9.]", "").trim());
-                                                } catch (Exception ignored) {}
+                                                        calcVal = Double.parseDouble(cargoValue.getText()
+                                                                        .replaceAll("[^0-9.]", "").trim());
+                                                } catch (Exception ignored) {
+                                                }
 
-                                                int selIdx = (importerSelect != null) ? importerSelect.getSelectionModel().getSelectedIndex() : -1;
-                                                Map<String, Object> selImp = (selIdx >= 0 && selIdx < loadedImporters.size()) ? loadedImporters.get(selIdx) : null;
+                                                int selIdx = (importerSelect != null)
+                                                                ? importerSelect.getSelectionModel().getSelectedIndex()
+                                                                : -1;
+                                                Map<String, Object> selImp = (selIdx >= 0
+                                                                && selIdx < loadedImporters.size())
+                                                                                ? loadedImporters.get(selIdx)
+                                                                                : null;
                                                 String impName = null, impEmail = null, impId = null, impComp = null;
                                                 if (selImp != null) {
-                                                        impName = selImp.get("name") != null ? selImp.get("name").toString().trim()
-                                                                : (selImp.get("fullName") != null ? selImp.get("fullName").toString().trim() : null);
-                                                        impEmail = selImp.get("email") != null ? selImp.get("email").toString().trim() : null;
-                                                        impId = selImp.get("uid") != null ? selImp.get("uid").toString().trim() : null;
-                                                        impComp = selImp.get("company") != null ? selImp.get("company").toString().trim() : null;
-                                                } else if (importerSelect != null && importerSelect.getValue() != null && !importerSelect.getValue().startsWith("No Registered")) {
+                                                        impName = selImp.get("name") != null
+                                                                        ? selImp.get("name").toString().trim()
+                                                                        : (selImp.get("fullName") != null
+                                                                                        ? selImp.get("fullName")
+                                                                                                        .toString()
+                                                                                                        .trim()
+                                                                                        : null);
+                                                        impEmail = selImp.get("email") != null
+                                                                        ? selImp.get("email").toString().trim()
+                                                                        : null;
+                                                        impId = selImp.get("uid") != null
+                                                                        ? selImp.get("uid").toString().trim()
+                                                                        : null;
+                                                        impComp = selImp.get("company") != null
+                                                                        ? selImp.get("company").toString().trim()
+                                                                        : null;
+                                                } else if (importerSelect != null && importerSelect.getValue() != null
+                                                                && !importerSelect.getValue()
+                                                                                .startsWith("No Registered")) {
                                                         impName = importerSelect.getValue().trim();
                                                 }
 
@@ -954,28 +973,44 @@ public class RegistrationCargo {
 
         private void updateEstimatedValue() {
                 try {
-                        String qtyStr = quantity != null && quantity.getText() != null ? quantity.getText().trim() : "1";
+                        String qtyStr = quantity != null && quantity.getText() != null ? quantity.getText().trim()
+                                        : "1";
                         String wtStr = weight != null && weight.getText() != null ? weight.getText().trim() : "1000";
                         int qty = 1;
                         double wt = 1000.0;
-                        try { qty = Integer.parseInt(qtyStr.replaceAll("[^0-9]", "")); } catch (Exception ignored) {}
-                        try { wt = Double.parseDouble(wtStr.replaceAll("[^0-9.]", "")); } catch (Exception ignored) {}
-                        if (qty <= 0) qty = 1;
-                        if (wt <= 0) wt = 1000.0;
+                        try {
+                                qty = Integer.parseInt(qtyStr.replaceAll("[^0-9]", ""));
+                        } catch (Exception ignored) {
+                        }
+                        try {
+                                wt = Double.parseDouble(wtStr.replaceAll("[^0-9.]", ""));
+                        } catch (Exception ignored) {
+                        }
+                        if (qty <= 0)
+                                qty = 1;
+                        if (wt <= 0)
+                                wt = 1000.0;
 
-                        String type = cargoType != null && cargoType.getValue() != null ? cargoType.getValue() : "General Cargo";
-                        String orig = originPort != null && originPort.getValue() != null ? originPort.getValue() : "Port of Mumbai";
-                        String dest = destinationPort != null && destinationPort.getValue() != null ? destinationPort.getValue() : "Port of Singapore";
+                        String type = cargoType != null && cargoType.getValue() != null ? cargoType.getValue()
+                                        : "General Cargo";
+                        String orig = originPort != null && originPort.getValue() != null ? originPort.getValue()
+                                        : "Port of Mumbai";
+                        String dest = destinationPort != null && destinationPort.getValue() != null
+                                        ? destinationPort.getValue()
+                                        : "Port of Singapore";
 
-                        double calculatedValue = com.projectui.service.FreightCalculationService.getInstance().calculateEstimatedCargoValue(type, wt, qty, orig, dest);
+                        double calculatedValue = com.projectui.service.FreightCalculationService.getInstance()
+                                        .calculateEstimatedCargoValue(type, wt, qty, orig, dest);
                         if (cargoValue != null) {
                                 cargoValue.setText("₹ " + String.format("%,.0f", calculatedValue));
                         }
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                }
         }
 
         private void loadDynamicPorts() {
-                java.util.List<String> validPorts = new java.util.ArrayList<>(com.projectui.view.admin.AdminDataStore.getInstance().getApprovedPortNames());
+                java.util.List<String> validPorts = new java.util.ArrayList<>(
+                                com.projectui.view.admin.AdminDataStore.getInstance().getApprovedPortNames());
                 if (validPorts.isEmpty()) {
                         validPorts.add("Port of Mumbai");
                         validPorts.add("Port of Chennai");
@@ -987,7 +1022,7 @@ public class RegistrationCargo {
                 originPort.setValue(validPorts.get(0));
 
                 java.util.List<String> destList = new java.util.ArrayList<>(validPorts);
-                for (String intl : java.util.List.of("Port of Singapore", "Port of Dubai", "Port of London", "Port of Rotterdam", "Port of New York")) {
+                for (String intl : java.util.List.of("International", "Regional", "local")) {
                         if (!destList.contains(intl)) {
                                 destList.add(intl);
                         }
@@ -997,16 +1032,19 @@ public class RegistrationCargo {
         }
 
         private void loadDynamicImporters() {
-                if (importerSelect == null) return;
+                if (importerSelect == null)
+                        return;
                 loadedImporters.clear();
                 java.util.List<Map<String, Object>> importers = com.projectui.dao.UserDao.getUsersByRoles("Importer");
                 java.util.List<String> displayList = new java.util.ArrayList<>();
                 if (importers != null && !importers.isEmpty()) {
                         for (Map<String, Object> imp : importers) {
-                                if (imp == null) continue;
+                                if (imp == null)
+                                        continue;
                                 loadedImporters.add(imp);
                                 String name = imp.get("name") != null ? imp.get("name").toString().trim() : "";
-                                if (name.isBlank() && imp.get("fullName") != null) name = imp.get("fullName").toString().trim();
+                                if (name.isBlank() && imp.get("fullName") != null)
+                                        name = imp.get("fullName").toString().trim();
                                 String email = imp.get("email") != null ? imp.get("email").toString().trim() : "";
                                 String company = imp.get("company") != null ? imp.get("company").toString().trim() : "";
 
@@ -1037,7 +1075,8 @@ public class RegistrationCargo {
         private void clearForm() {
 
                 registrationInProgress = false;
-                if (registerButton != null) registerButton.setDisable(false);
+                if (registerButton != null)
+                        registerButton.setDisable(false);
 
                 cargoName.clear();
 
@@ -1177,85 +1216,95 @@ public class RegistrationCargo {
 
         private VBox createSidebar() {
                 java.util.Map<String, Button> menuButtons = new java.util.LinkedHashMap<>();
-        Button dashboard = new Button("🏠   Dashboard");
-        Button register = new Button("📦  Register Cargo");
-        Button book = new Button("🚢   Book Container");
-        Button upload = new Button("📄   Upload Document");
-        Button payment = new Button("💳   Make Payment");
-        Button track = new Button("📥   Track Shipment");
+                Button dashboard = new Button("🏠   Dashboard");
+                Button register = new Button("📦  Register Cargo");
+                Button book = new Button("🚢   Book Container");
+                Button upload = new Button("📄   Upload Document");
+                Button payment = new Button("💳   Make Payment");
+                Button track = new Button("📥   Track Shipment");
 
-        menuButtons.put("Dashboard",dashboard);menuButtons.put("Register Cargo",register);menuButtons.put("Book Container",book);menuButtons.put("Upload Document",upload);menuButtons.put("Make Payment",payment);menuButtons.put("Track Shipment",track);
+                menuButtons.put("Dashboard", dashboard);
+                menuButtons.put("Register Cargo", register);
+                menuButtons.put("Book Container", book);
+                menuButtons.put("Upload Document", upload);
+                menuButtons.put("Make Payment", payment);
+                menuButtons.put("Track Shipment", track);
 
-        dashboard.setOnAction(e -> {
-            if (ExporterDashboard.getInstance() != null) {
-                ExporterDashboard.getInstance().switchPage("Dashboard");
-            } else {
-                back();
-            }
-        });
-        register.setOnAction(e -> {
-            if (ExporterDashboard.getInstance() != null) {
-                ExporterDashboard.getInstance().switchPage("Register Cargo");
-            }
-        });
-        book.setOnAction(e -> {
-            if (ExporterDashboard.getInstance() != null) {
-                ExporterDashboard.getInstance().switchPage("Book Container");
-            } else {
-                BookContainer page = new BookContainer();
-                com.projectui.view.login.LoginPage.showRoot(ExporterDashboard.dashboardStage, page.getBookContainerScene(this::back).getRoot());
-            }
-        });
+                dashboard.setOnAction(e -> {
+                        if (ExporterDashboard.getInstance() != null) {
+                                ExporterDashboard.getInstance().switchPage("Dashboard");
+                        } else {
+                                back();
+                        }
+                });
+                register.setOnAction(e -> {
+                        if (ExporterDashboard.getInstance() != null) {
+                                ExporterDashboard.getInstance().switchPage("Register Cargo");
+                        }
+                });
+                book.setOnAction(e -> {
+                        if (ExporterDashboard.getInstance() != null) {
+                                ExporterDashboard.getInstance().switchPage("Book Container");
+                        } else {
+                                BookContainer page = new BookContainer();
+                                com.projectui.view.login.LoginPage.showRoot(ExporterDashboard.dashboardStage,
+                                                page.getBookContainerScene(this::back).getRoot());
+                        }
+                });
 
-        upload.setOnAction(e -> {
-            if (ExporterDashboard.getInstance() != null) {
-                ExporterDashboard.getInstance().switchPage("Upload Document");
-            } else {
-                UploadDocument page = new UploadDocument();
-                com.projectui.view.login.LoginPage.showRoot(ExporterDashboard.dashboardStage, page.getUploadDocumentScene(this::back).getRoot());
-            }
-        });
+                upload.setOnAction(e -> {
+                        if (ExporterDashboard.getInstance() != null) {
+                                ExporterDashboard.getInstance().switchPage("Upload Document");
+                        } else {
+                                UploadDocument page = new UploadDocument();
+                                com.projectui.view.login.LoginPage.showRoot(ExporterDashboard.dashboardStage,
+                                                page.getUploadDocumentScene(this::back).getRoot());
+                        }
+                });
 
-        payment.setOnAction(e -> {
-            if (ExporterDashboard.getInstance() != null) {
-                ExporterDashboard.getInstance().switchPage("Make Payment");
-            } else {
-                MakePayment page = new MakePayment();
-                com.projectui.view.login.LoginPage.showRoot(ExporterDashboard.dashboardStage, page.getMakePaymentScene(this::back).getRoot());
-            }
-        });
+                payment.setOnAction(e -> {
+                        if (ExporterDashboard.getInstance() != null) {
+                                ExporterDashboard.getInstance().switchPage("Make Payment");
+                        } else {
+                                MakePayment page = new MakePayment();
+                                com.projectui.view.login.LoginPage.showRoot(ExporterDashboard.dashboardStage,
+                                                page.getMakePaymentScene(this::back).getRoot());
+                        }
+                });
 
-        track.setOnAction(e -> {
-            if (ExporterDashboard.getInstance() != null) {
-                ExporterDashboard.getInstance().switchPage("Track Shipment");
-            } else {
-                TrackShipment page = new TrackShipment();
-                com.projectui.view.login.LoginPage.showRoot(ExporterDashboard.dashboardStage, page.getTrackShipmentScene(this::back).getRoot());
-            }
-        });
+                track.setOnAction(e -> {
+                        if (ExporterDashboard.getInstance() != null) {
+                                ExporterDashboard.getInstance().switchPage("Track Shipment");
+                        } else {
+                                TrackShipment page = new TrackShipment();
+                                com.projectui.view.login.LoginPage.showRoot(ExporterDashboard.dashboardStage,
+                                                page.getTrackShipmentScene(this::back).getRoot());
+                        }
+                });
 
-        return com.projectui.view.login.DashboardLayoutHelper.createSidebar(ExporterDashboard.dashboardStage, "Exporter", "Register Cargo", menuButtons);
-    }
-
-    private void back() {
-        if (ExporterDashboard.getInstance() != null) {
-            ExporterDashboard.getInstance().switchPage("Dashboard");
-        } else {
-            new ExporterDashboard().start(ExporterDashboard.dashboardStage);
+                return com.projectui.view.login.DashboardLayoutHelper.createSidebar(ExporterDashboard.dashboardStage,
+                                "Exporter", "Register Cargo", menuButtons);
         }
-    }
 
-    private HBox createHeader(String pageTitle, String breadcrumb) {
-        Runnable logoutAction = () -> {
-            Logout page = new Logout();
-            page.showLogout();
-        };
-        return com.projectui.view.login.DashboardLayoutHelper.createHeader(
-                ExporterDashboard.dashboardStage,
-                pageTitle,
-                breadcrumb,
-                "Exporter",
-                logoutAction,
-                null);
-    }
+        private void back() {
+                if (ExporterDashboard.getInstance() != null) {
+                        ExporterDashboard.getInstance().switchPage("Dashboard");
+                } else {
+                        new ExporterDashboard().start(ExporterDashboard.dashboardStage);
+                }
+        }
+
+        private HBox createHeader(String pageTitle, String breadcrumb) {
+                Runnable logoutAction = () -> {
+                        Logout page = new Logout();
+                        page.showLogout();
+                };
+                return com.projectui.view.login.DashboardLayoutHelper.createHeader(
+                                ExporterDashboard.dashboardStage,
+                                pageTitle,
+                                breadcrumb,
+                                "Exporter",
+                                logoutAction,
+                                null);
+        }
 }

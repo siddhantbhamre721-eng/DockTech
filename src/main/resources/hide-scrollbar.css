@@ -6,50 +6,37 @@
 
 /* 1. Universal JavaFX ScrollBar containers */
 .scroll-bar,
-.scroll-bar:vertical,
-.scroll-bar:horizontal,
 .scroll-bar:focused,
+.scroll-bar:hover,
+.scroll-bar:pressed,
+.scroll-bar:disabled,
 .scroll-pane > .scroll-bar,
-.scroll-pane > .scroll-bar:vertical,
-.scroll-pane > .scroll-bar:horizontal,
 .table-view .scroll-bar,
 .table-view > .virtual-flow > .scroll-bar,
-.table-view > .virtual-flow > .scroll-bar:vertical,
-.table-view > .virtual-flow > .scroll-bar:horizontal,
 .tree-table-view .scroll-bar,
 .tree-table-view > .virtual-flow > .scroll-bar,
-.tree-table-view > .virtual-flow > .scroll-bar:vertical,
-.tree-table-view > .virtual-flow > .scroll-bar:horizontal,
 .list-view .scroll-bar,
 .list-view > .virtual-flow > .scroll-bar,
-.list-view > .virtual-flow > .scroll-bar:vertical,
-.list-view > .virtual-flow > .scroll-bar:horizontal,
 .tree-view .scroll-bar,
 .tree-view > .virtual-flow > .scroll-bar,
-.tree-view > .virtual-flow > .scroll-bar:vertical,
-.tree-view > .virtual-flow > .scroll-bar:horizontal,
 .text-area .scroll-bar,
-.text-area .scroll-bar:vertical,
-.text-area .scroll-bar:horizontal,
 .combo-box-popup .scroll-bar,
 .combo-box-popup > .list-view > .virtual-flow > .scroll-bar,
 .choice-box-popup .scroll-bar,
 .choice-box-popup > .list-view > .virtual-flow > .scroll-bar,
 .dialog-pane .scroll-bar {
-    -fx-pref-width: 0px;
-    -fx-pref-height: 0px;
-    -fx-max-width: 0px;
-    -fx-max-height: 0px;
-    -fx-min-width: 0px;
-    -fx-min-height: 0px;
     -fx-opacity: 0;
     -fx-background-color: transparent;
     -fx-background-insets: 0;
+    -fx-background-radius: 0;
     -fx-padding: 0;
 }
 
 /* 2. Vertical scrollbar dimensions & appearance */
 .scroll-bar:vertical,
+.scroll-bar:vertical:focused,
+.scroll-bar:vertical:hover,
+.scroll-bar:vertical:pressed,
 .scroll-pane > .scroll-bar:vertical,
 .table-view .scroll-bar:vertical,
 .table-view > .virtual-flow > .scroll-bar:vertical,
@@ -66,11 +53,15 @@
     -fx-opacity: 0;
     -fx-background-color: transparent;
     -fx-background-insets: 0;
+    -fx-background-radius: 0;
     -fx-padding: 0;
 }
 
 /* 3. Horizontal scrollbar dimensions & appearance */
 .scroll-bar:horizontal,
+.scroll-bar:horizontal:focused,
+.scroll-bar:horizontal:hover,
+.scroll-bar:horizontal:pressed,
 .scroll-pane > .scroll-bar:horizontal,
 .table-view .scroll-bar:horizontal,
 .table-view > .virtual-flow > .scroll-bar:horizontal,
@@ -87,6 +78,7 @@
     -fx-opacity: 0;
     -fx-background-color: transparent;
     -fx-background-insets: 0;
+    -fx-background-radius: 0;
     -fx-padding: 0;
 }
 
@@ -107,6 +99,8 @@
 .scroll-bar:vertical > .track-background,
 .scroll-bar:horizontal .track-background,
 .scroll-bar:horizontal > .track-background,
+.scroll-bar:hover .track,
+.scroll-bar:focused .track,
 .table-view .scroll-bar .track,
 .table-view > .virtual-flow > .scroll-bar .track,
 .table-view > .virtual-flow > .scroll-bar > .track,
@@ -125,12 +119,6 @@
     -fx-background-insets: 0;
     -fx-background-radius: 0;
     -fx-padding: 0;
-    -fx-pref-width: 0px;
-    -fx-pref-height: 0px;
-    -fx-max-width: 0px;
-    -fx-max-height: 0px;
-    -fx-min-width: 0px;
-    -fx-min-height: 0px;
     -fx-opacity: 0;
 }
 
@@ -153,6 +141,8 @@
 .scroll-bar:vertical > .thumb:pressed,
 .scroll-bar:horizontal .thumb:pressed,
 .scroll-bar:horizontal > .thumb:pressed,
+.scroll-bar:hover .thumb,
+.scroll-bar:focused .thumb,
 .table-view .scroll-bar .thumb,
 .table-view > .virtual-flow > .scroll-bar .thumb,
 .table-view > .virtual-flow > .scroll-bar > .thumb,
@@ -171,12 +161,6 @@
     -fx-background-insets: 0;
     -fx-background-radius: 0;
     -fx-padding: 0;
-    -fx-pref-width: 0px;
-    -fx-pref-height: 0px;
-    -fx-max-width: 0px;
-    -fx-max-height: 0px;
-    -fx-min-width: 0px;
-    -fx-min-height: 0px;
     -fx-opacity: 0;
 }
 

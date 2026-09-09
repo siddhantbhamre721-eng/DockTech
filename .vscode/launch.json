@@ -1,30 +1,37 @@
-// {
-//     // Use IntelliSense to learn about possible attributes.
-//     // Hover to view descriptions of existing attributes.
-//     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-//     "version": "0.2.0",
-//     "configurations": [
-    
-//         {
-//             "type": "java",
-//             "name": "Current File",
-//             "request": "launch",
-//             "mainClass": "${file}"
-//         },
-//         {
-//             "type": "java",
-//             "name": "Main",
-//             "request": "launch",
-//             "mainClass": "com.projectui.Main",
-//             "projectName": "docktech",
-//             "vmArgs": "--module-path /Users/siddhantsunilbhamre/Desktop/java26/javafx-sdk-21.0.12/lib --add-modules javafx.controls,javafx.fxml,javafx.media"
-//         }
-//     ]
-// }
-
 {
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+    
+        {
+            "type": "java",
+            "name": "Current File",
+            "request": "launch",
+            "mainClass": "${file}"
+        },
+        {
+            "type": "java",
+            "name": "Main",
+            "request": "launch",
+            "mainClass": "com.projectui.Main",
+            "projectName": "docktech",
+            "vmArgs": "--module-path /Users/siddhantsunilbhamre/Desktop/java26/javafx-sdk-21.0.12/lib --add-modules javafx.controls,javafx.fxml,javafx.media"
+        }
+    ]
+}
+
+/*{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "docktech",
+            "request": "launch",
+            "mainClass": "com.projectui.docktech",
+            "projectName": "docktech"
+        },
         {
             "type": "java",
             "name": "ExporterDashboard",
@@ -41,4 +48,4 @@
             "vmArgs": "--module-path \"C:\\Users\\shail\\.m2\\repository\\org\\openjfx\\javafx-controls\\21\\javafx-controls-21-win.jar;C:\\Users\\shail\\.m2\\repository\\org\\openjfx\\javafx-fxml\\21\\javafx-fxml-21-win.jar;C:\\Users\\shail\\.m2\\repository\\org\\openjfx\\javafx-base\\21\\javafx-base-21-win.jar;C:\\Users\\shail\\.m2\\repository\\org\\openjfx\\javafx-graphics\\21\\javafx-graphics-21-win.jar;C:\\Users\\shail\\.m2\\repository\\org\\openjfx\\javafx-media\\21\\javafx-media-21-win.jar;C:\\Users\\shail\\.m2\\repository\\org\\openjfx\\javafx-web\\21\\javafx-web-21-win.jar\" --add-modules javafx.controls,javafx.fxml,javafx.media,javafx.web"
         }
     ]
-}
+}*/

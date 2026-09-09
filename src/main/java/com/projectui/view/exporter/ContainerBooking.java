@@ -348,16 +348,11 @@ public class ContainerBooking {
                                 }
                         }
                 }
-                if (dynamicPorts.isEmpty()) {
-                        dynamicPorts.add("Port of Mumbai");
-                        dynamicPorts.add("Port of Chennai");
-                        dynamicPorts.add("Port of Vizag");
-                        dynamicPorts.add("Port of Kolkata");
-                        dynamicPorts.add("Cochin Port");
-                }
                 preferredPort = combo(dynamicPorts.toArray(new String[0]));
-                if (preferredPort.getItems().contains(currentOrigin)) {
+                if (currentOrigin != null && preferredPort.getItems().contains(currentOrigin)) {
                         preferredPort.setValue(currentOrigin);
+                } else if (!dynamicPorts.isEmpty()) {
+                        preferredPort.setValue(dynamicPorts.get(0));
                 }
 
                 bookingDate = combo(
